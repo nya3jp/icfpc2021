@@ -5,21 +5,23 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::ops::Deref;
 
+pub mod geom;
+
 const ENDPOINT: &str = "https://poses.live";
 
 static API_TOKEN: Lazy<String> =
     Lazy::new(|| std::env::var("API_TOKEN").expect("environment variable API_TOKEN must be set"));
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Problem {
     pub hole: Vec<(i64, i64)>,
     pub figure: Figure,
     pub epsilon: i64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Figure {
-    pub edges: Vec<(i64, i64)>,
+    pub edges: Vec<(usize, usize)>,
     pub vertices: Vec<(i64, i64)>,
 }
 
