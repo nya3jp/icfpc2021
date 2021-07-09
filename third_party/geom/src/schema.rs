@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
-use serde::{Serialize, Deserialize};
 
 use super::point::Point;
 use super::polygon::Polygon;
@@ -15,7 +15,9 @@ pub struct Hole {
 
 impl From<Vec<(i64, i64)>> for Hole {
     fn from(t: Vec<(i64, i64)>) -> Self {
-        Hole{polygon: Polygon::from(t)}
+        Hole {
+            polygon: Polygon::from(t),
+        }
     }
 }
 
@@ -34,7 +36,10 @@ pub struct Edge {
 
 impl From<(i64, i64)> for Edge {
     fn from(t: (i64, i64)) -> Self {
-        Self{v1: t.0 as usize, v2: t.1 as usize}
+        Self {
+            v1: t.0 as usize,
+            v2: t.1 as usize,
+        }
     }
 }
 
@@ -44,13 +49,13 @@ impl From<Edge> for (i64, i64) {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Figure {
     pub vertices: Vec<Point>,
     pub edges: Vec<Edge>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Problem {
     pub hole: Hole,
     pub figure: Figure,
@@ -63,7 +68,7 @@ pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>>
     Ok(serde_json::from_reader(reader)?)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pose {
     pub vertices: Vec<Point>,
 }

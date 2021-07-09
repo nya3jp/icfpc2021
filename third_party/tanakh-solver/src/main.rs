@@ -6,23 +6,35 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use chrono::{Datelike, Timelike};
+use geom::{
+    point::Point,
+    polygon::ContainsResult,
+    schema::{Pose, Problem as P},
+};
 use itertools::Itertools;
-use num_complex::Complex;
 use rand::Rng;
 use sa::*;
-use tanakh_solver::geom::{contains, is_inside_hole, is_valid_solution, ContainsResult};
-use tanakh_solver::{get_problem, Problem, Solution};
+use scorer::{is_inside_hole, is_valid_solution};
+use tanakh_solver::get_problem;
 
-type Pt = Complex<f64>;
-
-pub fn cross(a: &Pt, b: &Pt) -> f64 {
-    (a.conj() * b).im
+#[derive(Clone)]
+struct Problem {
+    problem: P,
+    exact: bool,
 }
 
-/// Signed area of triangle
-pub fn triangle_area_signed(a: &Pt, b: &Pt, c: &Pt) -> f64 {
-    cross(&(b - a), &(c - a)) / 2.0
-}
+// use tanakh_solver::geom::{contains, is_inside_hole, is_valid_solution, ContainsResult};
+
+// type Pt = Complex<f64>;
+
+// pub fn cross(a: &Pt, b: &Pt) -> f64 {
+//     (a.conj() * b).im
+// }
+
+// /// Signed area of triangle
+// pub fn triangle_area_signed(a: &Pt, b: &Pt, c: &Pt) -> f64 {
+//     cross(&(b - a), &(c - a)) / 2.0
+// }
 
 fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
     (p1.0 - p2.0, p1.1 - p2.1)
@@ -33,9 +45,9 @@ fn norm_sqr(p: &(i64, i64)) -> i64 {
 }
 
 impl Annealer for Problem {
-    type State = Vec<(i64, i64)>;
+    type State = Pose;
 
-    type Move = (usize, (i64, i64));
+    type Move = (usize, Point);
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
         // let ix = rng.gen_range(0..self.hole.len());
@@ -53,25 +65,33 @@ impl Annealer for Problem {
             let mut miny = i64::MAX;
             let mut maxy = i64::MIN;
 
-            for &(x, y) in self.hole.iter() {
-                minx = min(minx, x);
-                maxx = max(maxx, x);
-                miny = min(miny, y);
-                maxy = max(maxy, y);
+            for p in self.problem.hole.polygon.vertices.iter() {
+                minx = min(minx, p.x as i64);
+                maxx = max(maxx, p.x as i64);
+                miny = min(miny, p.y as i64);
+                maxy = max(maxy, p.y as i64);
             }
 
-            let ret = (0..self.figure.vertices.len())
+            let ret = (0..self.problem.figure.vertices.len())
                 .map(|_| loop {
                     let x = rng.gen_range(minx..=maxx);
                     let y = rng.gen_range(miny..=maxy);
 
-                    if contains(&self.hole, &(x, y)) != ContainsResult::OUT {
-                        break (x, y);
+                    if self
+                        .problem
+                        .hole
+                        .polygon
+                        .contains(&Point::new(x as _, y as _))
+                        != ContainsResult::OUT
+                    {
+                        break Point::new(x as _, y as _);
                     }
                 })
                 .collect_vec();
 
-            if is_inside_hole(self, &ret) {
+            let ret = Pose { vertices: ret };
+
+            if is_inside_hole(&self.problem, &ret) {
                 break ret;
             }
         }
@@ -89,11 +109,14 @@ impl Annealer for Problem {
         let mut score = 0.0;
         let mut pena = 0.0;
 
-        let eps = self.epsilon as f64 / 1_000_000.0;
+        let eps = self.problem.epsilon as f64 / 1_000_000.0;
 
-        for &(i, j) in self.figure.edges.iter() {
-            let d1 = norm_sqr(&pt_sub(&state[i], &state[j]));
-            let d2 = norm_sqr(&pt_sub(&self.figure.vertices[i], &self.figure.vertices[j]));
+        for edge in self.problem.figure.edges.iter() {
+            let i = edge.v1;
+            let j = edge.v2;
+
+            let d1 = (state.vertices[i] - state.vertices[j]).norm_sqr();
+            let d2 = (self.problem.figure.vertices[i] - self.problem.figure.vertices[j]).norm_sqr();
             let err = ((d1 as f64 / d2 as f64) - 1.0).abs();
 
             if err <= eps {
@@ -105,8 +128,12 @@ impl Annealer for Problem {
             pena += (err / eps).powf(1.0);
         }
 
-        for h in self.hole.iter() {
-            score += state.iter().map(|v| norm_sqr(&pt_sub(v, h))).min().unwrap() as f64
+        for h in self.problem.hole.polygon.vertices.iter() {
+            score += state
+                .vertices
+                .iter()
+                .map(|v| (*v - *h).norm_sqr())
+                .fold(0.0 / 0.0, f64::min);
         }
 
         score * (1.0 + pena / 10.0) + pena * 500.0
@@ -122,7 +149,7 @@ impl Annealer for Problem {
         let w = max(2, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
         loop {
-            let i = rng.gen_range(0..state.len());
+            let i = rng.gen_range(0..state.vertices.len());
 
             if !self.exact {
                 let dx = rng.gen_range(-w..=w);
@@ -131,50 +158,45 @@ impl Annealer for Problem {
                     continue;
                 }
 
-                state[i].0 += dx;
-                state[i].1 += dy;
+                state.vertices[i].x += dx as f64;
+                state.vertices[i].y += dy as f64;
 
-                let ok = is_inside_hole(self, &state);
+                let ok = is_inside_hole(&self.problem, &state);
 
-                state[i].0 -= dx;
-                state[i].1 -= dy;
+                state.vertices[i].x -= dx as f64;
+                state.vertices[i].y -= dy as f64;
 
                 if !ok {
                     continue;
                 }
 
-                break (i, (dx, dy));
+                break (i, Point::new(dx as _, dy as _));
             } else {
-                let j = rng.gen_range(0..self.hole.len());
-                if state[i] == self.hole[j] {
+                let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
+                if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
                     continue;
                 }
 
-                let t = state[i];
-                state[i] = self.hole[j];
-                let ok = is_inside_hole(self, &state);
-                state[i] = t;
+                let t = state.vertices[i];
+                state.vertices[i] = self.problem.hole.polygon.vertices[j];
+                let ok = is_inside_hole(&self.problem, &state);
+                state.vertices[i] = t;
 
                 if !ok {
                     continue;
                 }
 
-                break (
-                    i,
-                    (self.hole[j].0 - state[i].0, self.hole[j].1 - state[i].1),
-                );
+                break (i, self.problem.hole.polygon.vertices[j] - state.vertices[i]);
             }
         }
     }
 
     fn apply(&self, state: &mut Self::State, mov: &Self::Move) {
-        state[mov.0].0 += mov.1 .0;
-        state[mov.0].1 += mov.1 .1;
+        state.vertices[mov.0] += mov.1;
     }
 
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move) {
-        state[mov.0].0 -= mov.1 .0;
-        state[mov.0].1 -= mov.1 .1;
+        state.vertices[mov.0] -= mov.1;
     }
 }
 
@@ -205,8 +227,8 @@ fn solve(
 ) -> Result<()> {
     let seed = rand::thread_rng().gen();
 
-    let mut problem = get_problem(problem_id)?;
-    problem.exact = exact;
+    let problem: P = get_problem(problem_id)?;
+    let problem = Problem { problem, exact };
 
     let (score, solution) = annealing(
         &problem,
@@ -220,8 +242,6 @@ fn solve(
         seed,
     );
 
-    let solution = Solution { vertices: solution };
-
     if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
         eprintln!("Cannot find solution");
         eprintln!(
@@ -232,7 +252,7 @@ fn solve(
         return Ok(());
     }
 
-    if !is_valid_solution(&problem, &solution.vertices) {
+    if !is_valid_solution(&problem.problem, &solution) {
         eprintln!("Validation failed");
         eprintln!(
             "Wrong solution: score = {}, {}",
@@ -289,8 +309,9 @@ fn max_scores() -> Result<()> {
     for pid in 1..=59 {
         let problem = get_problem(pid)?;
         let max_score = 1000.0
-            * ((problem.figure.vertices.len() * problem.figure.edges.len() * problem.hole.len())
-                as f64
+            * ((problem.figure.vertices.len()
+                * problem.figure.edges.len()
+                * problem.hole.polygon.vertices.len()) as f64
                 / 6.0)
                 .log2();
 
