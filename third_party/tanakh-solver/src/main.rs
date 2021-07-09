@@ -15,7 +15,7 @@ use easy_scraper::Pattern;
 use geom::{
     point::Point,
     polygon::ContainsResult,
-    schema::{Pose, Problem as P},
+    schema::{Edge, Pose, Problem as P},
 };
 use itertools::Itertools;
 use rand::Rng;
@@ -35,7 +35,7 @@ struct Problem {
 impl Annealer for Problem {
     type State = Pose;
 
-    type Move = (usize, Point);
+    type Move = Vec<(usize, Point)>;
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
         // let ix = rng.gen_range(0..self.hole.len());
@@ -113,7 +113,7 @@ impl Annealer for Problem {
 
             // score += 500.0 * (err / eps);
             // score += 1000.0 * (err / eps).powi(2);
-            pena += (err / eps).powf(1.0);
+            pena += err / eps;
         }
 
         for h in self.problem.hole.polygon.vertices.iter() {
@@ -124,7 +124,7 @@ impl Annealer for Problem {
                 .fold(0.0 / 0.0, f64::min);
         }
 
-        score * (1.0 + pena / 10.0) + pena * 500.0
+        score * (1.0 + pena / 10.0) + pena * 100.0
         // score
     }
 
@@ -134,32 +134,11 @@ impl Annealer for Problem {
         rng: &mut impl rand::Rng,
         progress_ratio: f64,
     ) -> Self::Move {
-        let w = max(2, (4.0 * (1.0 - progress_ratio)).round() as i64);
+        let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
-        loop {
-            let i = rng.gen_range(0..state.vertices.len());
-
-            if !self.exact {
-                let dx = rng.gen_range(-w..=w);
-                let dy = rng.gen_range(-w..=w);
-                if (dx, dy) == (0, 0) {
-                    continue;
-                }
-
-                state.vertices[i].x += dx as f64;
-                state.vertices[i].y += dy as f64;
-
-                let ok = is_inside_hole(&self.problem, &state);
-
-                state.vertices[i].x -= dx as f64;
-                state.vertices[i].y -= dy as f64;
-
-                if !ok {
-                    continue;
-                }
-
-                break (i, Point::new(dx as _, dy as _));
-            } else {
+        if self.exact {
+            loop {
+                let i = rng.gen_range(0..state.vertices.len());
                 let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
                 if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
                     continue;
@@ -174,17 +153,133 @@ impl Annealer for Problem {
                     continue;
                 }
 
-                break (i, self.problem.hole.polygon.vertices[j] - state.vertices[i]);
+                return vec![(i, self.problem.hole.polygon.vertices[j] - state.vertices[i])];
+            }
+        }
+
+        loop {
+            match rng.gen_range(0..3) {
+                0 => {
+                    let i = rng.gen_range(0..state.vertices.len());
+
+                    let dx = rng.gen_range(-w..=w);
+                    let dy = rng.gen_range(-w..=w);
+                    if (dx, dy) == (0, 0) {
+                        continue;
+                    }
+
+                    let d = Point::new(dx as _, dy as _);
+
+                    state.vertices[i] += d;
+
+                    let ok = is_inside_hole(&self.problem, &state);
+
+                    state.vertices[i] -= d;
+
+                    if ok {
+                        break vec![(i, d)];
+                    }
+                }
+                1 => {
+                    let i = rng.gen_range(0..state.vertices.len());
+                    let j = rng.gen_range(0..state.vertices.len());
+                    if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                        continue;
+                    }
+
+                    let dx = rng.gen_range(-w..=w);
+                    let dy = rng.gen_range(-w..=w);
+                    if (dx, dy) == (0, 0) {
+                        continue;
+                    }
+
+                    let d1 = Point::new(dx as _, dy as _);
+
+                    // let dx = rng.gen_range(-w..=w);
+                    // let dy = rng.gen_range(-w..=w);
+                    // if (dx, dy) == (0, 0) {
+                    //     continue;
+                    // }
+
+                    // let d2 = Point::new(dx as _, dy as _);
+
+                    let d2 = d1;
+
+                    state.vertices[i] += d1;
+                    state.vertices[j] += d2;
+
+                    let ok = is_inside_hole(&self.problem, &state);
+
+                    state.vertices[i] -= d1;
+                    state.vertices[j] -= d2;
+
+                    if ok {
+                        break vec![(i, d1), (j, d2)];
+                    }
+                }
+                2 => {
+                    let i = rng.gen_range(0..state.vertices.len());
+                    let j = rng.gen_range(0..state.vertices.len());
+                    let k = rng.gen_range(0..state.vertices.len());
+                    if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                        continue;
+                    }
+                    if !self.problem.figure.edges.contains(&Edge::new(j, k)) {
+                        continue;
+                    }
+                    if !self.problem.figure.edges.contains(&Edge::new(k, i)) {
+                        continue;
+                    }
+
+                    let dx = rng.gen_range(-w..=w);
+                    let dy = rng.gen_range(-w..=w);
+                    if (dx, dy) == (0, 0) {
+                        continue;
+                    }
+
+                    let d1 = Point::new(dx as _, dy as _);
+
+                    // let dx = rng.gen_range(-w..=w);
+                    // let dy = rng.gen_range(-w..=w);
+                    // if (dx, dy) == (0, 0) {
+                    //     continue;
+                    // }
+
+                    // let d2 = Point::new(dx as _, dy as _);
+
+                    let d2 = d1;
+                    let d3 = d1;
+
+                    state.vertices[i] += d1;
+                    state.vertices[j] += d2;
+                    state.vertices[k] += d3;
+
+                    let ok = is_inside_hole(&self.problem, &state);
+
+                    state.vertices[i] -= d1;
+                    state.vertices[j] -= d2;
+                    state.vertices[k] -= d3;
+
+                    if ok {
+                        break vec![(i, d1), (j, d2), (k, d3)];
+                    }
+                }
+
+                _ => unreachable!(),
             }
         }
     }
 
     fn apply(&self, state: &mut Self::State, mov: &Self::Move) {
-        state.vertices[mov.0] += mov.1;
+        for (i, v) in mov.iter() {
+            state.vertices[*i] += *v;
+        }
     }
 
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move) {
-        state.vertices[mov.0] -= mov.1;
+        for (i, v) in mov.iter() {
+            state.vertices[*i] -= *v;
+        }
     }
 }
 

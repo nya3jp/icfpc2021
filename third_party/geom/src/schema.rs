@@ -27,11 +27,17 @@ impl From<Hole> for Vec<(i64, i64)> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(from = "(i64, i64)", into = "(i64, i64)")]
 pub struct Edge {
     pub v1: usize,
     pub v2: usize,
+}
+
+impl Edge {
+    pub fn new(v1: usize, v2: usize) -> Self {
+        Self { v1, v2 }
+    }
 }
 
 impl From<(i64, i64)> for Edge {
