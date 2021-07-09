@@ -56,6 +56,7 @@ class UI {
         this.drawHole(ctx);
         this.drawPose(ctx);
         this.output.value = JSON.stringify({vertices: this.pose});
+        this.updateDislike();
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
@@ -135,6 +136,21 @@ class UI {
         const parsed = JSON.parse(this.output.value);
         this.pose = parsed['vertices'];
         this.draw();
+    }
+
+    private updateDislike() {
+        const dislike: HTMLDivElement = document.getElementById("dislike") as HTMLDivElement;
+        dislike.textContent = this.calculateDislike().toString();
+    }
+
+    private calculateDislike() {
+        let dislike = 0;
+        for (var h of this.problem.hole) {
+            dislike += this.pose
+                .map(p => distance(p, h))
+                .reduce((p, c) => Math.min(p, c))
+        }
+        return dislike;
     }
 }
 
