@@ -13,5 +13,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     eprintln!("Solution {:?}", pose);
     let score = scorer::dislike(&problem.hole, &pose);
     eprintln!("dislike = {:?}", score);
+    eprintln!("is_valid = {:?}", scorer::is_valid_solution(&problem, &pose));
     Ok(())
 }
