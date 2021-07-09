@@ -34,7 +34,7 @@ jobs:
     - name: Download
       uses: actions/download-artifact@v2
       with:
-        name: file
+        name: files
         path: ~/docs/fcc7938b3c545e6ff51b101ea86f548b
 
     - name: Publish
