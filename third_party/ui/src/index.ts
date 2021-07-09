@@ -29,6 +29,7 @@ class UI {
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
+        private readonly output: HTMLTextAreaElement,
         private problem: Problem,
         private readonly translator: Translator = new Translator()) {
         this.pose = [...problem.figure.vertices];
@@ -53,6 +54,7 @@ class UI {
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawHole(ctx);
         this.drawFigure(ctx);
+        this.output.textContent = JSON.stringify({vertices: this.pose});
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
@@ -152,6 +154,7 @@ const theFirstProblem = {"hole":[[45,80],[35,95],[5,95],[35,50],[5,5],[35,5],[95
 
 const ui = new UI(
     document.getElementById('canvas') as HTMLCanvasElement,
+    document.getElementById('output') as HTMLTextAreaElement,
     theFirstProblem
 );
 ui.start()
