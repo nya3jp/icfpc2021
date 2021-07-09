@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use chrono::{Datelike, Timelike};
 use easy_scraper::Pattern;
 use geom::{
@@ -227,6 +227,7 @@ fn solve(
             restart,
             threads,
             silent: false,
+            header: format!("Problem {}: ", problem_id),
         },
         seed,
     );
@@ -273,10 +274,24 @@ fn solve(
         serde_json::to_string(&solution)?,
     )?;
 
-    if !no_submit
-        && dialoguer::Confirm::new()
-            .with_prompt("Submit?")
-            .interact()?
+    if no_submit {
+        return Ok(());
+    }
+
+    let problems = get_problem_states()?;
+    let problem = problems
+        .iter()
+        .find(|r| r.problem_id == problem_id)
+        .ok_or_else(|| anyhow!("Problem {} is not found", problem_id))?;
+
+    eprintln!(
+        "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
+        score as i64, problem.your_dislikes, problem.minimal_dislikes
+    );
+
+    if dialoguer::Confirm::new()
+        .with_prompt("Submit?")
+        .interact()?
     {
         eprintln!("Submitting");
 
@@ -321,7 +336,8 @@ fn load_cookie_store(session_file: impl AsRef<Path>, endpoint: &str) -> Result<J
 
     if f.is_err() {
         // eprintln!("Session file not found. start new session.");
-        return Ok(jar);
+        // return Ok(jar);
+        bail!("session.txt not found. Please login first.");
     }
 
     for line in BufReader::new(f.unwrap()).lines() {
@@ -369,8 +385,17 @@ fn login() -> Result<()> {
     Ok(())
 }
 
-#[argopt::subcmd]
-fn list() -> Result<()> {
+struct ProblemState {
+    problem_id: i64,
+    your_dislikes: i64,
+    minimal_dislikes: i64,
+    point_ratio: f64,
+    max_score: i64,
+    your_score: i64,
+    remaining_score: i64,
+}
+
+fn get_problem_states() -> Result<Vec<ProblemState>> {
     let cookie_store = Arc::new(load_cookie_store("session.txt", ENDPOINT)?);
 
     let client = ClientBuilder::new()
@@ -396,16 +421,6 @@ fn list() -> Result<()> {
     )
     .unwrap();
 
-    struct ProblemState {
-        problem_id: i64,
-        your_dislikes: i64,
-        minimal_dislikes: i64,
-        point_ratio: f64,
-        max_score: i64,
-        your_score: i64,
-        remaining_score: i64,
-    }
-
     let mut problems = vec![];
 
     for m in pat.matches(&resp) {
@@ -415,7 +430,9 @@ fn list() -> Result<()> {
 
         let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
 
-        let problem = get_problem(problem_id)?;
+        let problem: P =
+            serde_json::from_reader(File::open(format!("../problems/{}.problem", problem_id))?)?;
+
         let max_score = (1000.0
             * ((problem.figure.vertices.len()
                 * problem.figure.edges.len()
@@ -435,18 +452,14 @@ fn list() -> Result<()> {
             your_score,
             remaining_score,
         });
-
-        // println!(
-        //     "{}: {}, {}, {}, {}, {}, {}",
-        //     problem_id,
-        //     your_dislikes,
-        //     minimal_dislikes,
-        //     max_score,
-        //     your_score,
-        //     point_ratio,
-        //     remaining_score,
-        // );
     }
+
+    Ok(problems)
+}
+
+#[argopt::subcmd]
+fn list() -> Result<()> {
+    let mut problems = get_problem_states()?;
 
     problems.sort_by_key(|r| Reverse(r.remaining_score));
 
@@ -456,30 +469,19 @@ fn list() -> Result<()> {
         "pid",
         "your",
         "best",
-        "max score",
         "point ratio",
+        "max score",
         "your score",
         "remaining",
     ]);
 
     for p in problems.iter() {
-        // println!(
-        //     "{:3}: your = {:5}, best = {:5}, score = {:5}, ratio: {:05.2}, your score = {:5}, remaining = {:5}",
-        //     p.problem_id,
-        //     p.your_dislikes,
-        //     p.minimal_dislikes,
-        //     p.max_score,
-        //     p.point_ratio,
-        //     p.your_score,
-        //     p.remaining_score,
-        // );
-
         table.add_row(row![
             p.problem_id,
             p.your_dislikes,
             p.minimal_dislikes,
-            p.max_score,
             format!("{:.2}%", p.point_ratio * 100.0),
+            p.max_score,
             p.your_score,
             p.remaining_score
         ]);

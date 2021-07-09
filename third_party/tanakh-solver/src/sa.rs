@@ -8,6 +8,7 @@ pub struct AnnealingOptions {
     pub restart: usize,
     pub threads: usize,
     pub silent: bool,
+    pub header: String,
 }
 
 pub trait Annealer {
@@ -87,6 +88,7 @@ fn do_annealing<A: Annealer>(
                 if let Some(tid) = thread_id {
                     eprint!("[{:02}] ", tid);
                 }
+                eprint!("{}", opt.header);
                 eprintln!($($arg),*);
             }
         };
