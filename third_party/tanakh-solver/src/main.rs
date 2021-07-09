@@ -1,6 +1,6 @@
 mod sa;
 
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
@@ -8,8 +8,9 @@ use anyhow::Result;
 use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use num_complex::Complex;
+use rand::Rng;
 use sa::*;
-use tanakh_solver::geom::is_inside_hole;
+use tanakh_solver::geom::{contains, is_inside_hole, is_valid_solution, ContainsResult};
 use tanakh_solver::{get_problem, Problem, Solution};
 
 type Pt = Complex<f64>;
@@ -37,14 +38,43 @@ impl Annealer for Problem {
     type Move = (usize, (i64, i64));
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
-        let ix = rng.gen_range(0..self.hole.len());
+        // let ix = rng.gen_range(0..self.hole.len());
 
-        (0..self.figure.vertices.len())
-            .map(|_| {
-                /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-                self.hole[ix].clone()
-            })
-            .collect_vec()
+        // (0..self.figure.vertices.len())
+        //     .map(|_| {
+        //         /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
+        //         self.hole[ix].clone()
+        //     })
+        //     .collect_vec()
+
+        loop {
+            let mut minx = i64::MAX;
+            let mut maxx = i64::MIN;
+            let mut miny = i64::MAX;
+            let mut maxy = i64::MIN;
+
+            for &(x, y) in self.hole.iter() {
+                minx = min(minx, x);
+                maxx = max(maxx, x);
+                miny = min(miny, y);
+                maxy = max(maxy, y);
+            }
+
+            let ret = (0..self.figure.vertices.len())
+                .map(|_| loop {
+                    let x = rng.gen_range(minx..=maxx);
+                    let y = rng.gen_range(miny..=maxy);
+
+                    if contains(&self.hole, &(x, y)) != ContainsResult::OUT {
+                        break (x, y);
+                    }
+                })
+                .collect_vec();
+
+            if is_inside_hole(self, &ret) {
+                break ret;
+            }
+        }
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
@@ -57,6 +87,7 @@ impl Annealer for Problem {
 
     fn eval(&self, state: &Self::State) -> f64 {
         let mut score = 0.0;
+        let mut pena = 0.0;
 
         let eps = self.epsilon as f64 / 1_000_000.0;
 
@@ -69,14 +100,17 @@ impl Annealer for Problem {
                 continue;
             }
 
-            score += 500.0 * (err / eps);
+            // score += 500.0 * (err / eps);
+            // score += 1000.0 * (err / eps).powi(2);
+            pena += (err / eps).powf(1.0);
         }
 
         for h in self.hole.iter() {
             score += state.iter().map(|v| norm_sqr(&pt_sub(v, h))).min().unwrap() as f64
         }
 
-        score
+        score * (1.0 + pena / 10.0) + pena * 500.0
+        // score
     }
 
     fn neighbour(
@@ -169,6 +203,8 @@ fn solve(
     #[opt(long)] submit: bool,
     problem_id: i64,
 ) -> Result<()> {
+    let seed = rand::thread_rng().gen();
+
     let mut problem = get_problem(problem_id)?;
     problem.exact = exact;
 
@@ -176,19 +212,33 @@ fn solve(
         &problem,
         &AnnealingOptions {
             time_limit,
-            limit_temp: 0.1,
+            limit_temp: 1.0,
             restart,
             threads,
             silent: false,
         },
-        777,
+        seed,
     );
 
     let solution = Solution { vertices: solution };
 
     if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
         eprintln!("Cannot find solution");
-        eprintln!("Wrong solution: {}", serde_json::to_string(&solution)?);
+        eprintln!(
+            "Wrong solution: score = {}, {}",
+            score,
+            serde_json::to_string(&solution)?
+        );
+        return Ok(());
+    }
+
+    if !is_valid_solution(&problem, &solution.vertices) {
+        eprintln!("Validation failed");
+        eprintln!(
+            "Wrong solution: score = {}, {}",
+            score,
+            serde_json::to_string(&solution)?
+        );
         return Ok(());
     }
 
