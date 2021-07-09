@@ -1,0 +1,14 @@
+[package]
+name = "tanakh-solver"
+version = "0.1.0"
+authors = ["Hideyuki Tanaka <tanaka.hideyuki@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.41"
+once_cell = "1.8.0"
+reqwest = { version = "0.11.4", features = ["blocking", "json"] }
+serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.64"
