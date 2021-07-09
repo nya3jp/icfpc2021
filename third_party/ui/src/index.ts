@@ -32,6 +32,7 @@ class UI {
     constructor(
         private readonly canvas: HTMLCanvasElement,
         private readonly output: HTMLTextAreaElement,
+        private readonly zoom: HTMLInputElement,
         private problemId: number = 0,
         private readonly translator: Translator = new Translator()) {
     }
@@ -40,6 +41,7 @@ class UI {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
+        this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
         this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
         this.draw();
     }
@@ -149,6 +151,11 @@ class UI {
         this.draw();
     }
 
+    private onZoomChanged(ev: Event) {
+        this.translator.zoom = parseFloat(this.zoom.value);
+        this.draw();
+    }
+
     private async onOutputChanged(ev: Event) {
         const parsed = JSON.parse(this.output.value);
         const problemId = parsed['problem_id'];
@@ -205,6 +212,7 @@ class ProblemDropDownMenu {
 const ui = new UI(
     document.getElementById('canvas') as HTMLCanvasElement,
     document.getElementById('output') as HTMLTextAreaElement,
+    document.getElementById('zoom') as HTMLInputElement,
 );
 ui.start();
 ui.loadProblem(1);
