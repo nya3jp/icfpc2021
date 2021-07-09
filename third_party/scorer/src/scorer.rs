@@ -18,12 +18,14 @@ pub fn dislike(hole: &Hole, pose: &Pose) -> usize {
 pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
     // The vertices in pose should match with figure.
     if problem.figure.vertices.len() != pose.vertices.len() {
+        eprintln!("Edge mismatch: {:?}, {:?}", problem.figure.vertices.len(), pose.vertices.len());
         return false;
     }
 
     // All points should be contained in the hole.
     for p in &pose.vertices {
         if problem.hole.polygon.contains(&Point::from(*p)) == ContainsResult::OUT {
+            eprintln!("Point {:?} is not contained in hole:", Point::from(*p));
             return false;
         }
     }
@@ -36,12 +38,14 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
             let h1 = Point::from(problem.hole.polygon.vertices[i]);
             let h2 = Point::from(problem.hole.polygon.vertices[(i + 1) % problem.hole.polygon.vertices.len()]);
             if is_crossing(&p1, &p2, &h1, &h2) {
+                eprintln!("Point {:?} {:?} is crossing with {:?} {:?}", p1, p2, h1, h2);
                 return false;
             }
         }
         // All mid points should be contained in the hole.
         let mid = (p1 + p2) / 2.;
         if problem.hole.polygon.contains(&mid) == ContainsResult::OUT {
+            eprintln!("Mid point {:?} is not contained in the hole", mid);
             return false;
         }
     }
@@ -55,19 +59,22 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
         let q2 = pose.vertices[edge.v2];
         let d2 = distance(&q1, &q2);
         // if d1 < d2
-        //   | d1/d2 - 1 | = 1 - d1/d2.
-        //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d2
+        //   | d2/d1 - 1 | = d2/d1 - 1.
+        //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
         // else
-        //   | d1/d2 - 1 | = d1/d2 - 1
-        //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d2
+        //   | d2/d1 - 1 | = 1 - d2/d1
+        //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
         let lhs =
             if d1 < d2 {
                 d2 * 1000000 - d1 * 1000000
             } else {
                 d1 * 1000000 - d2 * 1000000
             };
-        let rhs = problem.epsilon as usize * d2;
-        if lhs > rhs { return false; }
+        let rhs = problem.epsilon as usize * d1;
+        if lhs > rhs {
+            eprintln!("Invalid stretch: {:?}/{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}", d1, d2, p1, p2, q1, q2, lhs, rhs);
+            return false;
+        }
     }
 
     true
