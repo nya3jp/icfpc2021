@@ -51,6 +51,7 @@ func (s *server) handleTopLevel(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleSolutionSetsList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	ret, err := s.mgr.GetRecentSolutionSets(0, 10)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -61,6 +62,7 @@ func (s *server) handleSolutionSetsList(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *server) handleSolutionSetsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	vars := mux.Vars(r)
 	ret, err := s.mgr.GetSolutionSet(vars["solution_set"])
 	if err != nil {
@@ -72,6 +74,7 @@ func (s *server) handleSolutionSetsGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleProblemsSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	vars := mux.Vars(r)
 	bs, err := s.mgr.GetSolution(vars["problem_id"], vars["solution_id"])
 	if err != nil {
@@ -86,6 +89,7 @@ func (s *server) handleProblemsSolutionsGet(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *server) handleProblemsSolutionsMetaGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	vars := mux.Vars(r)
 	solution, err := s.mgr.GetSolutionMetadata(vars["problem_id"], vars["solution_id"])
 	if err != nil {
@@ -97,6 +101,7 @@ func (s *server) handleProblemsSolutionsMetaGet(w http.ResponseWriter, r *http.R
 }
 
 func (s *server) handleSolutionsList(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	solutions, err := s.mgr.GetRecentSolutions(0, 10)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -107,6 +112,7 @@ func (s *server) handleSolutionsList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
