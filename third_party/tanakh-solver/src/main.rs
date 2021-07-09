@@ -1,5 +1,6 @@
 mod sa;
 
+use std::cmp::max;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
@@ -36,10 +37,12 @@ impl Annealer for Problem {
     type Move = (usize, (i64, i64));
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
+        let ix = rng.gen_range(0..self.hole.len());
+
         (0..self.figure.vertices.len())
             .map(|_| {
                 /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-                self.hole[0].clone()
+                self.hole[ix].clone()
             })
             .collect_vec()
     }
@@ -66,7 +69,7 @@ impl Annealer for Problem {
                 continue;
             }
 
-            score += err / eps * 1000.0;
+            score += 500.0 * (err / eps);
         }
 
         for h in self.hole.iter() {
@@ -76,28 +79,57 @@ impl Annealer for Problem {
         score
     }
 
-    fn neighbour(&self, state: &mut Self::State, rng: &mut impl rand::Rng) -> Self::Move {
+    fn neighbour(
+        &self,
+        state: &mut Self::State,
+        rng: &mut impl rand::Rng,
+        progress_ratio: f64,
+    ) -> Self::Move {
+        let w = max(2, (4.0 * (1.0 - progress_ratio)).round() as i64);
+
         loop {
             let i = rng.gen_range(0..state.len());
-            let dx = rng.gen_range(-4..=4);
-            let dy = rng.gen_range(-4..=4);
-            if (dx, dy) == (0, 0) {
-                continue;
+
+            if !self.exact {
+                let dx = rng.gen_range(-w..=w);
+                let dy = rng.gen_range(-w..=w);
+                if (dx, dy) == (0, 0) {
+                    continue;
+                }
+
+                state[i].0 += dx;
+                state[i].1 += dy;
+
+                let ok = is_inside_hole(self, &state);
+
+                state[i].0 -= dx;
+                state[i].1 -= dy;
+
+                if !ok {
+                    continue;
+                }
+
+                break (i, (dx, dy));
+            } else {
+                let j = rng.gen_range(0..self.hole.len());
+                if state[i] == self.hole[j] {
+                    continue;
+                }
+
+                let t = state[i];
+                state[i] = self.hole[j];
+                let ok = is_inside_hole(self, &state);
+                state[i] = t;
+
+                if !ok {
+                    continue;
+                }
+
+                break (
+                    i,
+                    (self.hole[j].0 - state[i].0, self.hole[j].1 - state[i].1),
+                );
             }
-
-            state[i].0 += dx;
-            state[i].1 += dy;
-
-            let ok = is_inside_hole(self, &state);
-
-            state[i].0 -= dx;
-            state[i].1 -= dy;
-
-            if !ok {
-                continue;
-            }
-
-            break (i, (dx, dy));
         }
     }
 
@@ -124,17 +156,28 @@ fn solve(
     #[opt(long, default_value = "1")]
     threads: usize,
 
+    /// number of restart
+    //
+    #[opt(long, default_value = "1")]
+    restart: usize,
+
+    /// search only optimal solution
+    //
+    #[opt(long)]
+    exact: bool,
+
     #[opt(long)] submit: bool,
     problem_id: i64,
 ) -> Result<()> {
-    let problem = get_problem(problem_id)?;
+    let mut problem = get_problem(problem_id)?;
+    problem.exact = exact;
 
     let (score, solution) = annealing(
         &problem,
         &AnnealingOptions {
             time_limit,
             limit_temp: 0.1,
-            restart: 1,
+            restart,
             threads,
             silent: false,
         },

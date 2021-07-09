@@ -17,6 +17,9 @@ pub struct Problem {
     pub hole: Vec<(i64, i64)>,
     pub figure: Figure,
     pub epsilon: i64,
+
+    #[serde(skip)]
+    pub exact: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

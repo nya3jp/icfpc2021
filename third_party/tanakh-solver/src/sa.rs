@@ -23,7 +23,12 @@ pub trait Annealer {
 
     fn eval(&self, state: &Self::State) -> f64;
 
-    fn neighbour(&self, state: &mut Self::State, rng: &mut impl Rng) -> Self::Move;
+    fn neighbour(
+        &self,
+        state: &mut Self::State,
+        rng: &mut impl Rng,
+        progress_ratio: f64,
+    ) -> Self::Move;
 
     fn apply(&self, state: &mut Self::State, mov: &Self::Move);
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move);
@@ -94,30 +99,28 @@ fn do_annealing<A: Annealer>(
     let t_max = annealer.start_temp(cur_score);
     let t_min = opt.limit_temp;
 
-    let timer = SystemTime::now();
+    let mut timer = SystemTime::now();
+    let time_limit = opt.time_limit;
 
     let mut temp = t_max;
     let mut progress_ratio = 0.0;
     for i in 0.. {
         if i % 100 == 0 {
-            progress_ratio = timer.elapsed().unwrap().as_secs_f64() / opt.time_limit;
+            progress_ratio = timer.elapsed().unwrap().as_secs_f64() / time_limit;
             if progress_ratio >= 1.0 {
-                break;
+                restart_cnt += 1;
+                if restart_cnt >= opt.restart {
+                    break;
+                }
+                progress!("Restarting... {}/{}", restart_cnt, opt.restart);
+
+                timer = SystemTime::now(); // - Duration::from_secs_f64(time_limit / 2.0);
             }
 
             temp = t_max * (t_min / t_max).powf(progress_ratio);
         }
 
-        if temp < t_min {
-            restart_cnt += 1;
-            if restart_cnt >= opt.restart {
-                break;
-            }
-            progress!("Restarting... {}/{}", restart_cnt, opt.restart);
-            temp = t_max;
-        }
-
-        let mov = annealer.neighbour(&mut state, &mut rng);
+        let mov = annealer.neighbour(&mut state, &mut rng, progress_ratio);
         let new_score = annealer.apply_and_eval(&mut state, &mov, cur_score);
 
         if new_score <= cur_score
