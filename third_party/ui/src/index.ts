@@ -1,7 +1,15 @@
 import {Figure, Hole, Point, Problem} from './types';
 import { fetch_problem } from './problem_fetcher';
 
-const theProblem: Problem = fetch_problem(0);
+function distance(p: Point, q: Point) {
+    const dx = p[0] - q[0];
+    const dy = p[1] - q[1];
+    return dx * dx + dy * dy;
+}
+
+function roundPoint(p: Point): Point {
+    return [Math.round(p[0]), Math.round(p[1])];
+}
 
 class Translator {
     constructor(public zoom: number = 5.0) {}
@@ -16,63 +24,100 @@ class Translator {
 }
 
 class UI {
-    private draggingVertex?: number;
+    private pose: Point[];
+    private draggingVertex: number | null = null;
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
         private readonly problem: Problem,
         private readonly translator: Translator = new Translator()) {
+        this.pose = [...problem.figure.vertices];
     }
 
-    start() {
+    public start() {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
+        this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
         this.draw();
     }
 
-    draw() {
+    private draw() {
         const ctx = this.canvas.getContext('2d')!;
-        this.drawHole(ctx, theProblem.hole);
-        this.drawFigure(ctx, theProblem.figure);
+        ctx.fillStyle = 'rgb(222, 222, 222)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawHole(ctx);
+        this.drawFigure(ctx);
     }
 
-    drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
+    private drawHole(ctx: CanvasRenderingContext2D) {
+        ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
-        ctx.moveTo(...this.translator.modelToCanvas(hole[hole.length - 1]));
-        for (const v of theProblem.hole) {
+        ctx.moveTo(...this.translator.modelToCanvas(this.problem.hole[this.problem.hole.length - 1]));
+        for (const v of this.problem.hole) {
             ctx.lineTo(...this.translator.modelToCanvas(v));
         }
+        ctx.fill();
         ctx.stroke();
     }
 
-    drawFigure(ctx: CanvasRenderingContext2D, figure: Figure) {
-        const {edges, vertices} = figure;
+    private drawFigure(ctx: CanvasRenderingContext2D) {
+        const edges = this.problem.figure.edges;
+        const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
             ctx.beginPath();
-            ctx.moveTo(...this.translator.modelToCanvas(vertices[edge[0]]));
-            ctx.lineTo(...this.translator.modelToCanvas(vertices[edge[1]]));
+            ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
+            ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
             ctx.stroke();
         }
     }
 
-    onMouseDown(ev: MouseEvent) {
+    private onMouseDown(ev: MouseEvent) {
         if (ev.button !== 0) {
             return;
         }
-        const p = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        let nearest = 0;
+        for (let i = 0; i < this.pose.length; ++i) {
+            if (distance(this.pose[i], pos) < distance(this.pose[nearest], pos)) {
+                nearest = i;
+            }
+        }
+        if (distance(this.pose[nearest], pos) < 10*10) {
+            this.draggingVertex = nearest;
+            this.onDragVertex(pos);
+        }
     }
 
-    onMouseUp(ev: MouseEvent) {
+    private onMouseUp(ev: MouseEvent) {
         if (ev.button !== 0) {
             return;
         }
+        this.draggingVertex = null;
+    }
+
+    private onMouseMove(ev: MouseEvent) {
+        if (ev.button !== 0) {
+            return;
+        }
+        if (this.draggingVertex === null) {
+            return;
+        }
+        const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        this.onDragVertex(pos);
+    }
+
+    private onDragVertex(pos: Point) {
+        this.pose[this.draggingVertex!] = roundPoint(pos);
+        this.draw();
     }
 }
 
-const ui = new UI(
-    document.getElementById('canvas') as HTMLCanvasElement,
-    theProblem
-);
-ui.start();
+fetch_problem(1).then(problem => {
+    const ui = new UI(
+        document.getElementById('canvas') as HTMLCanvasElement,
+        problem
+    )
+    ui.start()
+})
