@@ -1,37 +1,78 @@
-import {Figure, Hole, Problem} from './types';
+import {Figure, Hole, Point, Problem} from './types';
 import { fetch_problem } from './problem_fetcher';
 
 const theProblem: Problem = fetch_problem(0);
 
-const theCanvas = document.getElementById('canvas') as HTMLCanvasElement;
+class Translator {
+    constructor(public zoom: number = 5.0) {}
 
-function drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
-    ctx.strokeStyle = 'rgb(0, 0, 0)';
-    ctx.beginPath();
-    ctx.moveTo(hole[hole.length - 1][0], hole[hole.length - 1][1]);
-    for (const v of theProblem.hole) {
-        ctx.lineTo(v[0], v[1]);
+    modelToCanvas(p: Point): Point {
+        return [p[0] * this.zoom, p[1] * this.zoom];
     }
-    ctx.stroke();
+
+    canvasToModel(p: Point): Point {
+        return [p[0] / this.zoom, p[1] / this.zoom];
+    }
 }
 
-function drawFigure(ctx: CanvasRenderingContext2D, figure: Figure) {
-    const {edges, vertices} = figure;
-    ctx.strokeStyle = 'rgb(255, 0, 0)';
-    for (const edge of edges) {
+class UI {
+    private draggingVertex?: number;
+
+    constructor(
+        private readonly canvas: HTMLCanvasElement,
+        private readonly problem: Problem,
+        private readonly translator: Translator = new Translator()) {
+    }
+
+    start() {
+        this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
+        this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
+        this.draw();
+    }
+
+    draw() {
+        const ctx = this.canvas.getContext('2d')!;
+        this.drawHole(ctx, theProblem.hole);
+        this.drawFigure(ctx, theProblem.figure);
+    }
+
+    drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
+        ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
-        const p = vertices[edge[0]];
-        const q = vertices[edge[1]];
-        ctx.moveTo(p[0], p[1]);
-        ctx.lineTo(q[0], q[1]);
+        ctx.moveTo(...this.translator.modelToCanvas(hole[hole.length - 1]));
+        for (const v of theProblem.hole) {
+            ctx.lineTo(...this.translator.modelToCanvas(v));
+        }
         ctx.stroke();
     }
+
+    drawFigure(ctx: CanvasRenderingContext2D, figure: Figure) {
+        const {edges, vertices} = figure;
+        ctx.strokeStyle = 'rgb(255, 0, 0)';
+        for (const edge of edges) {
+            ctx.beginPath();
+            ctx.moveTo(...this.translator.modelToCanvas(vertices[edge[0]]));
+            ctx.lineTo(...this.translator.modelToCanvas(vertices[edge[1]]));
+            ctx.stroke();
+        }
+    }
+
+    onMouseDown(ev: MouseEvent) {
+        if (ev.button !== 0) {
+            return;
+        }
+        const p = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+    }
+
+    onMouseUp(ev: MouseEvent) {
+        if (ev.button !== 0) {
+            return;
+        }
+    }
 }
 
-function draw() {
-    const ctx = theCanvas.getContext('2d')!;
-    drawHole(ctx, theProblem.hole);
-    drawFigure(ctx, theProblem.figure);
-}
-
-draw();
+const ui = new UI(
+    document.getElementById('canvas') as HTMLCanvasElement,
+    theProblem
+);
+ui.start();
