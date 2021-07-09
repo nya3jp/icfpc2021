@@ -1,11 +1,17 @@
+#[macro_use]
+extern crate prettytable;
+
 mod sa;
 
-use std::cmp::{max, min};
+use std::cmp::{max, min, Reverse};
 use std::fs::{self, File};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::{Datelike, Timelike};
+use easy_scraper::Pattern;
 use geom::{
     point::Point,
     polygon::ContainsResult,
@@ -13,35 +19,17 @@ use geom::{
 };
 use itertools::Itertools;
 use rand::Rng;
+use reqwest::blocking::ClientBuilder;
+use reqwest::cookie::{CookieStore, Jar};
+use reqwest::header::HeaderValue;
 use sa::*;
 use scorer::{is_inside_hole, is_valid_solution};
-use tanakh_solver::get_problem;
+use tanakh_solver::{get_problem, ENDPOINT};
 
 #[derive(Clone)]
 struct Problem {
     problem: P,
     exact: bool,
-}
-
-// use tanakh_solver::geom::{contains, is_inside_hole, is_valid_solution, ContainsResult};
-
-// type Pt = Complex<f64>;
-
-// pub fn cross(a: &Pt, b: &Pt) -> f64 {
-//     (a.conj() * b).im
-// }
-
-// /// Signed area of triangle
-// pub fn triangle_area_signed(a: &Pt, b: &Pt, c: &Pt) -> f64 {
-//     cross(&(b - a), &(c - a)) / 2.0
-// }
-
-fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
-    (p1.0 - p2.0, p1.1 - p2.1)
-}
-
-fn norm_sqr(p: &(i64, i64)) -> i64 {
-    p.0 * p.0 + p.1 * p.1
 }
 
 impl Annealer for Problem {
@@ -222,7 +210,8 @@ fn solve(
     #[opt(long)]
     exact: bool,
 
-    #[opt(long)] submit: bool,
+    #[opt(long)] no_submit: bool,
+
     problem_id: i64,
 ) -> Result<()> {
     let seed = rand::thread_rng().gen();
@@ -284,7 +273,11 @@ fn solve(
         serde_json::to_string(&solution)?,
     )?;
 
-    if submit {
+    if !no_submit
+        && dialoguer::Confirm::new()
+            .with_prompt("Submit?")
+            .interact()?
+    {
         eprintln!("Submitting");
 
         let resp = tanakh_solver::submit(problem_id, &solution)?;
@@ -321,5 +314,181 @@ fn max_scores() -> Result<()> {
     Ok(())
 }
 
-#[argopt::cmd_group(commands = [solve, max_scores, submit])]
+fn load_cookie_store(session_file: impl AsRef<Path>, endpoint: &str) -> Result<Jar> {
+    let url = endpoint.parse().unwrap();
+    let jar = reqwest::cookie::Jar::default();
+    let f = File::open(session_file);
+
+    if f.is_err() {
+        // eprintln!("Session file not found. start new session.");
+        return Ok(jar);
+    }
+
+    for line in BufReader::new(f.unwrap()).lines() {
+        let v = line?
+            .split("; ")
+            .map(|s| HeaderValue::from_str(s).unwrap())
+            .collect_vec();
+        jar.set_cookies(&mut v.iter(), &url)
+    }
+
+    Ok(jar)
+}
+
+#[argopt::subcmd]
+fn login() -> Result<()> {
+    let cookie_store = Arc::new(Jar::default());
+
+    let client = ClientBuilder::new()
+        .cookie_provider(cookie_store.clone())
+        .build()?;
+
+    let email: String = dialoguer::Input::new()
+        .with_prompt("Email address")
+        .interact()?;
+    let passwd = dialoguer::Password::new()
+        .with_prompt("Password")
+        .interact()?;
+
+    let _resp = client
+        .post("https://poses.live/login")
+        .form(&[("login.email", &email), ("login.password", &passwd)])
+        .send()?
+        .error_for_status()?
+        .text()?;
+
+    {
+        let mut f = File::create("session.txt")?;
+        for cookie in cookie_store.cookies(&ENDPOINT.parse().unwrap()) {
+            writeln!(&mut f, "{}", cookie.to_str()?)?;
+        }
+    }
+
+    println!("Ok");
+
+    Ok(())
+}
+
+#[argopt::subcmd]
+fn list() -> Result<()> {
+    let cookie_store = Arc::new(load_cookie_store("session.txt", ENDPOINT)?);
+
+    let client = ClientBuilder::new()
+        .cookie_provider(cookie_store.clone())
+        .build()?;
+
+    let resp = client
+        .get("https://poses.live/problems")
+        .send()?
+        .error_for_status()?
+        .text()?;
+
+    let pat = Pattern::new(
+        r#"
+        <table>
+            <tr>
+                <td><a href="/problems/{{problem-id}}"></a></td>
+                <td>{{your-dislikes}}</td>
+                <td>{{minimal-dislikes}}</td>
+            </tr>
+        </table>
+        "#,
+    )
+    .unwrap();
+
+    struct ProblemState {
+        problem_id: i64,
+        your_dislikes: i64,
+        minimal_dislikes: i64,
+        point_ratio: f64,
+        max_score: i64,
+        your_score: i64,
+        remaining_score: i64,
+    }
+
+    let mut problems = vec![];
+
+    for m in pat.matches(&resp) {
+        let problem_id: i64 = m["problem-id"].parse()?;
+        let your_dislikes: i64 = m["your-dislikes"].parse()?;
+        let minimal_dislikes: i64 = m["minimal-dislikes"].parse()?;
+
+        let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
+
+        let problem = get_problem(problem_id)?;
+        let max_score = (1000.0
+            * ((problem.figure.vertices.len()
+                * problem.figure.edges.len()
+                * problem.hole.polygon.vertices.len()) as f64
+                / 6.0)
+                .log2()) as i64;
+
+        let your_score = (max_score as f64 * point_ratio).ceil() as i64;
+        let remaining_score = max_score - your_score;
+
+        problems.push(ProblemState {
+            problem_id,
+            your_dislikes,
+            minimal_dislikes,
+            point_ratio,
+            max_score,
+            your_score,
+            remaining_score,
+        });
+
+        // println!(
+        //     "{}: {}, {}, {}, {}, {}, {}",
+        //     problem_id,
+        //     your_dislikes,
+        //     minimal_dislikes,
+        //     max_score,
+        //     your_score,
+        //     point_ratio,
+        //     remaining_score,
+        // );
+    }
+
+    problems.sort_by_key(|r| Reverse(r.remaining_score));
+
+    let mut table = prettytable::Table::new();
+
+    table.add_row(row![
+        "pid",
+        "your",
+        "best",
+        "max score",
+        "point ratio",
+        "your score",
+        "remaining",
+    ]);
+
+    for p in problems.iter() {
+        // println!(
+        //     "{:3}: your = {:5}, best = {:5}, score = {:5}, ratio: {:05.2}, your score = {:5}, remaining = {:5}",
+        //     p.problem_id,
+        //     p.your_dislikes,
+        //     p.minimal_dislikes,
+        //     p.max_score,
+        //     p.point_ratio,
+        //     p.your_score,
+        //     p.remaining_score,
+        // );
+
+        table.add_row(row![
+            p.problem_id,
+            p.your_dislikes,
+            p.minimal_dislikes,
+            p.max_score,
+            format!("{:.2}%", p.point_ratio * 100.0),
+            p.your_score,
+            p.remaining_score
+        ]);
+    }
+
+    table.printstd();
+
+    Ok(())
+}
+
+#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list])]
 fn main() -> Result<()> {}

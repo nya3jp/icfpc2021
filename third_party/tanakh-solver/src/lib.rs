@@ -8,7 +8,7 @@ use std::ops::Deref;
 
 // pub mod geom;
 
-const ENDPOINT: &str = "https://poses.live";
+pub const ENDPOINT: &str = "https://poses.live";
 
 static API_TOKEN: Lazy<String> =
     Lazy::new(|| std::env::var("API_TOKEN").expect("environment variable API_TOKEN must be set"));
@@ -18,7 +18,7 @@ pub struct SubmitResult {
     pub id: String,
 }
 
-static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
+pub static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
 
 pub fn http_get(api: impl AsRef<str>) -> Result<String> {
     Ok(CLIENT
