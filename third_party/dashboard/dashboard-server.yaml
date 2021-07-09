@@ -20,6 +20,19 @@ spec:
           imagePullPolicy: Always
           args:
             - '--persist_path=/dashboard-data'
+            - '--static_path=/build'
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 3
           ports:
             - name: http
               containerPort: 8080
