@@ -30,10 +30,12 @@ func main() {
 
 	s := &server{mgr}
 	r := mux.NewRouter()
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-	})
-	r.HandleFunc("/api/solutions", s.handleSolutionsGet).Methods("GET")
+	r.HandleFunc("/", s.handleTopLevel)
+	r.HandleFunc("/api/solutionsets", s.handleSolutionSetsList).Methods("GET")
+	r.HandleFunc("/api/solutionsets/{solution_set}", s.handleSolutionSetsGet).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}", s.handleProblemsSolutionsGet).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}/meta", s.handleProblemsSolutionsMetaGet).Methods("GET")
+	r.HandleFunc("/api/solutions", s.handleSolutionsList).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 
 	log.Print("Starting...")
@@ -44,7 +46,57 @@ type server struct {
 	mgr *solutionmgr.Manager
 }
 
-func (s *server) handleSolutionsGet(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleTopLevel(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
+}
+
+func (s *server) handleSolutionSetsList(w http.ResponseWriter, r *http.Request) {
+	ret, err := s.mgr.GetRecentSolutionSets(0, 10)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ret)
+}
+
+func (s *server) handleSolutionSetsGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	ret, err := s.mgr.GetSolutionSet(vars["solution_set"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ret)
+}
+
+func (s *server) handleProblemsSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	bs, err := s.mgr.GetSolution(vars["problem_id"], vars["solution_id"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if _, err := w.Write(bs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleProblemsSolutionsMetaGet(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	solution, err := s.mgr.GetSolutionMetadata(vars["problem_id"], vars["solution_id"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(solution)
+}
+
+func (s *server) handleSolutionsList(w http.ResponseWriter, r *http.Request) {
 	solutions, err := s.mgr.GetRecentSolutions(0, 10)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

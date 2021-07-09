@@ -16,6 +16,16 @@ type Solution struct {
 	ProblemID  string `json:"problem_id"`
 	SolutionID string `json:"solution_id"`
 	CreatedAt  int64  `json:"created_at"`
+
+	Tags         []string `json:"tags"`
+	SolutionSets []string `json:"solution_sets"`
+}
+
+type SolutionSet struct {
+	SolutionSet string `json:"solution_set"`
+	CreatedAt   int64  `json:"created_at"`
+
+	Solutions []*Solution `json:"solutions"`
 }
 
 type Manager struct {
@@ -71,6 +81,145 @@ func (m *Manager) Close() error {
 	return m.db.Close()
 }
 
+func (m *Manager) GetSolution(problemID, solutionID string) ([]byte, error) {
+	fp := filepath.Join(m.basePath, fmt.Sprintf("solution-%s", problemID), solutionID)
+	return os.ReadFile(fp)
+}
+
+func (m *Manager) GetSolutionMetadata(problemID, solutionID string) (*Solution, error) {
+	rows, err := m.db.Query("SELECT created_at FROM solutions WHERE problem_id = ? AND solution_id = ?", problemID, solutionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var createdAt int64
+		err = rows.Scan(&createdAt)
+		if err != nil {
+			return nil, err
+		}
+		tags, err := m.getTags(problemID, solutionID)
+		if err != nil {
+			return nil, err
+		}
+		ss, err := m.getSolutionSets(problemID, solutionID)
+		if err != nil {
+			return nil, err
+		}
+		return &Solution{
+			ProblemID:    problemID,
+			SolutionID:   solutionID,
+			CreatedAt:    createdAt,
+			Tags:         tags,
+			SolutionSets: ss,
+		}, nil
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *Manager) getTags(problemID, solutionID string) ([]string, error) {
+	rows, err := m.db.Query("SELECT tag FROM tags WHERE problem_id = ? AND solution_id = ?", problemID, solutionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ret []string
+	for rows.Next() {
+		var tag string
+		err = rows.Scan(&tag)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, tag)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (m *Manager) getSolutionSets(problemID, solutionID string) ([]string, error) {
+	rows, err := m.db.Query("SELECT solution_set FROM solution_set_assocs WHERE problem_id = ? AND solution_id = ?", problemID, solutionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ret []string
+	for rows.Next() {
+		var ss string
+		err = rows.Scan(&ss)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, ss)
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (m *Manager) GetSolutionSet(solutionSet string) (*SolutionSet, error) {
+	rows, err := m.db.Query("SELECT created_at FROM solution_sets WHERE solution_set = ?", solutionSet)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var createdAt int64
+		err = rows.Scan(&createdAt)
+		if err != nil {
+			return nil, err
+		}
+		solutions, err := m.getSolutions(solutionSet)
+		if err != nil {
+			return nil, err
+		}
+		return &SolutionSet{
+			SolutionSet: solutionSet,
+			CreatedAt:   createdAt,
+			Solutions:   solutions,
+		}, nil
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (m *Manager) getSolutions(solutionSet string) ([]*Solution, error) {
+	rows, err := m.db.Query("SELECT problem_id, solution_id FROM solution_set_assocs WHERE solution_set = ?", solutionSet)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get the solutions for the solution set: %v", err)
+	}
+	defer rows.Close()
+	var ret []*Solution
+	for rows.Next() {
+		var problemID string
+		var solutionID string
+		err = rows.Scan(&problemID, &solutionID)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, &Solution{
+			ProblemID:  problemID,
+			SolutionID: solutionID,
+		})
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
 func (m *Manager) GetRecentSolutions(page, limit int) ([]*Solution, error) {
 	rows, err := m.db.Query("SELECT problem_id, solution_id, created_at FROM solutions ORDER BY created_at DESC LIMIT ? OFFSET ?", limit, page*limit)
 	if err != nil {
@@ -90,6 +239,32 @@ func (m *Manager) GetRecentSolutions(page, limit int) ([]*Solution, error) {
 			ProblemID:  problemID,
 			SolutionID: solutionID,
 			CreatedAt:  createdAt,
+		})
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+func (m *Manager) GetRecentSolutionSets(page, limit int) ([]*SolutionSet, error) {
+	rows, err := m.db.Query("SELECT solution_set, created_at FROM solution_sets ORDER BY created_at DESC LIMIT ? OFFSET ?", limit, page*limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ret []*SolutionSet
+	for rows.Next() {
+		var solutionSet string
+		var createdAt int64
+		err = rows.Scan(&solutionSet, &createdAt)
+		if err != nil {
+			return nil, err
+		}
+		ret = append(ret, &SolutionSet{
+			SolutionSet: solutionSet,
+			CreatedAt:   createdAt,
 		})
 	}
 	err = rows.Err()
