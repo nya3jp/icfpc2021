@@ -5,6 +5,7 @@ pub struct Polygon {
     pub vertices: Vec<Point>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContainsResult {
     OUT, ON, IN,
 }
