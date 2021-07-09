@@ -81,6 +81,13 @@ class UI {
             ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
             ctx.stroke();
         }
+        ctx.fillStyle = 'rgb(0, 0, 255)';
+        for (const vertex of this.pose) {
+            const [x, y] = this.translator.modelToCanvas(vertex);
+            ctx.beginPath();
+            ctx.arc(x, y, 2.0, 0, 2*Math.PI);
+            ctx.fill();
+        }
     }
 
     private onMouseDown(ev: MouseEvent) {
