@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"html"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +17,7 @@ import (
 var (
 	port        = flag.Int("port", 8080, "")
 	persistPath = flag.String("persist_path", "/tmp/dashboard-data", "")
+	staticPath  = flag.String("static_path", "/tmp/static-data", "")
 )
 
 func main() {
@@ -30,13 +30,13 @@ func main() {
 
 	s := &server{mgr}
 	r := mux.NewRouter()
-	r.HandleFunc("/", s.handleTopLevel)
 	r.HandleFunc("/api/solutionsets", s.handleSolutionSetsList).Methods("GET")
 	r.HandleFunc("/api/solutionsets/{solution_set}", s.handleSolutionSetsGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}", s.handleProblemsSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}/meta", s.handleProblemsSolutionsMetaGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsList).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
+	r.PathPrefix("/").Handler(http.FileServer(http.Dir(*staticPath)))
 
 	log.Print("Starting...")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), r))
@@ -44,10 +44,6 @@ func main() {
 
 type server struct {
 	mgr *solutionmgr.Manager
-}
-
-func (s *server) handleTopLevel(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
 }
 
 func (s *server) handleSolutionSetsList(w http.ResponseWriter, r *http.Request) {
