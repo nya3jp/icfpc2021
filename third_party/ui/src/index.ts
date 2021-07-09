@@ -39,6 +39,7 @@ class UI {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
+        this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
         this.draw();
     }
 
@@ -53,8 +54,9 @@ class UI {
         ctx.fillStyle = 'rgb(222, 222, 222)';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawHole(ctx);
-        this.drawFigure(ctx);
-        this.output.textContent = JSON.stringify({vertices: this.pose});
+        this.drawPose(ctx);
+        this.output.value = JSON.stringify({vertices: this.pose});
+        this.updateDislike();
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
@@ -69,7 +71,7 @@ class UI {
         ctx.stroke();
     }
 
-    private drawFigure(ctx: CanvasRenderingContext2D) {
+    private drawPose(ctx: CanvasRenderingContext2D) {
         const {edges, vertices} = this.problem.figure;
         const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
@@ -128,6 +130,27 @@ class UI {
     private onDragVertex(pos: Point) {
         this.pose[this.draggingVertex!] = roundPoint(pos);
         this.draw();
+    }
+
+    private onOutputChanged(ev: Event) {
+        const parsed = JSON.parse(this.output.value);
+        this.pose = parsed['vertices'];
+        this.draw();
+    }
+
+    private updateDislike() {
+        const dislike: HTMLDivElement = document.getElementById("dislike") as HTMLDivElement;
+        dislike.textContent = this.calculateDislike().toString();
+    }
+
+    private calculateDislike() {
+        let dislike = 0;
+        for (var h of this.problem.hole) {
+            dislike += this.pose
+                .map(p => distance(p, h))
+                .reduce((p, c) => Math.min(p, c))
+        }
+        return dislike;
     }
 }
 
