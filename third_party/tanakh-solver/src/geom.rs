@@ -79,7 +79,7 @@ pub fn dislike(hole: &Vec<(i64, i64)>, pose: &Pose) -> usize {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum ContainsResult {
+pub enum ContainsResult {
     OUT,
     ON,
     IN,
@@ -93,7 +93,7 @@ fn dot(a: &(i64, i64), b: &(i64, i64)) -> i64 {
     a.0 * b.0 + a.1 * b.1
 }
 
-fn contains(polygon: &Vec<(i64, i64)>, p: &(i64, i64)) -> ContainsResult {
+pub fn contains(polygon: &Vec<(i64, i64)>, p: &(i64, i64)) -> ContainsResult {
     let mut inside = false;
     for i in 0..polygon.len() {
         let curr = &polygon[i];
