@@ -1,9 +1,12 @@
 mod sa;
 
 use std::fs::File;
-use std::path::PathBuf;
+use std::os::linux::fs;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use anyhow::Result;
+use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use num_complex::Complex;
 use sa::*;
@@ -71,7 +74,7 @@ impl Annealer for Problem {
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
-        init_score
+        init_score / 10.0
     }
 
     fn eval(&self, state: &Self::State) -> f64 {
@@ -88,7 +91,7 @@ impl Annealer for Problem {
                 continue;
             }
 
-            score += err / eps * 10000.0;
+            score += err / eps * 1000.0;
         }
 
         for h in self.hole.iter() {
@@ -143,6 +146,12 @@ fn solve(
     //
     #[opt(long, default_value = "5.0")]
     time_limit: f64,
+
+    /// number of threads
+    //
+    #[opt(long, default_value = "1")]
+    threads: usize,
+
     #[opt(long)] submit: bool,
     problem_id: i64,
 ) -> Result<()> {
@@ -154,11 +163,16 @@ fn solve(
             time_limit,
             limit_temp: 0.1,
             restart: 1,
-            threads: 1,
+            threads,
             silent: false,
         },
         777,
     );
+
+    if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
+        eprintln!("Cannot find solution");
+        return Ok(());
+    }
 
     eprintln!("Score: {}", score);
 
@@ -166,10 +180,30 @@ fn solve(
 
     println!("{}", serde_json::to_string(&solution)?);
 
-    eprintln!("Submitting");
+    if !Path::new("results").exists() {
+        std::fs::create_dir_all("results")?;
+    }
 
-    let resp = tanakh_solver::submit(problem_id, &solution)?;
-    eprintln!("Response: {:?}", resp);
+    let now = chrono::Local::now();
+    std::fs::write(
+        format!(
+            "results/{}-{}-{:02}{:02}{:02}{:02}.json",
+            problem_id,
+            score.round() as i64,
+            now.date().day(),
+            now.time().hour(),
+            now.time().minute(),
+            now.time().second(),
+        ),
+        serde_json::to_string(&solution)?,
+    )?;
+
+    if submit {
+        eprintln!("Submitting");
+
+        let resp = tanakh_solver::submit(problem_id, &solution)?;
+        eprintln!("Response: {:?}", resp);
+    }
 
     Ok(())
 }
