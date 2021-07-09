@@ -1,16 +1,27 @@
+use serde::{Deserialize, Serialize};
+use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
-use std::vec::Vec;
 use std::path::Path;
-use serde::{Deserialize, Serialize};
-use serde_tuple::{Deserialize_tuple, Serialize_tuple};
-use std::error::Error;
+use std::vec::Vec;
 
-// TODO
-#[derive(Serialize_tuple, Deserialize_tuple, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(from = "(i64, i64)", into = "(i64, i64)")]
 pub struct Point {
     x: i64,
     y: i64,
+}
+
+impl From<(i64, i64)> for Point {
+    fn from(t: (i64, i64)) -> Point {
+        Point { x: t.0, y: t.1 }
+    }
+}
+
+impl From<Point> for (i64, i64) {
+    fn from(t: Point) -> (i64, i64) {
+        (t.x, t.y)
+    }
 }
 
 // TODO
@@ -20,7 +31,7 @@ pub struct Hole {
 }
 
 // TODO
-#[derive(Serialize_tuple, Deserialize_tuple, Debug)]
+#[derive(Debug)]
 pub struct Edge {
     v1: usize,
     v2: usize,
