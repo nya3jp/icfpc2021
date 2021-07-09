@@ -24,28 +24,33 @@ class Translator {
 }
 
 class UI {
-    private pose: Point[];
+    private problem: Problem = {hole: [], figure: {edges: [], vertices: []}, epsilon: 0};
+    private pose: Point[] = [];
+
     private draggingVertex: number | null = null;
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
         private readonly output: HTMLTextAreaElement,
-        private problem: Problem,
+        private readonly zoom: HTMLInputElement,
+        private problemId: number = 0,
         private readonly translator: Translator = new Translator()) {
-        this.pose = [...problem.figure.vertices];
     }
 
     public start() {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
+        this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
         this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
         this.draw();
     }
 
-    public resetProblem(newProblem: Problem) {
-        this.problem = newProblem;
-        this.pose = [...this.problem.figure.vertices];
+    public async loadProblem(id: number) {
+        const problem = await fetch_problem(id);
+        this.problemId = id;
+        this.problem = problem;
+        this.pose = [...problem.figure.vertices];
         this.draw();
     }
 
@@ -55,11 +60,14 @@ class UI {
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawHole(ctx);
         this.drawPose(ctx);
-        this.output.value = JSON.stringify({vertices: this.pose});
+        this.output.value = JSON.stringify({problem_id: this.problemId, vertices: this.pose});
         this.updateDislike();
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
+        if (this.problem.hole.length === 0) {
+            return;
+        }
         ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
@@ -76,8 +84,7 @@ class UI {
         const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
-            const ok = Math.abs(distance(pose[edge[0]], pose[edge[1]]) / distance(vertices[edge[0]], vertices[edge[1]]) - 1) <= this.problem.epsilon / 1000000;
-            ctx.strokeStyle = ok ? 'rgb(0, 255, 0)' : 'rgb(255, 0, 0)';
+            ctx.strokeStyle = this.getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]));
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
             ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
@@ -90,6 +97,18 @@ class UI {
             ctx.arc(x, y, 2.0, 0, 2*Math.PI);
             ctx.fill();
         }
+    }
+
+    private getLineColor(current: number, original: number): string {
+        const margin = original * this.problem.epsilon / 1000000;
+        const min = original - margin;
+        const max = original + margin;
+        if (current < min) {
+            return 'rgb(255, 0, 0)';
+        } else if (current > max) {
+            return 'rgb(0, 0, 255)';
+        }
+        return 'rgb(0, 255, 0)'
     }
 
     private onMouseDown(ev: MouseEvent) {
@@ -132,9 +151,21 @@ class UI {
         this.draw();
     }
 
-    private onOutputChanged(ev: Event) {
+    private onZoomChanged(ev: Event) {
+        this.translator.zoom = parseFloat(this.zoom.value);
+        this.draw();
+    }
+
+    private async onOutputChanged(ev: Event) {
         const parsed = JSON.parse(this.output.value);
-        this.pose = parsed['vertices'];
+        const problemId = parsed['problem_id'];
+        if (this.problemId !== problemId) {
+            await this.loadProblem(problemId);
+        }
+        const pose = parsed['vertices'];
+        if (pose.length === this.problem.figure.vertices.length) {
+            this.pose = pose;
+        }
         this.draw();
     }
 
@@ -174,20 +205,17 @@ class ProblemDropDownMenu {
 
     OnChange() {
         const id = this.menu.options[this.menu.selectedIndex].value;
-        fetch_problem(parseInt(id)).then(problem => {
-            this.ui.resetProblem(problem)
-        })
+        this.ui.loadProblem(parseInt(id));
     }
 }
-
-const theFirstProblem = {"hole":[[45,80],[35,95],[5,95],[35,50],[5,5],[35,5],[95,95],[65,95],[55,80]],"epsilon":150000,"figure":{"edges":[[2,5],[5,4],[4,1],[1,0],[0,8],[8,3],[3,7],[7,11],[11,13],[13,12],[12,18],[18,19],[19,14],[14,15],[15,17],[17,16],[16,10],[10,6],[6,2],[8,12],[7,9],[9,3],[8,9],[9,12],[13,9],[9,11],[4,8],[12,14],[5,10],[10,15]],"vertices":[[20,30],[20,40],[30,95],[40,15],[40,35],[40,65],[40,95],[45,5],[45,25],[50,15],[50,70],[55,5],[55,25],[60,15],[60,35],[60,65],[60,95],[70,95],[80,30],[80,40]]}} as Problem;
 
 const ui = new UI(
     document.getElementById('canvas') as HTMLCanvasElement,
     document.getElementById('output') as HTMLTextAreaElement,
-    theFirstProblem
+    document.getElementById('zoom') as HTMLInputElement,
 );
-ui.start()
+ui.start();
+ui.loadProblem(1);
 
 let select: HTMLSelectElement = document.getElementById("problems") as HTMLSelectElement;
 const dropdown = new ProblemDropDownMenu(
