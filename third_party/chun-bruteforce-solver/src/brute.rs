@@ -30,6 +30,7 @@ fn visit_order_dfs(ptr: usize, node: usize, edges: &Vec<(usize, usize)>, visited
     if ptr == n - 1 {
         return
     }
+    let mut conn = vec![0usize; n];
     for (v1, v2) in edges {
         for p in 0..=ptr {
             let (v1, v2) = if *v2 == resorder[p] { (v2, v1) } else { (v1, v2) };
@@ -39,10 +40,13 @@ fn visit_order_dfs(ptr: usize, node: usize, edges: &Vec<(usize, usize)>, visited
             if visited[*v2] {
                 continue;
             }
-            visit_order_dfs(ptr + 1, *v2, edges, visited, resorder, n);
-            return;
+            conn[*v2] += 1
         }
     }
+    let mut conn_ix:Vec<(usize, usize)> = conn.into_iter().enumerate().map(|(idx, v)| (v, idx)).collect();
+    conn_ix.sort_unstable_by(|a, b| b.cmp(a));
+    let bestnode = conn_ix[0].1;
+    visit_order_dfs(ptr + 1, bestnode, edges, visited, resorder, n);
 }
 
 fn get_visit_order(prob: &Problem) -> Vec<usize> {
@@ -119,6 +123,18 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
                 if lhs > rhs {
                     isok = false;
                     //println!("invalid edge {} {}", v1, v2);
+                    break;
+                }
+                // collision check (not strict version)
+                for i in 0..prob.hole.len() {
+                    let h1 = &prob.hole[i];
+                    let h2 = &prob.hole[(i + 1) % prob.hole.len()];
+                    if is_crossing(&q1, &q2, h1, h2) {
+                        isok = false;
+                        break;
+                    }
+                }
+                if !isok {
                     break;
                 }
             }

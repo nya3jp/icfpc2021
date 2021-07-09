@@ -140,7 +140,7 @@ fn ccw(p1: &(i64, i64), p2: &(i64, i64), p3: &(i64, i64)) -> CCWResult {
 }
 
 // Returns true iff p1-p2 crosses p3-p4. Returns false if
-fn is_crossing(p1: &(i64, i64), p2: &(i64, i64), p3: &(i64, i64), p4: &(i64, i64)) -> bool {
+pub fn is_crossing(p1: &(i64, i64), p2: &(i64, i64), p3: &(i64, i64), p4: &(i64, i64)) -> bool {
     let ccw1 = ccw(p1, p2, p3);
     let ccw2 = ccw(p1, p2, p4);
     let ccw3 = ccw(p3, p4, p1);
