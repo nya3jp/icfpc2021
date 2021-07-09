@@ -1,6 +1,12 @@
 import {Figure, Hole, Point, Problem} from './types';
 import { fetch_problem } from './problem_fetcher';
 
+function distance(p: Point, q: Point) {
+    const dx = p[0] - q[0];
+    const dy = p[1] - q[1];
+    return dx * dx + dy * dy;
+}
+
 class Translator {
     constructor(public zoom: number = 5.0) {}
 
@@ -14,27 +20,30 @@ class Translator {
 }
 
 class UI {
-    private draggingVertex?: number;
+    private pose: Point[];
+    private draggingVertex: number | null = null;
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
         private readonly problem: Problem,
         private readonly translator: Translator = new Translator()) {
+        this.pose = [...problem.figure.vertices];
     }
 
-    start() {
+    public start() {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
+        this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
         this.draw();
     }
 
-    draw() {
+    private draw() {
         const ctx = this.canvas.getContext('2d')!;
         this.drawHole(ctx, this.problem.hole);
         this.drawFigure(ctx, this.problem.figure);
     }
 
-    drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
+    private drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
         ctx.moveTo(...this.translator.modelToCanvas(hole[hole.length - 1]));
@@ -44,7 +53,7 @@ class UI {
         ctx.stroke();
     }
 
-    drawFigure(ctx: CanvasRenderingContext2D, figure: Figure) {
+    private drawFigure(ctx: CanvasRenderingContext2D, figure: Figure) {
         const {edges, vertices} = figure;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
@@ -55,17 +64,44 @@ class UI {
         }
     }
 
-    onMouseDown(ev: MouseEvent) {
+    private onMouseDown(ev: MouseEvent) {
         if (ev.button !== 0) {
             return;
         }
-        const p = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        const click = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        let nearest = 0;
+        for (let i = 0; i < this.pose.length; ++i) {
+            if (distance(this.pose[i], click) < distance(this.pose[nearest], click)) {
+                nearest = i;
+            }
+        }
+        if (distance(this.pose[nearest], click) < 10*10) {
+            this.draggingVertex = nearest;
+            this.onDragVertex(click);
+        }
     }
 
-    onMouseUp(ev: MouseEvent) {
+    private onMouseUp(ev: MouseEvent) {
         if (ev.button !== 0) {
             return;
         }
+        this.draggingVertex = null;
+    }
+
+    private onMouseMove(ev: MouseEvent) {
+        if (ev.button !== 0) {
+            return;
+        }
+        if (this.draggingVertex === null) {
+            return;
+        }
+        const click = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        this.onDragVertex(click);
+    }
+
+    private onDragVertex(click: Point) {
+        console.log(this.draggingVertex, click);
+        this.draw();
     }
 }
 
