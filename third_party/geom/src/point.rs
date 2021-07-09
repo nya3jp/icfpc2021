@@ -34,9 +34,37 @@ impl From<Point> for (i64, i64) {
     }
 }
 
+impl ops::Add<Point> for Point {
+    type Output = Point;
+    fn add(self, other: Point) -> Self::Output {
+        Self::Output::new(self.x + other.x, self.y + other.y)
+    }
+}
+
 impl ops::Sub<Point> for Point {
     type Output = Point;
     fn sub(self, other: Point) -> Self::Output {
         Self::Output::new(self.x - other.x, self.y - other.y)
+    }
+}
+
+impl ops::Mul<Point> for f64 {
+    type Output = Point;
+    fn mul(self, rhs: Point) -> Self::Output {
+        Self::Output::new(self * rhs.x, self * rhs.y)
+    }
+}
+
+impl ops::Mul<f64> for Point {
+    type Output = Point;
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self::Output::new(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl ops::Div<f64> for Point {
+    type Output = Point;
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::Output::new(self.x / rhs, self.y / rhs)
     }
 }
