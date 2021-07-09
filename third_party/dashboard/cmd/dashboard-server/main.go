@@ -36,6 +36,9 @@ func main() {
 	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}/meta", s.handleProblemsSolutionsMetaGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsList).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
+	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "ok")
+	})
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir(*staticPath)))
 
 	log.Print("Starting...")
