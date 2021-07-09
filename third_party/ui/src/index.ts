@@ -58,7 +58,7 @@ class UI {
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawHole(ctx);
         this.drawPose(ctx);
-        this.output.value = JSON.stringify({vertices: this.pose});
+        this.output.value = JSON.stringify({problem_id: this.problemId, vertices: this.pose});
         this.updateDislike();
     }
 
@@ -138,9 +138,16 @@ class UI {
         this.draw();
     }
 
-    private onOutputChanged(ev: Event) {
+    private async onOutputChanged(ev: Event) {
         const parsed = JSON.parse(this.output.value);
-        this.pose = parsed['vertices'];
+        const problemId = parsed['problem_id'];
+        if (this.problemId !== problemId) {
+            await this.loadProblem(problemId);
+        }
+        const pose = parsed['vertices'];
+        if (pose.length === this.problem.figure.vertices.length) {
+            this.pose = pose;
+        }
         this.draw();
     }
 
