@@ -43,18 +43,21 @@ class UI {
 
     private draw() {
         const ctx = this.canvas.getContext('2d')!;
-        ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        ctx.fillStyle = 'rgb(222, 222, 222)';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawHole(ctx);
         this.drawFigure(ctx);
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
+        ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
         ctx.moveTo(...this.translator.modelToCanvas(this.problem.hole[this.problem.hole.length - 1]));
         for (const v of this.problem.hole) {
             ctx.lineTo(...this.translator.modelToCanvas(v));
         }
+        ctx.fill();
         ctx.stroke();
     }
 
