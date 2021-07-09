@@ -78,8 +78,10 @@ fn is_crossing(p1: &(i64, i64), p2: &(i64, i64), p3: &(i64, i64), p4: &(i64, i64
 }
 
 pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
-    // TODO check num vertices.
-    // TODO check if edge indices is in the range.
+    // The vertices in pose should match with figure.
+    if problem.figure.vertices.len() != pose.vertices.len() {
+        return false;
+    }
 
     // All points should be contained in the hole.
     for p in &pose.vertices {
