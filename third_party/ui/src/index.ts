@@ -82,8 +82,7 @@ class UI {
         const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
-            const ok = Math.abs(distance(pose[edge[0]], pose[edge[1]]) / distance(vertices[edge[0]], vertices[edge[1]]) - 1) <= this.problem.epsilon / 1000000;
-            ctx.strokeStyle = ok ? 'rgb(0, 255, 0)' : 'rgb(255, 0, 0)';
+            ctx.strokeStyle = this.getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]));
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
             ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
@@ -96,6 +95,19 @@ class UI {
             ctx.arc(x, y, 2.0, 0, 2*Math.PI);
             ctx.fill();
         }
+    }
+
+    private getLineColor(current: number, original: number): string {
+        const margin = original * this.problem.epsilon / 1000000;
+        const min = original - margin;
+        const max = original + margin;
+        console.log(min + ", " + current + ", " + margin + ", " + this.problem.epsilon);
+        if (current < min) {
+            return 'rgb(255, 0, 0)';
+        } else if (current > max) {
+            return 'rgb(0, 0, 255)';
+        }
+        return 'rgb(0, 255, 0)'
     }
 
     private onMouseDown(ev: MouseEvent) {
