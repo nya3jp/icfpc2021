@@ -1,5 +1,6 @@
 import {Figure, Hole, Point, Problem} from './types';
 import { fetch_problem, problem_list } from './problem_fetcher';
+import { createContext } from 'vm';
 
 function distance(p: Point, q: Point) {
     const dx = p[0] - q[0];
@@ -9,6 +10,10 @@ function distance(p: Point, q: Point) {
 
 function roundPoint(p: Point): Point {
     return [Math.round(p[0]), Math.round(p[1])];
+}
+
+function midPoint(p: Point, q: Point): Point {
+    return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
 }
 
 class Translator {
@@ -43,6 +48,10 @@ class UI {
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
         this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
         this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
+
+        const checkbox = document.getElementById("show_distance") as HTMLInputElement;
+        checkbox.addEventListener('change', (ev) => this.draw());
+
         this.draw();
     }
 
@@ -62,6 +71,7 @@ class UI {
         this.drawPose(ctx);
         this.output.value = JSON.stringify({problem_id: this.problemId, vertices: this.pose});
         this.updateDislike();
+        this.drawDistances(ctx);
     }
 
     private drawHole(ctx: CanvasRenderingContext2D) {
@@ -109,6 +119,29 @@ class UI {
             return 'rgb(0, 0, 255)';
         }
         return 'rgb(0, 255, 0)'
+    }
+
+    private drawDistances(ctx: CanvasRenderingContext2D) {
+        const checkbox = document.getElementById("show_distance") as HTMLInputElement;
+        if (!checkbox.checked) {
+            return;
+        }
+
+        const {edges, vertices} = this.problem.figure;
+        const pose = this.pose;
+        for (const edge of edges) {
+            const dist = distance(pose[edge[0]], pose[edge[1]]);
+            const original = distance(vertices[edge[0]], vertices[edge[1]]);
+            const margin = original * this.problem.epsilon / 1000000;
+            const mid = this.translator.modelToCanvas(midPoint(pose[edge[0]], pose[edge[1]]));
+            const text = dist.toString() + "∈ [" + Math.ceil(original - margin).toString()
+                + "," + Math.floor(original + margin).toString() + "]";
+            ctx.font = "11px serif";
+            ctx.strokeStyle = 'rgb(10, 10, 10)';
+            ctx.strokeText(text, mid[0], mid[1]);
+            ctx.fillStyle = this.getLineColor(dist, original);
+            ctx.fillText(text, mid[0], mid[1]);
+        }
     }
 
     private onMouseDown(ev: MouseEvent) {
