@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::env;
+use geom::schema;
 
-mod schema;
 mod scorer;
 
 fn main() -> Result<(), Box<dyn Error>> {

@@ -1,5 +1,6 @@
 pub mod point;
 pub mod polygon;
+pub mod schema;
 
 pub use point::*;
 pub use polygon::*;

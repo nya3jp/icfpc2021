@@ -1,8 +1,23 @@
+use serde::{Serialize, Deserialize};
+
 use super::point::Point;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(from = "Vec<(i64, i64)>", into = "Vec<(i64, i64)>")]
 pub struct Polygon {
     pub vertices: Vec<Point>,
+}
+
+impl From<Vec<(i64, i64)>> for Polygon {
+    fn from(t: Vec<(i64, i64)>) -> Self {
+        Polygon::new(t.into_iter().map(Point::from).collect())
+    }
+}
+
+impl From<Polygon> for Vec<(i64, i64)> {
+    fn from(t: Polygon) -> Self {
+        t.vertices.into_iter().map(<(i64, i64)>::from).collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
