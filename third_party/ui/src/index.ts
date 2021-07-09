@@ -74,7 +74,7 @@ class UI {
         const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
-            const ok = (distance(pose[edge[0]], pose[edge[1]]) / distance(vertices[edge[0]], vertices[edge[1]]) - 1) <= this.problem.epsilon / 1000000;
+            const ok = Math.abs(distance(pose[edge[0]], pose[edge[1]]) / distance(vertices[edge[0]], vertices[edge[1]]) - 1) <= this.problem.epsilon / 1000000;
             ctx.strokeStyle = ok ? 'rgb(0, 255, 0)' : 'rgb(255, 0, 0)';
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
