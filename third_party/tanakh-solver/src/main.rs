@@ -1,10 +1,14 @@
 use anyhow::Result;
 use tanakh_solver::*;
 
-fn main() -> Result<()> {
-    // dbg!(get_problem(1)?);
+#[argopt::subcmd]
+fn solve(problem_id: i64) -> Result<()> {
+    let problem = get_problem(problem_id)?;
 
-    dbg!(submit(59, &Solution { vertices: vec![] })?);
+    dbg!(problem);
 
     Ok(())
 }
+
+#[argopt::cmd_group(commands = [solve])]
+fn main() -> Result<()> {}
