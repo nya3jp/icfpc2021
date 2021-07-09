@@ -23,7 +23,7 @@ pub trait Annealer {
 
     fn eval(&self, state: &Self::State) -> f64;
 
-    fn neighbour(&self, state: &Self::State, rng: &mut impl Rng) -> Self::Move;
+    fn neighbour(&self, state: &mut Self::State, rng: &mut impl Rng) -> Self::Move;
 
     fn apply(&self, state: &mut Self::State, mov: &Self::Move);
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move);
@@ -99,7 +99,7 @@ fn do_annealing<A: Annealer>(
     let mut temp = t_max;
     let mut progress_ratio = 0.0;
     for i in 0.. {
-        if i % 1000 == 0 {
+        if i % 100 == 0 {
             progress_ratio = timer.elapsed().unwrap().as_secs_f64() / opt.time_limit;
             if progress_ratio >= 1.0 {
                 break;
@@ -117,7 +117,7 @@ fn do_annealing<A: Annealer>(
             temp = t_max;
         }
 
-        let mov = annealer.neighbour(&state, &mut rng);
+        let mov = annealer.neighbour(&mut state, &mut rng);
         let new_score = annealer.apply_and_eval(&mut state, &mov, cur_score);
 
         if new_score <= cur_score

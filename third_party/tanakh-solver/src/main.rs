@@ -1,9 +1,7 @@
 mod sa;
 
-use std::fs::File;
-use std::os::linux::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 use anyhow::Result;
 use chrono::{Datelike, Timelike};
@@ -37,14 +35,21 @@ impl Annealer for Problem {
 
     type Move = (usize, (i64, i64));
 
-    fn init_state(&self, _rng: &mut impl rand::Rng) -> Self::State {
+    fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
         (0..self.figure.vertices.len())
-            .map(|_| self.hole[0].clone())
+            .map(|_| {
+                /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
+                self.hole[0].clone()
+            })
             .collect_vec()
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
         init_score / 10.0
+    }
+
+    fn is_done(&self, score: f64) -> bool {
+        score < 1e-10
     }
 
     fn eval(&self, state: &Self::State) -> f64 {
@@ -71,14 +76,11 @@ impl Annealer for Problem {
         score
     }
 
-    fn neighbour(&self, state: &Self::State, rng: &mut impl rand::Rng) -> Self::Move {
-        // FIXME: performance
-        let mut state = state.clone();
-
+    fn neighbour(&self, state: &mut Self::State, rng: &mut impl rand::Rng) -> Self::Move {
         loop {
             let i = rng.gen_range(0..state.len());
-            let dx = rng.gen_range(-2..=2);
-            let dy = rng.gen_range(-2..=2);
+            let dx = rng.gen_range(-4..=4);
+            let dy = rng.gen_range(-4..=4);
             if (dx, dy) == (0, 0) {
                 continue;
             }
@@ -147,16 +149,16 @@ fn solve(
         return Ok(());
     }
 
-    eprintln!("Score: {}", score);
+    eprintln!("Score for problem {}: {}", problem_id, score);
 
     println!("{}", serde_json::to_string(&solution)?);
 
     if !Path::new("results").exists() {
-        std::fs::create_dir_all("results")?;
+        fs::create_dir_all("results")?;
     }
 
     let now = chrono::Local::now();
-    std::fs::write(
+    fs::write(
         format!(
             "results/{}-{}-{:02}{:02}{:02}{:02}.json",
             problem_id,
