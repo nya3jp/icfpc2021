@@ -6,6 +6,8 @@ spec:
   selector:
     matchLabels:
       app: dashboard-server
+  strategy:
+    type: Recreate
   replicas: 1
   template:
     metadata:
@@ -16,15 +18,24 @@ spec:
         - name: dashboard-server
           image: gcr.io/special-weekend-2021/dashboard-server:latest
           imagePullPolicy: Always
+          args:
+            - '--persist_path=/dashboard-data'
           ports:
             - name: http
               containerPort: 8080
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
           volumeMounts:
             - name: dashboard-data
-              mountPath: /dashboard-data
+              mountPath: '/dashboard-data'
             - name: deploy-key
               readOnly: true
-              mountPath: "/root/.ssh"
+              mountPath: '/root/.ssh'
       volumes:
         - name: dashboard-data
           persistentVolumeClaim:
@@ -33,19 +44,3 @@ spec:
           secret:
             secretName: deploy-key
             defaultMode: 0600
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: dashboard-server
-  labels:
-    run: dashboard-server
-spec:
-  ports:
-    - name: http
-      targetPort: http
-      port: 80
-      protocol: TCP
-  type: LoadBalancer
-  selector:
-    app: dashboard-server
