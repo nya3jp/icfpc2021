@@ -1,8 +1,6 @@
 import {Figure, Hole, Point, Problem} from './types';
 import { fetch_problem } from './problem_fetcher';
 
-const theProblem: Problem = fetch_problem(0);
-
 class Translator {
     constructor(public zoom: number = 5.0) {}
 
@@ -32,15 +30,15 @@ class UI {
 
     draw() {
         const ctx = this.canvas.getContext('2d')!;
-        this.drawHole(ctx, theProblem.hole);
-        this.drawFigure(ctx, theProblem.figure);
+        this.drawHole(ctx, this.problem.hole);
+        this.drawFigure(ctx, this.problem.figure);
     }
 
     drawHole(ctx: CanvasRenderingContext2D, hole: Hole) {
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
         ctx.moveTo(...this.translator.modelToCanvas(hole[hole.length - 1]));
-        for (const v of theProblem.hole) {
+        for (const v of this.problem.hole) {
             ctx.lineTo(...this.translator.modelToCanvas(v));
         }
         ctx.stroke();
@@ -71,8 +69,10 @@ class UI {
     }
 }
 
-const ui = new UI(
-    document.getElementById('canvas') as HTMLCanvasElement,
-    theProblem
-);
-ui.start();
+fetch_problem(1).then(problem => {
+    const ui = new UI(
+        document.getElementById('canvas') as HTMLCanvasElement,
+        problem
+    )
+    ui.start()
+})
