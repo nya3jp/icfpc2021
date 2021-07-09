@@ -101,7 +101,6 @@ class UI {
         const margin = original * this.problem.epsilon / 1000000;
         const min = original - margin;
         const max = original + margin;
-        console.log(min + ", " + current + ", " + margin + ", " + this.problem.epsilon);
         if (current < min) {
             return 'rgb(255, 0, 0)';
         } else if (current > max) {
