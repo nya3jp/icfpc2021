@@ -1,0 +1,46 @@
+name: github pages
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup npm
+        uses: actions/setup-node@v1
+      - name: Install npm packages
+        run: npm ci
+        working-directory: ui
+      - name: Build
+        run: npm run build
+        working-directory: ui
+      - name: Upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: files
+          path: ./ui/dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download
+      uses: actions/download-artifact@v2
+      with:
+        name: files
+        path: ~/docs/fcc7938b3c545e6ff51b101ea86f548b
+
+    - name: Publish
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_branch: pages
+        publish_dir: ~/docs/fcc7938b3c545e6ff51b101ea86f548b
