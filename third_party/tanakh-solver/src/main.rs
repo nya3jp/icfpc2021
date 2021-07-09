@@ -24,36 +24,6 @@ pub fn triangle_area_signed(a: &Pt, b: &Pt, c: &Pt) -> f64 {
     cross(&(b - a), &(c - a)) / 2.0
 }
 
-fn is_on_polygon(p: &Pt, polygon: &Vec<Pt>) -> bool {
-    for i in 0..polygon.len() {
-        let p1 = &polygon[i];
-        let p2 = &polygon[(i + 1) % polygon.len()];
-
-        if triangle_area_signed(p, p1, p2).abs() < 1e-10 {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn is_inside_polygon(p: &Pt, polygon: &Vec<Pt>) -> bool {
-    if is_on_polygon(p, polygon) {
-        return true;
-    }
-
-    let mut arg = 0.0;
-
-    for i in 0..polygon.len() {
-        let p1 = polygon[i] - p;
-        let p2 = polygon[(i + 1) % polygon.len()] - p;
-
-        arg += (p2 / p1).arg();
-    }
-
-    arg > 1.0
-}
-
 fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
     (p1.0 - p2.0, p1.1 - p2.1)
 }
@@ -107,8 +77,8 @@ impl Annealer for Problem {
 
         loop {
             let i = rng.gen_range(0..state.len());
-            let dx = rng.gen_range(-1..=1);
-            let dy = rng.gen_range(-1..=1);
+            let dx = rng.gen_range(-2..=2);
+            let dy = rng.gen_range(-2..=2);
             if (dx, dy) == (0, 0) {
                 continue;
             }
@@ -169,14 +139,15 @@ fn solve(
         777,
     );
 
+    let solution = Solution { vertices: solution };
+
     if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
         eprintln!("Cannot find solution");
+        eprintln!("Wrong solution: {}", serde_json::to_string(&solution)?);
         return Ok(());
     }
 
     eprintln!("Score: {}", score);
-
-    let solution = Solution { vertices: solution };
 
     println!("{}", serde_json::to_string(&solution)?);
 
