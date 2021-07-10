@@ -683,7 +683,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
         <table>
             <tr>
                 <td><a href="/problems/{{problem-id}}"></a></td>
-                <td>{{your-dislikes}}</td>a
+                <td>{{your-dislikes}}</td>
                 <td>{{minimal-dislikes}}</td>
             </tr>
         </table>
