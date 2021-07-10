@@ -54,26 +54,42 @@ func NewManager(basePath string) (*Manager, error) {
 }
 
 func runMigration(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS problems (
-			problem_id INTEGER PRIMARY KEY,
-			created_at INTEGER NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS solutions (
-			solution_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			problem_id INTEGER NOT NULL,
-			created_at INTEGER NOT NULL,
-			file_hash STRING NOT NULL,
-			dislike INTEGER NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS tags (
-			solution_id INTEGER NOT NULL,
-			tag TEXT NOT NULL,
-			PRIMARY KEY(solution_id, tag)
-		);
-	`)
+	var version int64
+	err := db.QueryRow("PRAGMA user_version").Scan(&version)
 	if err != nil {
-		return fmt.Errorf("cannot create tables: %v", err)
+		return fmt.Errorf("cannot get the user_version: %v", err)
+	}
+	switch version {
+	case 0:
+		// This is the initial schema.
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS problems (
+				problem_id INTEGER PRIMARY KEY,
+				created_at INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS solutions (
+				solution_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				problem_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL,
+				file_hash STRING NOT NULL,
+				dislike INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS tags (
+				solution_id INTEGER NOT NULL,
+				tag TEXT NOT NULL,
+				PRIMARY KEY(solution_id, tag)
+			);
+		`)
+		if err != nil {
+			return fmt.Errorf("cannot create tables: %v", err)
+		}
+		fallthrough
+	default:
+	}
+	// Somehow this cannot accept the template.
+	_, err = db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, version))
+	if err != nil {
+		return fmt.Errorf("cannot set the schema version %d: %v", version, err)
 	}
 	return nil
 }
@@ -112,7 +128,7 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 	var problems []*Problem
 	for rows.Next() {
 		var problemID, createdAt int64
-		if err := rows.Scan(&problemID, createdAt); err != nil {
+		if err := rows.Scan(&problemID, &createdAt); err != nil {
 			return nil, err
 		}
 
@@ -171,10 +187,44 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 	}, nil
 }
 
+func (m *Manager) AddProblem(problem *Problem) error {
+	createdAt := time.Now().Unix()
+
+	fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problem.ProblemID))
+	if _, err := os.Lstat(fp); err == nil {
+		return fmt.Errorf("already exists")
+	}
+	if err := os.MkdirAll(filepath.Dir(fp), 0755); err != nil {
+		return fmt.Errorf("cannot make directories: %v", err)
+	}
+	if err := os.WriteFile(fp, problem.Data, 0644); err != nil {
+		return fmt.Errorf("cannot write the data file: %v", err)
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT INTO problems(problem_id, created_at) VALUES (?, ?)",
+		problem.ProblemID, createdAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) AddSolution(solution *Solution) error {
 	createdAt := time.Now().Unix()
 
-	h, err := m.saveToDisk(solution.Data)
+	h, err := m.saveSolutionToDisk(solution.Data)
 	if err != nil {
 		return err
 	}
@@ -209,14 +259,14 @@ func (m *Manager) AddSolution(solution *Solution) error {
 	return nil
 }
 
-func (m *Manager) saveToDisk(solutionJSON []byte) (string, error) {
+func (m *Manager) saveSolutionToDisk(solutionJSON []byte) (string, error) {
 	var d json.RawMessage
 	if err := json.Unmarshal(solutionJSON, &d); err != nil {
-		return "", fmt.Errorf("cannot parse the solution: %v", err)
+		return "", fmt.Errorf("cannot parse the JSON data: %v", err)
 	}
 	bs, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("cannot unmarshal the solution: %v", err)
+		return "", fmt.Errorf("cannot unmarshal the JSON data: %v", err)
 	}
 	h := fmt.Sprintf("%x", sha256.Sum256(bs))
 	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", h))
@@ -228,7 +278,7 @@ func (m *Manager) saveToDisk(solutionJSON []byte) (string, error) {
 		return "", fmt.Errorf("cannot make directories: %v", err)
 	}
 	if err := os.WriteFile(fp, bs, 0644); err != nil {
-		return "", fmt.Errorf("cannot write the solution: %v", err)
+		return "", fmt.Errorf("cannot write the data file: %v", err)
 	}
 	return h, nil
 }

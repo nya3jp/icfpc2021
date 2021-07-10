@@ -32,6 +32,7 @@ func main() {
 	s := &server{mgr}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
+	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
@@ -98,6 +99,39 @@ func (s *server) handleSolutionGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	problemID, err := strconv.ParseInt(r.Form.Get("problem_id"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, _, err := r.FormFile("problem")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+	problemJSON, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	problem := &solutionmgr.Problem{
+		ProblemID: problemID,
+		Data: problemJSON,
+	}
+	if err := s.mgr.AddProblem(problem); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	io.WriteString(w, "ok")
 }
 
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
