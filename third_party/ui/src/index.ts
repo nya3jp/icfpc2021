@@ -192,7 +192,7 @@ class UI {
     private async onOutputChanged(ev: Event) {
         const parsed = JSON.parse(this.output.value);
         const problemId = parsed['problem_id'];
-        if (this.problemId !== problemId) {
+        if (problemId !== undefined && this.problemId !== problemId) {
             await this.loadProblem(problemId);
         }
         const pose = parsed['vertices'];
