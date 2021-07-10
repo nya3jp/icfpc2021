@@ -20,6 +20,7 @@ export interface Pose {
 export interface Solution {
     problem_id: string;
     solution_id: string;
+    created_at: number;
     tags: string[];
     solution_sets: string[];
 }
