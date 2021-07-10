@@ -94,7 +94,7 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
 
         let mut isok = true;
         for (v1, v2) in prob.figure.edges.iter() {
-            let (v1, v2) = if *v2 == ptr { (*v2, *v1) } else { (*v1, *v2) };
+            let (v1, v2) = if *v2 == trypos { (*v2, *v1) } else { (*v1, *v2) };
             if v1 != trypos {
                 continue;
             }
@@ -109,10 +109,10 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
                 let q2 = resfigure[v2];
                 let d2 = (q1.0 - q2.0) * (q1.0 - q2.0) + (q1.1 - q2.1) * (q1.1 - q2.1);    
                 // if d1 < d2
-                //   | d1/d2 - 1 | = 1 - d1/d2.
+                //   | d2/d1 - 1 | = d2/d1 - 1
                 //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
                 // else
-                //   | d1/d2 - 1 | = d1/d2 - 1
+                //   | d2/d1 - 1 | = 1 - d2/d1
                 //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
                 let lhs = if d1 < d2 {
                     d2 * 1000000 - d1 * 1000000
@@ -130,8 +130,8 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
                     let h1 = &prob.hole[i];
                     let h2 = &prob.hole[(i + 1) % prob.hole.len()];
                     if is_crossing(&q1, &q2, h1, h2) {
-                        isok = false;
-                        break;
+                        //isok = false;
+                        //break;
                     }
                 }
                 if !isok {
@@ -144,6 +144,11 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
         }
         if isok {
             if ptr == resfigure.len() - 1 {
+                /*
+                if score < 2442. {
+                    println!("score {}, valid {}, figure {:?}", score, is_valid_solution(prob, resfigure), resfigure);
+                }
+                */
                 if ! is_valid_solution(prob, resfigure) { continue; }
                 let score = eval_score(prob, resfigure);
                 println!("Score {}", score);
