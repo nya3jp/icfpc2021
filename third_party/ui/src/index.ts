@@ -1,8 +1,9 @@
 import {Editor} from './editor';
 import {
+    ConstraintHintToggle,
     DistanceToggle,
     OutputTextArea,
-    ProblemSelector,
+    ProblemSelector, SimilarEdgeHighlightToggle,
     StatusLabel,
     ZoomSlider
 } from './controls';
@@ -17,6 +18,8 @@ async function init() {
     const outputTextArea = new OutputTextArea(document.getElementById('output') as HTMLTextAreaElement, editor, problemSelector);
     const zoomSlider = new ZoomSlider(document.getElementById('zoom') as HTMLInputElement, editor);
     const distanceToggle = new DistanceToggle(document.getElementById('show_distance') as HTMLInputElement, editor);
+    const similarEdgeHighlightToggle = new SimilarEdgeHighlightToggle(document.getElementById('similar_edge_highlight') as HTMLInputElement, editor);
+    const constraintHintToggle = new ConstraintHintToggle(document.getElementById('constraint_hint') as HTMLInputElement, editor);
     const statusLabel = new StatusLabel(document.getElementById('dislike')!, editor);
 
     editor.start();
@@ -25,6 +28,8 @@ async function init() {
     outputTextArea.start();
     zoomSlider.start();
     distanceToggle.start();
+    similarEdgeHighlightToggle.start();
+    constraintHintToggle.start();
     statusLabel.start();
 
     await problemSelector.setProblemId(1);

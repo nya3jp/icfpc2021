@@ -87,6 +87,38 @@ export class DistanceToggle {
     }
 }
 
+export class SimilarEdgeHighlightToggle {
+    constructor(
+        private readonly checkbox: HTMLInputElement,
+        private readonly editor: Editor) {
+    }
+
+    public start(): void {
+        this.checkbox.addEventListener('change', () => this.onChange());
+        this.onChange();
+    }
+
+    private onChange(): void {
+        this.editor.setSimilarEdgeHighlight(this.checkbox.checked);
+    }
+}
+
+export class ConstraintHintToggle {
+    constructor(
+        private readonly checkbox: HTMLInputElement,
+        private readonly editor: Editor) {
+    }
+
+    public start(): void {
+        this.checkbox.addEventListener('change', () => this.onChange());
+        this.onChange();
+    }
+
+    private onChange(): void {
+        this.editor.setConstraintHint(this.checkbox.checked);
+    }
+}
+
 export class ZoomSlider {
     constructor(
         private readonly slider: HTMLInputElement,

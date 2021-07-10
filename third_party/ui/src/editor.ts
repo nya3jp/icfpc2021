@@ -30,6 +30,8 @@ export class Editor extends EventTarget {
     constructor(
         private readonly canvas: HTMLCanvasElement,
         private drawDistance: boolean = false,
+        private similarEdgeHighlight: boolean = false,
+        private constraintHint: boolean = false,
         private readonly translator: Translator = new Translator(5.0)) {
         super();
     }
@@ -63,6 +65,16 @@ export class Editor extends EventTarget {
 
     public setDrawDistance(drawDistance: boolean): void {
         this.drawDistance = drawDistance;
+        this.render();
+    }
+
+    public setSimilarEdgeHighlight(similarEdgeHighlight: boolean): void {
+        this.similarEdgeHighlight = similarEdgeHighlight;
+        this.render();
+    }
+
+    public setConstraintHint(constraintHint: boolean): void {
+        this.constraintHint = constraintHint;
         this.render();
     }
 
@@ -195,7 +207,7 @@ export class Editor extends EventTarget {
     }
 
     private renderHints(ctx: CanvasRenderingContext2D): void {
-        if (this.draggingVertex) {
+        if (this.constraintHint && this.draggingVertex) {
             const {edges, vertices} = this.problem.figure;
             const adjacents = [];
             for (const edge of edges) {
@@ -273,7 +285,7 @@ export class Editor extends EventTarget {
         }
         if (this.draggingVertex === null || this.slideStartCanvas === null) {
             const highlight = {
-                holeEdge: this.nearHoleEdge(this.translator.canvasToModel([ev.offsetX, ev.offsetY]), 20 / this.translator.zoom),
+                holeEdge: this.similarEdgeHighlight ? this.nearHoleEdge(this.translator.canvasToModel([ev.offsetX, ev.offsetY]), 50 / this.translator.zoom) : undefined,
             };
             if (!deepEqual(highlight, this.currentHighlight)) {
                 this.currentHighlight = highlight;
