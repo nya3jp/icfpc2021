@@ -4,6 +4,23 @@ import {PoseMap, SolutionMap} from './types';
 import {FrontPage} from './FrontPage';
 import {SolutionPage} from './SolutionPage';
 
+import {makeStyles} from '@material-ui/core/styles';
+import AppBar from '@material-ui/core/AppBar';
+import Toolbar from '@material-ui/core/Toolbar';
+import Container from '@material-ui/core/Container';
+import Button from '@material-ui/core/Button';
+import Typography from '@material-ui/core/Typography';
+
+const useStyles = makeStyles((theme) => ({
+  root: {
+    flexGrow: 1,
+  },
+  title: {
+    flexGrow: 1,
+  },
+}));
+
+
 export default function App() {
   const [solutions, setSolutions] = useState<SolutionMap>({});
   const [poses, setPoses] = useState<PoseMap>({});
@@ -35,23 +52,29 @@ export default function App() {
       });
   };
 
+  const classes = useStyles();
+
   return (
-    <Router>
-      <nav>
-        <ul>
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-        </ul>
-      </nav>
-      <Switch>
-        <Route path="/problems/:problemID/solutions/:solutionID">
-          <SolutionPage solutions={solutions} ensureSolution={ensureSolution} poses={poses} ensurePoses={ensurePose} />
-        </Route>
-        <Route path="/">
-          <FrontPage solutions={solutions} ensureSolution={ensureSolution} />
-        </Route>
-      </Switch>
-    </Router>
+    <div className={classes.root}>
+      <Router>
+        <AppBar position="static">
+          <Toolbar>
+            <Typography variant="h6" className={classes.title}>
+            </Typography>
+            <Button color="inherit" component={Link} to="/">Home</Button>
+          </Toolbar>
+        </AppBar>
+        <Container>
+          <Switch>
+            <Route path="/problems/:problemID/solutions/:solutionID">
+              <SolutionPage solutions={solutions} ensureSolution={ensureSolution} poses={poses} ensurePoses={ensurePose} />
+            </Route>
+            <Route path="/">
+              <FrontPage solutions={solutions} ensureSolution={ensureSolution} />
+            </Route>
+          </Switch>
+        </Container>
+      </Router>
+    </div>
   );
 }
