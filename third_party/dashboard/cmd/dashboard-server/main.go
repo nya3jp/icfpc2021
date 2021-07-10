@@ -90,7 +90,7 @@ func (s *server) handleProblemSolutionsGet(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	solutions, err := s.mgr.GetProblem(problemID)
+	solutions, err := s.mgr.GetSolutionsForProblem(problemID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -145,7 +145,7 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	problem := &solutionmgr.Problem{
 		ProblemID: problemID,
-		Data: problemJSON,
+		Data:      problemJSON,
 	}
 	if err := s.mgr.AddProblem(problem); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -179,8 +179,8 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	tags := strings.Split(r.Form.Get("tags"), ",")
 	solution := &solutionmgr.Solution{
 		ProblemID: problemID,
-		Tags: tags,
-		Data: solutionJSON,
+		Tags:      tags,
+		Data:      solutionJSON,
 	}
 	if err := s.mgr.AddSolution(solution); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
