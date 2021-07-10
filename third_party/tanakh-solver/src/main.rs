@@ -565,7 +565,7 @@ fn solve(
     }
 
     let now = chrono::Local::now();
-    fs::write(
+    let result_file_name =
         format!(
             "results/{}-{}-{:02}{:02}{:02}{:02}.json",
             problem_id,
@@ -574,7 +574,9 @@ fn solve(
             now.time().hour(),
             now.time().minute(),
             now.time().second(),
-        ),
+        );
+    fs::write(
+        &result_file_name,
         serde_json::to_string(&solution)?,
     )?;
 
@@ -602,6 +604,9 @@ fn solve(
 
         let resp = tanakh_solver::submit(problem_id, &solution)?;
         eprintln!("Response: {:?}", resp);
+
+        // Submit to the internal dashboard.
+        tanakh_solver::submit_dashboard(problem_id, &result_file_name)?;
     }
 
     Ok(())
