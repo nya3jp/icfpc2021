@@ -248,6 +248,14 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 	return problems, nil
 }
 
+func (m *Manager) UpdateMinimalDislike(problemID int64, dislike int64) error {
+	_, err := m.db.Exec("UPDATE problems SET minimal_dislike = ? WHERE problem_id = ?", dislike, problemID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 	var fileHash, rejectReason string
 	var problemID, createdAt, dislike int64

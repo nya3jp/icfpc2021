@@ -36,6 +36,10 @@ const ProblemCell = ({problem}: {problem: Problem}) => {
                                 <TableCell>ProblemID</TableCell>
                                 <TableCell>{problem.problem_id}</TableCell>
                             </TableRow>
+                            <TableRow>
+                                <TableCell>Minimal Dislike</TableCell>
+                                <TableCell>{problem.minimal_dislike}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </Grid>

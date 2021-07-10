@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"icfpc2021/dashboard/pkg/eval"
+	"icfpc2021/dashboard/pkg/scrape"
 	"icfpc2021/dashboard/pkg/solutionmgr"
 
 	"github.com/gorilla/mux"
@@ -35,6 +36,13 @@ func main() {
 	defer mgr.Close()
 
 	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
+
+	scraper, err := scrape.NewScraper()
+	if err != nil {
+		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
+	} else {
+		go scrape.ScrapeDislikeTask(scraper, mgr)
+	}
 
 	s := &server{mgr}
 	r := mux.NewRouter()

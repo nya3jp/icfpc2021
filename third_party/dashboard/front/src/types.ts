@@ -16,6 +16,7 @@ export interface ProblemData {
 export interface Problem {
     problem_id: number;
     created_at: number;
+    minimal_dislike: number;
     data: ProblemData;
 }
 
