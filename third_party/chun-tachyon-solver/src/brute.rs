@@ -3,7 +3,8 @@
 use chun_triangle_solver::geom::*;
 use chun_triangle_solver::{get_problem, Problem, Solution};
 
-
+use std::iter::FromIterator;
+use std::collections::HashSet;
 
 fn get_placeable_positions(prob: &Problem) -> Vec<(i64, i64)>
 {
@@ -201,10 +202,17 @@ fn plan_search(prob: &Problem) -> Vec<Plan> {
         for v in newvertices.iter() {
             vertices_used[*v] = true;
             remain_vertices -= 1;
+            available_triangles.retain(|(i, j, k)| {
+                let edges = &prob.figure.edges; 
+                edges[*i].0 != *v && edges[*i].1 != *v &&
+                edges[*j].0 != *v && edges[*j].1 != *v &&
+                edges[*k].0 != *v && edges[*k].1 != *v 
+            });
         }
         for e in newedgescoveredbyfix.iter() {
             edges_used[*e] = true;
             remain_edges -= 1;
+            available_triangles.retain(|(i, j, k)| i != e && j != e && k != e);
         }
         // New edges to check
         for (edgeid, (v1, v2)) in prob.figure.edges.iter().enumerate() {
@@ -229,55 +237,6 @@ fn plan_search(prob: &Problem) -> Vec<Plan> {
     resorder
 }
 
-
-fn check_distance (prob: &Problem, v1idx: usize, v2idx: usize, q1: (i64, i64), q2: (i64, i64)) -> bool {
-    let p1 = prob.figure.vertices[v1idx];
-    let p2 = prob.figure.vertices[v2idx];
-    let d1 = (p1.0 - p2.0) * (p1.0 - p2.0) + (p1.1 - p2.1) * (p1.1 - p2.1);
-    let d2 = (q1.0 - q2.0) * (q1.0 - q2.0) + (q1.1 - q2.1) * (q1.1 - q2.1);    
-    // if d1 < d2
-    //   | d2/d1 - 1 | = d2/d1 - 1
-    //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
-    // else
-    //   | d2/d1 - 1 | = 1 - d2/d1
-    //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
-    let lhs = if d1 < d2 {
-        d2 * 1000000 - d1 * 1000000
-    } else {
-        d1 * 1000000 - d2 * 1000000
-    };
-    let rhs = prob.epsilon * d1;
-    if lhs > rhs {
-        return false;
-    }
-    return true;
-}
-
-fn get_all_delta_combination(prob: &Problem, v1idx: usize, v2idx: usize) -> Vec<(i64, i64)> {
-    let mut ret = Vec::new();
-    let p1 = prob.figure.vertices[v1idx];
-    let p2 = prob.figure.vertices[v2idx];
-    let d1 = (p1.0 - p2.0) * (p1.0 - p2.0) + (p1.1 - p2.1) * (p1.1 - p2.1);
-    let d2max = (prob.epsilon + 1_000_000) * d1 / 1_000_000;
-    let d2min = (-prob.epsilon + 1_000_000) * d1 / 1_000_000;
-    let dmax = ((d2max as f64).sqrt().ceil()) as i64;
-    let dmin = ((d2min as f64).sqrt().floor()) as i64;
-    for absx in dmin..=dmax {
-        let absymax = ((std::cmp::max(d2max - absx * absx, 0) as f64).sqrt().ceil()) as i64;
-        let absymin = ((std::cmp::max(d2min - absx * absx, 0) as f64).sqrt().ceil()) as i64;
-        for absy in absymin..=absymax {
-            let d = absx * absx + absy * absy;
-            if d <= d2max && d >= d2min {
-                ret.push((absx, absy));
-                ret.push((absx, -absy));
-                ret.push((-absx, absy));
-                ret.push((-absx, -absy));
-            }
-        }
-    };
-    ret
-}
-
 /*
 enum PrepInfo {
     PFixVertex (Vec<(i64, i64)>),
@@ -292,23 +251,70 @@ fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
     println!("eps: {}", prob.epsilon);
     resorder.iter().enumerate().map(|(iplan, plan)| 
         match plan {
-            Plan::FixTriangle {vertices, edgeids} => {
-                let mut retvec = Vec::new();
-                for x in placeable.iter() {
-                    for y in placeable.iter() {
-                        if !check_distance(prob, vertices.0, vertices.1, *x, *y) {
-                            continue;
-                        }
-                        for z in placeable.iter() {
-                            if (!check_distance(prob, vertices.0, vertices.2, *x, *z) ||
-                                !check_distance(prob, vertices.1, vertices.2, *y, *z)) {
-                                continue;
-                            }
-                            retvec.push([*x, *y, *z]);
+            Plan::FixTriangle {vertices: (xi, yi, zi), edgeids} => {
+                let delta_xy = get_all_delta_combination(prob, *xi, *yi);
+                let delta_xz = get_all_delta_combination(prob, *xi, *zi);
+                let delta_yz = get_all_delta_combination(prob, *yi, *zi);
+                let hash_delta_yz: HashSet<(i64, i64)> = delta_yz.into_iter().collect();
+                println!("Triangle: xy edge visiting pattern {}", delta_xy.len());
+                println!("Triangle: xz edge visiting pattern {}", delta_xz.len());
+                println!("Triangle: yz edge visiting pattern {}", delta_xz.len());
+                let mut deltaxy_deltaxz = Vec::new();
+                for dxy in delta_xy {
+                    for dxz in &delta_xz {
+                        let dyz = (dxz.0 - dxy.0, dxz.1 - dxy.1);
+                        if hash_delta_yz.contains(&dyz) {
+                            deltaxy_deltaxz.push((dxy, dxz));
                         }
                     }
                 }
+                println!("After merging: (dxy, dxz) pair has {} pairs", deltaxy_deltaxz.len());
+                let mut retvec = Vec::new();
+                //let mut retvec2 = Vec::new();
+                let placeable_set : HashSet<(i64, i64)> = HashSet::from_iter(placeable.iter().cloned());
+                for xplace in placeable.iter() {
+                    for (dxy, dxz) in deltaxy_deltaxz.iter() {
+                        let yplace = (xplace.0 + dxy.0, xplace.1 + dxy.1);
+                        let zplace = (xplace.0 + dxz.0, xplace.1 + dxz.1);
+                        assert!(check_distance(prob, *xi, *yi, *xplace, yplace), "x-y distance inconsistent: xp {:?}, yp {:?}, xi{}, yi{} figx {:?} figy {:?}",
+                             *xplace, yplace, xi, yi, prob.figure.vertices[*xi], prob.figure.vertices[*yi]);
+                        assert!(check_distance(prob, *xi, *zi, *xplace, zplace), "x-z distance inconsistent");
+
+                        if ! placeable_set.contains(&yplace) {
+                            continue;
+                        }
+                        if ! placeable_set.contains(&zplace) {
+                            continue;
+                        }
+
+                        if has_collision(&prob, xplace, &yplace) || has_collision(&prob, xplace, &zplace) || has_collision(&prob, &yplace, &zplace) {
+                            continue;
+                        }
+
+                        retvec.push([*xplace, yplace, zplace]);
+                        if retvec.len() > 400_000_000 {
+                            panic!("OVer 400 M entries in triangle placement, exhausting memory for sure");
+                        }
+                    }
+                }
+                /*
+                let merged_delta = 
+                for x in placeable.iter() {
+                    for y in placeable.iter() {
+                        if !check_distance(prob, *xi, *yi, *x, *y) {
+                            continue;
+                        }
+                        for z in placeable.iter() {
+                            if (!check_distance(prob, *xi, *zi, *x, *z) ||
+                                !check_distance(prob, *yi, *zi, *y, *z)) {
+                                continue;
+                            }
+                            retvec2.push([*x, *y, *z]);
+                        }
+                    }
+                };*/
                 println!("Plan {}: Triangle with {} possible combinations", iplan, retvec.len());
+                //println!("Plan {}: Triangle with {} possible combinations (dup check)", iplan, retvec2.len());
                 PrepInfo::PFixTriangle(retvec)
             },
             Plan::FixEdge {edgeid, basevertex, newvertex } => {
@@ -326,102 +332,65 @@ fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
 
 
 
-fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
-    (p1.0 - p2.0, p1.1 - p2.1)
-}
 
-fn norm_sqr(p: &(i64, i64)) -> i64 {
-    p.0 * p.0 + p.1 * p.1
-}
-fn eval_score(prob: &Problem, figure: &Vec<(i64, i64)>) -> f64 
-{
-    let mut score = 0.;
-    for h in prob.hole.iter() {
-        score += figure.iter().map(|v| norm_sqr(&pt_sub(v, h))).min().unwrap() as f64
-    }
-    score
-}
-
-fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, prob: &Problem, bestscore: &mut f64, resfigure: &mut Vec<(i64, i64)>, bestfigure: &mut Vec<(i64, i64)>)
+fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>, prob: &Problem, bestscore: &mut f64, resfigure: &mut Vec<(i64, i64)>, bestfigure: &mut Vec<(i64, i64)>)
 {
     // println!("depth {}/{}", ptr, resfigure.len());
-    let trypos = visit_order[ptr];
-    for trialpt in placeable {
-        //println!("trialpt = {}, {}", trialpt.0, trialpt.1);
-        resfigure[trypos] = *trialpt;
-
-        let mut isok = true;
-        for (v1, v2) in prob.figure.edges.iter() {
-            let (v1, v2) = if *v2 == trypos { (*v2, *v1) } else { (*v1, *v2) };
-            if v1 != trypos {
-                continue;
-            }
-            for j in 0..ptr {
-                if v2 != visit_order[j] {
-                    continue; 
-                }
-                let p1 = prob.figure.vertices[v1];
-                let p2 = prob.figure.vertices[v2];
-                let d1 = (p1.0 - p2.0) * (p1.0 - p2.0) + (p1.1 - p2.1) * (p1.1 - p2.1);
-                let q1 = resfigure[v1];
-                let q2 = resfigure[v2];
-                let d2 = (q1.0 - q2.0) * (q1.0 - q2.0) + (q1.1 - q2.1) * (q1.1 - q2.1);    
-                // if d1 < d2
-                //   | d2/d1 - 1 | = d2/d1 - 1
-                //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
-                // else
-                //   | d2/d1 - 1 | = 1 - d2/d1
-                //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
-                let lhs = if d1 < d2 {
-                    d2 * 1000000 - d1 * 1000000
-                } else {
-                    d1 * 1000000 - d2 * 1000000
-                };
-                let rhs = prob.epsilon * d1;
-                if lhs > rhs {
-                    isok = false;
-                    //println!("invalid edge {} {}", v1, v2);
-                    break;
-                }
-                // collision check (not strict version)
-                for i in 0..prob.hole.len() {
-                    let h1 = &prob.hole[i];
-                    let h2 = &prob.hole[(i + 1) % prob.hole.len()];
-                    if is_crossing(&q1, &q2, h1, h2) {
-                        isok = false;
-                        break;
-                    }
-                }
-                if !isok {
-                    break;
-                }
-            }
-            if !isok {
-                break;
-            }
+    if ptr == solve_plan.len() {
+        // Success!
+        if ! is_valid_solution(prob, resfigure) { return; }
+        let score = eval_score(prob, resfigure);
+        //println!("Score {}", score);
+        if score < *bestscore {
+            println!("Updated best {} -> {}: {{ \"vertices\": {:?} }}", bestscore, score, *resfigure);
+            *bestscore = score;
+            *bestfigure = resfigure.clone();
         }
-        if isok {
-            if ptr == resfigure.len() - 1 {
-                /*
-                if score < 2442. {
-                    println!("score {}, valid {}, figure {:?}", score, is_valid_solution(prob, resfigure), resfigure);
-                }
-                */
-                if ! is_valid_solution(prob, resfigure) { continue; }
-                let score = eval_score(prob, resfigure);
-                println!("Score {}", score);
-                if score < *bestscore {
-                    println!("Updated best {} -> {}", bestscore, score);
-                    *bestscore = score;
-                    *bestfigure = resfigure.clone();
-                }
-            }
-            else
-            {
-                do_brute(ptr + 1, placeable, visit_order, prob, bestscore, resfigure, bestfigure);
-            }
-        }
+        return;
     }
+    // otherwise, fill as planned
+    let current_plan = &solve_plan[ptr];
+    let current_precompute = &precompute_info[ptr];
+    match (current_plan, current_precompute) {
+        (Plan::FixTriangle {edgeids, vertices}, PrepInfo::PFixTriangle(threepts)) => {
+            for pts in threepts.iter() {
+                resfigure[vertices.0] = pts[0];
+                resfigure[vertices.1] = pts[1];
+                resfigure[vertices.2] = pts[2];
+                // collision and distance checks are precomputed
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bestscore, resfigure, bestfigure);
+            }
+        },
+        (Plan::FixEdge {edgeid, basevertex, newvertex }, PrepInfo::PFixEdge(edgedeltas)) => {
+            for edgedelta in edgedeltas.iter() {
+                resfigure[*newvertex] = (resfigure[*basevertex].0 + edgedelta.0, resfigure[*basevertex].1 + edgedelta.1);
+                if has_collision(prob, &resfigure[*basevertex], &resfigure[*newvertex]) {
+                    continue;
+                }
+                // this delta is already distance-checked
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bestscore, resfigure, bestfigure);
+            }
+        },
+        (Plan::FixVertex (vertid), PrepInfo::PFixVertex(placeable)) => {
+            for p in placeable.iter() {
+                resfigure[*vertid] = *p;
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bestscore, resfigure, bestfigure);
+            }
+        },
+        (Plan::TestEdge (edgeid), PrepInfo::PNone) => {
+            let (v1, v2) = prob.figure.edges[*edgeid];
+            if !check_distance(prob, v1, v2, resfigure[v1], resfigure[v2]) {
+                return;
+            }
+            if has_collision(prob, &resfigure[v1], &resfigure[v2]) {
+                return;
+            }
+            do_brute(ptr + 1, solve_plan, precompute_info, prob, bestscore, resfigure, bestfigure);
+        },
+        _ => {
+            panic!("Plan/Precompute unmatched")
+        }
+    };
 }
 
 pub fn brute(prob: &Problem) -> (f64, Solution) {
@@ -429,13 +398,11 @@ pub fn brute(prob: &Problem) -> (f64, Solution) {
     let visit_order = plan_search(prob);
     println!("visit_order = {:?}", visit_order);
     let precomputed = precompute_plan(prob, &visit_order);
-    panic!("debug stop");
-    let visit_order = panic!("");
     let n = prob.figure.vertices.len();
     let mut bestscore = 1e8;
     let mut resfigure = vec![(0i64, 0i64); n];
     let mut bestfigure = vec![(0i64, 0i64); n];
-    do_brute(0usize, &placeable, &visit_order, &prob, &mut bestscore, &mut resfigure, &mut bestfigure);
+    do_brute(0usize, &visit_order, &precomputed, &prob, &mut bestscore, &mut resfigure, &mut bestfigure);
     (bestscore, Solution {vertices: bestfigure})
 }
 

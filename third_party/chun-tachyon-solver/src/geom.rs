@@ -232,3 +232,85 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
 
     true
 }
+
+
+pub fn check_distance (prob: &Problem, v1idx: usize, v2idx: usize, q1: (i64, i64), q2: (i64, i64)) -> bool {
+    let p1 = prob.figure.vertices[v1idx];
+    let p2 = prob.figure.vertices[v2idx];
+    let d1 = (p1.0 - p2.0) * (p1.0 - p2.0) + (p1.1 - p2.1) * (p1.1 - p2.1);
+    let d2 = (q1.0 - q2.0) * (q1.0 - q2.0) + (q1.1 - q2.1) * (q1.1 - q2.1);    
+    // if d1 < d2
+    //   | d2/d1 - 1 | = d2/d1 - 1
+    //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
+    // else
+    //   | d2/d1 - 1 | = 1 - d2/d1
+    //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
+    let lhs = if d1 < d2 {
+        d2 * 1000000 - d1 * 1000000
+    } else {
+        d1 * 1000000 - d2 * 1000000
+    };
+    let rhs = prob.epsilon * d1;
+    if lhs > rhs {
+        return false;
+    }
+    return true;
+}
+
+
+pub fn get_all_delta_combination(prob: &Problem, v1idx: usize, v2idx: usize) -> Vec<(i64, i64)> {
+    let mut ret = Vec::new();
+    let p1 = prob.figure.vertices[v1idx];
+    let p2 = prob.figure.vertices[v2idx];
+    let d1 = (p1.0 - p2.0) * (p1.0 - p2.0) + (p1.1 - p2.1) * (p1.1 - p2.1);
+    let d2maxe6 = (prob.epsilon + 1_000_000) * d1;
+    let d2mine6 = (-prob.epsilon + 1_000_000) * d1;
+    let dmax = ((d2maxe6 as f64 / 1e6).sqrt().ceil()) as i64;
+    for absx in 0..=dmax {
+        let absymax = ((std::cmp::max(d2maxe6 - absx * absx * 1_000_000, 0) as f64 / 1e6).sqrt().ceil()) as i64;
+        let absymin = ((std::cmp::max(d2mine6 - absx * absx * 1_000_000, 0) as f64 / 1e6).sqrt().floor()) as i64;
+        for absy in absymin..=absymax {
+            let d = absx * absx + absy * absy;
+            if d * 1_000_000 <= d2maxe6 && d * 1_000_000 >= d2mine6 {
+                ret.push((absx, absy));
+                ret.push((absx, -absy));
+                ret.push((-absx, absy));
+                ret.push((-absx, -absy));
+            }
+        }
+    };
+    ret.sort_unstable();
+    ret.dedup();
+    ret
+}
+
+pub fn has_collision(prob: &Problem, p1: &(i64, i64), p2: &(i64, i64)) -> bool
+{
+    for i in 0..prob.hole.len() {
+        let h1 = &prob.hole[i];
+        let h2 = &prob.hole[(i + 1) % prob.hole.len()];
+        if is_crossing(p1, p2, h1, h2) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
+    (p1.0 - p2.0, p1.1 - p2.1)
+}
+
+fn norm_sqr(p: &(i64, i64)) -> i64 {
+    p.0 * p.0 + p.1 * p.1
+}
+
+
+pub fn eval_score(prob: &Problem, figure: &Vec<(i64, i64)>) -> f64 
+{
+    let mut score = 0.;
+    for h in prob.hole.iter() {
+        score += figure.iter().map(|v| norm_sqr(&pt_sub(v, h))).min().unwrap() as f64
+    }
+    score
+}
