@@ -31,8 +31,9 @@ func main() {
 
 	s := &server{mgr}
 	r := mux.NewRouter()
-	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionsGet).Methods("GET")
-	r.HandleFunc("/api/solutions/{solution_id}/meta", s.handleSolutionsMetaGet).Methods("GET")
+	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
@@ -47,39 +48,56 @@ type server struct {
 	mgr *solutionmgr.Manager
 }
 
-func (s *server) handleSolutionsGet(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	bs, err := s.mgr.GetSolution(solutionID)
+	problems, err := s.mgr.GetProblems()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	if _, err := w.Write(bs); err != nil {
+	if err := json.NewEncoder(w).Encode(problems); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (s *server) handleSolutionsMetaGet(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleProblemSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	problemID, err := strconv.ParseInt(mux.Vars(r)["problem_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	solutions, err := s.mgr.GetProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solutions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSolutionGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	solution, err := s.mgr.GetSolutionMetadata(solutionID)
+	solution, err := s.mgr.GetSolution(solutionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(solution)
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +123,12 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := strings.Split(r.Form.Get("tags"), ",")
-	if err := s.mgr.AddSolution(problemID, solutionJSON, tags); err != nil {
+	solution := &solutionmgr.Solution{
+		ProblemID: problemID,
+		Tags: tags,
+		Data: solutionJSON,
+	}
+	if err := s.mgr.AddSolution(solution); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
