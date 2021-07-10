@@ -220,7 +220,7 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 			ProblemID:  problemID,
 			CreatedAt:  createdAt,
 			Dislike:    dislike,
-			Tags:       make([]string, 0),
+			Tags:       make([]string, 0), // must be non-nil
 			Data:       data,
 		}
 	}
