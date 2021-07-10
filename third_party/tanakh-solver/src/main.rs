@@ -24,9 +24,8 @@ use reqwest::blocking::ClientBuilder;
 use reqwest::cookie::{CookieStore, Jar};
 use reqwest::header::HeaderValue;
 use sa::*;
-use scorer::{is_inside_hole_partial, is_valid_solution};
+use scorer::{is_inside_hole, is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
-
 
 fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
     let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
@@ -57,7 +56,11 @@ fn check_hint(problem: &P, assignment: &BTreeMap<usize, Point>) -> bool {
     true
 }
 
-fn find_hint_dfs(problem: &P, assignment: &mut BTreeMap<usize, Point>, result: &mut Vec<BTreeMap<usize, Point>>) {
+fn find_hint_dfs(
+    problem: &P,
+    assignment: &mut BTreeMap<usize, Point>,
+    result: &mut Vec<BTreeMap<usize, Point>>,
+) {
     let level = assignment.len();
     if level == problem.hole.len() {
         result.push(assignment.clone());
@@ -90,7 +93,9 @@ struct Problem {
     penalty_ratio: f64,
     exact: bool,
     triangles: Vec<(usize, usize, usize)>,
-    fixed_points: BTreeMap<usize, Point>,  // From |node| to |point|.
+    init_state: Option<Pose>,
+    start_temp: Option<f64>,
+    fixed_points: BTreeMap<usize, Point>, // From |node| to |point|.
 }
 
 impl Annealer for Problem {
@@ -99,6 +104,14 @@ impl Annealer for Problem {
     type Move = Vec<(usize, Point)>;
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
+        if let Some(init_state) = &self.init_state {
+            if !is_inside_hole(&self.problem, init_state) {
+                panic!("init state is not inside the hole");
+            }
+
+            return init_state.clone();
+        }
+
         let ix = rng.gen_range(0..self.problem.hole.len());
 
         let default_point = self.problem.hole[ix].clone();
@@ -149,7 +162,8 @@ impl Annealer for Problem {
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
-        (init_score / 100.0).max(self.penalty_ratio)
+        self.start_temp
+            .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
     }
 
     fn is_done(&self, score: f64) -> bool {
@@ -226,7 +240,7 @@ impl Annealer for Problem {
                         return vec![(i, d)];
                     }
                 }
-                10..=14 => loop {
+                10..=16 => {
                     let e = &self.problem.figure.edges
                         [rng.gen_range(0..self.problem.figure.edges.len())];
                     let i = e.v1;
@@ -235,12 +249,6 @@ impl Annealer for Problem {
                     if self.fixed_points.contains_key(&i) || self.fixed_points.contains_key(&j) {
                         continue;
                     }
-
-                    // let i = rng.gen_range(0..state.vertices.len());
-                    // let j = rng.gen_range(0..state.vertices.len());
-                    // if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
-                    //     continue;
-                    // }
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -262,31 +270,19 @@ impl Annealer for Problem {
                     if ok {
                         return vec![(i, d1), (j, d2)];
                     }
-                },
-                15..=19 => {
+                }
+                17..=19 => {
                     if self.triangles.is_empty() {
                         continue;
                     }
 
                     let (i, j, k) = self.triangles[rng.gen_range(0..self.triangles.len())];
-                    if self.fixed_points.contains_key(&i) ||
-                        self.fixed_points.contains_key(&j) ||
-                        self.fixed_points.contains_key(&k) {
+                    if self.fixed_points.contains_key(&i)
+                        || self.fixed_points.contains_key(&j)
+                        || self.fixed_points.contains_key(&k)
+                    {
                         continue;
                     }
-
-                    // let i = rng.gen_range(0..state.vertices.len());
-                    // let j = rng.gen_range(0..state.vertices.len());
-                    // let k = rng.gen_range(0..state.vertices.len());
-                    // if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
-                    //     continue;
-                    // }
-                    // if !self.problem.figure.edges.contains(&Edge::new(j, k)) {
-                    //     continue;
-                    // }
-                    // if !self.problem.figure.edges.contains(&Edge::new(k, i)) {
-                    //     continue;
-                    // }
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -313,29 +309,31 @@ impl Annealer for Problem {
                     }
                 }
 
-                _ => loop {
-                    let i = rng.gen_range(0..state.vertices.len());
-                    if self.fixed_points.contains_key(&i) {
-                        continue;
-                    }
+                _ => {
+                    for _ in 0..10 {
+                        let i = rng.gen_range(0..state.vertices.len());
+                        if self.fixed_points.contains_key(&i) {
+                            continue;
+                        }
 
-                    let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
-                    if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
-                        continue;
-                    }
+                        let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
+                        if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
+                            continue;
+                        }
 
-                    let t = state.vertices[i];
-                    state.vertices[i] = self.problem.hole.polygon.vertices[j];
-                    let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
-                    state.vertices[i] = t;
+                        let t = state.vertices[i];
+                        state.vertices[i] = self.problem.hole.polygon.vertices[j];
+                        let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
+                        state.vertices[i] = t;
 
-                    if ok {
-                        return vec![(
-                            i,
-                            self.problem.hole.polygon.vertices[j] - state.vertices[i],
-                        )];
+                        if ok {
+                            return vec![(
+                                i,
+                                self.problem.hole.polygon.vertices[j] - state.vertices[i],
+                            )];
+                        }
                     }
-                },
+                }
             }
         }
     }
@@ -375,13 +373,22 @@ fn solve(
     #[opt(long)]
     seed: Option<u64>,
 
-    /// search only optimal solution
+    /// search around optimal solution
     //
-    #[opt(long)] exact: bool,
+    #[opt(long)]
+    exact: bool,
 
     // Find the hole->node mapping at the beginning.
     //
     #[opt(long)] use_hint: bool,
+
+    /// Use specified initial state
+    #[opt(long)]
+    init_state: Option<PathBuf>,
+
+    /// Use specified initial state
+    #[opt(long)]
+    start_temp: Option<f64>,
 
     #[opt(long, default_value = "100.0")] penalty_ratio: f64,
     #[opt(long, default_value = "1.0")] min_temp: f64,
@@ -415,15 +422,23 @@ fn solve(
     let mut hints = Vec::new();
     if use_hint {
         hints = find_hint(&problem);
-        eprintln!("Use hints: {:?}", hints);
+        // eprintln!("Use hints: {:?}", hints);
     } else {
         hints.push(BTreeMap::new());
     }
 
+    let init_state: Option<Pose> = init_state.map(|path| {
+        serde_json::from_reader(
+            File::open(&path).expect(&format!("{} is not found", path.display())),
+        )
+        .expect("invalid json file")
+    });
+
     let mut min_score = None;
     let mut min_solution = None;
     for i in 0..hints.len() {
-        eprintln!("Trial: {:?}/{:?}: {:?}", i + 1, hints.len(), hints[i]);
+        eprintln!("Trial: {}/{}", i + 1, hints.len());
+        // eprintln!("Trial: {}/{}: {:?}", i + 1, hints.len(), hints[i]);
 
         let problem = Problem {
             problem: problem.clone(),
@@ -431,6 +446,8 @@ fn solve(
             penalty_ratio,
             triangles: triangles.clone(),
             fixed_points: hints[i].clone(),
+            init_state: init_state.clone(),
+            start_temp: start_temp.clone(),
         };
 
         let (score, solution) = annealing(
@@ -445,7 +462,7 @@ fn solve(
             },
             seed,
         );
-    
+
         if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
             eprintln!("Cannot find solution");
             eprintln!(
@@ -639,7 +656,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
         <table>
             <tr>
                 <td><a href="/problems/{{problem-id}}"></a></td>
-                <td>{{your-dislikes}}</td>
+                <td>{{your-dislikes}}</td>a
                 <td>{{minimal-dislikes}}</td>
             </tr>
         </table>
