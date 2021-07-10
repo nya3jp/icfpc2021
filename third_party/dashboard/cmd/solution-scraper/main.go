@@ -181,4 +181,16 @@ func main() {
 		log.Fatalf("Failed to marshal data: %q", problems)
 	}
 	ioutil.WriteFile(*file, res, 0666)
+
+	for _, p := range problems {
+		var name = p.ProblemID
+		for _, sol := range p.Solutions {
+			var fileName = name + "-" + sol.Name + ".json"
+			res, err := json.Marshal(sol)
+			if err != nil {
+				log.Fatalf("Failed to marshal data: %q", sol)
+			}
+			ioutil.WriteFile(fileName, res, 0666)
+		}
+	}
 }
