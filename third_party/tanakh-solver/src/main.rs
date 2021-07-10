@@ -246,7 +246,7 @@ impl Annealer for Problem {
         let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
         loop {
-            match rng.gen_range(0..if self.exact { 21 } else { 20 }) {
+            match rng.gen_range(0..if self.exact { 22 } else { 21 }) {
                 0..=9 => {
                     let i = rng.gen_range(0..self.candidate_vertices.len());
                     let i = self.candidate_vertices[i];
@@ -331,6 +331,30 @@ impl Annealer for Problem {
 
                     if ok {
                         return vec![(i, d1), (j, d2), (k, d3)];
+                    }
+                }
+
+                20 => {
+                    // Parallel move
+                    let d = rng.gen_range(-w..=w);
+                    if d == 0 {
+                        continue;
+                    }
+
+                    let pd = Point::new(d as _, d as _);
+
+                    for i in 0..state.vertices.len() {
+                        state.vertices[i] += pd;
+                    }
+
+                    let ok = is_inside_hole(&self.problem, &state);
+
+                    for i in 0..state.vertices.len() {
+                        state.vertices[i] -= pd;
+                    }
+
+                    if ok {
+                        return (0..state.vertices.len()).map(|v| { (v, pd) }).collect();
                     }
                 }
 
