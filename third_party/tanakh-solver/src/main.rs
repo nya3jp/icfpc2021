@@ -117,6 +117,7 @@ struct Problem {
     problem: P,
     penalty_ratio: f64,
     exact: bool,
+    parallel: bool,
     triangles: Vec<(usize, usize, usize)>,
     init_state: Option<Pose>,
     start_temp: Option<f64>,
@@ -246,7 +247,7 @@ impl Annealer for Problem {
         let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
         loop {
-            match rng.gen_range(0..if self.exact { 21 } else { 20 }) {
+            match rng.gen_range(0..if self.exact { 22 } else { 21 }) {
                 0..=9 => {
                     let i = rng.gen_range(0..self.candidate_vertices.len());
                     let i = self.candidate_vertices[i];
@@ -334,6 +335,34 @@ impl Annealer for Problem {
                     }
                 }
 
+                20 => {
+                    if !self.parallel {
+                        continue;
+                    }
+
+                    // Parallel move
+                    let d = rng.gen_range(-w..=w);
+                    if d == 0 {
+                        continue;
+                    }
+
+                    let pd = Point::new(d as _, d as _);
+
+                    for i in 0..state.vertices.len() {
+                        state.vertices[i] += pd;
+                    }
+
+                    let ok = is_inside_hole(&self.problem, &state);
+
+                    for i in 0..state.vertices.len() {
+                        state.vertices[i] -= pd;
+                    }
+
+                    if ok {
+                        return (0..state.vertices.len()).map(|v| { (v, pd) }).collect();
+                    }
+                }
+
                 _ => {
                     for _ in 0..10 {
                         let i = rng.gen_range(0..self.candidate_vertices.len());
@@ -418,6 +447,11 @@ fn solve(
 
     #[opt(long)] no_submit: bool,
 
+    /// search parallel moves
+    //
+    #[opt(long)]
+    parallel: bool,
+
     problem_id: i64,
 ) -> Result<()> {
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
@@ -467,6 +501,7 @@ fn solve(
         let problem = Problem {
             problem: problem.clone(),
             exact,
+            parallel,
             penalty_ratio,
             triangles: triangles.clone(),
             fixed_points: hint.clone(),

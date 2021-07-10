@@ -12,7 +12,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const defaultDislike = 999999999
+const DefaultDislike = 999999999
 
 type Problem struct {
 	ProblemID int64           `json:"problem_id"`
@@ -83,6 +83,13 @@ func runMigration(db *sql.DB) error {
 		if err != nil {
 			return fmt.Errorf("cannot create tables: %v", err)
 		}
+		_, err = db.Exec(`
+			ALTER TABLE solutions ADD is_invalid INTEGER;
+		`)
+		if err != nil {
+			return fmt.Errorf("cannot update to the schema version %d: %v", version+1, err)
+		}
+		version = 1
 		fallthrough
 	default:
 	}
@@ -105,7 +112,7 @@ func (m *Manager) GetProblem(problemID int64) (*Problem, error) {
 		return nil, err
 	}
 
-	fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
+	fp := m.ProblemFilePath(problemID)
 	data, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
@@ -132,7 +139,7 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 			return nil, err
 		}
 
-		fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
+		fp := m.ProblemFilePath(problemID)
 		data, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, err
@@ -171,7 +178,7 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 		tags = append(tags, tag)
 	}
 
-	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
+	fp := m.SolutionFilePath(fileHash)
 	data, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
@@ -202,7 +209,7 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 			return nil, err
 		}
 
-		fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
+		fp := m.SolutionFilePath(fileHash)
 		data, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, err
@@ -245,10 +252,56 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 	return solutions, nil
 }
 
+type SolutionPendingEval struct {
+	ProblemID  int64
+	SolutionID int64
+	FileHash   string
+}
+
+func (m *Manager) GetSolutionsPendingEval() ([]*SolutionPendingEval, error) {
+	rows, err := m.db.Query("SELECT problem_id, solution_id, file_hash FROM solutions WHERE dislike = ? AND is_invalid IS NULL", DefaultDislike)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	solutions := make([]*SolutionPendingEval, 0) // must be non-nil
+	for rows.Next() {
+		var fileHash string
+		var problemID, solutionID int64
+		if err := rows.Scan(&problemID, &solutionID, &fileHash); err != nil {
+			return nil, err
+		}
+
+		solutions = append(solutions, &SolutionPendingEval{
+			SolutionID: solutionID,
+			ProblemID:  problemID,
+			FileHash:   fileHash,
+		})
+	}
+	return solutions, nil
+}
+
+func (m *Manager) UpdateSolutionEvalResult(solutionID int64, isInvalid bool, dislike int64) error {
+	_, err := m.db.Exec("UPDATE solutions SET is_invalid = ?, dislike = ? WHERE solution_id = ?", isInvalid, dislike, solutionID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Manager) ProblemFilePath(problemID int64) string {
+	return filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
+}
+
+func (m *Manager) SolutionFilePath(fileHash string) string {
+	return filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
+}
+
 func (m *Manager) AddProblem(problem *Problem) error {
 	createdAt := time.Now().Unix()
 
-	fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problem.ProblemID))
+	fp := m.ProblemFilePath(problem.ProblemID)
 	if _, err := os.Lstat(fp); err == nil {
 		return fmt.Errorf("already exists")
 	}
@@ -295,7 +348,7 @@ func (m *Manager) AddSolution(solution *Solution) error {
 
 	result, err := tx.Exec(
 		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?)",
-		solution.ProblemID, createdAt, h, defaultDislike,
+		solution.ProblemID, createdAt, h, DefaultDislike,
 	)
 	if err != nil {
 		return err
@@ -327,7 +380,7 @@ func (m *Manager) saveSolutionToDisk(solutionJSON []byte) (string, error) {
 		return "", fmt.Errorf("cannot unmarshal the JSON data: %v", err)
 	}
 	h := fmt.Sprintf("%x", sha256.Sum256(bs))
-	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", h))
+	fp := m.SolutionFilePath(h)
 	if _, err := os.Lstat(fp); err == nil {
 		// Already exists.
 		return h, nil

@@ -1,6 +1,6 @@
 import {useParams} from 'react-router-dom';
-import {useEffect, useState} from 'react';
-import {Solution} from './types';
+import React, {useEffect, useState} from 'react';
+import {Problem, Solution} from './types';
 import {Link} from 'react-router-dom';
 
 import Chip from '@material-ui/core/Chip';
@@ -12,6 +12,8 @@ import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import {Model} from './model';
+import {Typography} from '@material-ui/core';
+import {Viewer} from './editor/Viewer';
 
 export interface SolutionPageProps {
     model: Model;
@@ -21,20 +23,28 @@ export const SolutionPage = (props: SolutionPageProps) => {
     const {model} = props;
     const {solutionID} = useParams<{ solutionID: string }>();
     const [solution, setSolution] = useState<Solution | null>(null);
+    const [problem, setProblem] = useState<Problem | null>(null);
 
     useEffect(() => {
         (async () => {
-            setSolution(await model.getSolution(+solutionID));
+            const solution = await model.getSolution(+solutionID);
+            setSolution(solution);
+            const problem = await model.getProblem(solution.problem_id);
+            setProblem(problem);
         })();
-    });
+    }, []);
 
-    if (!solution) {
+    if (!solution || !problem) {
       return <div></div>
     }
+
+    const problemLink = `/problems/${problem.problem_id}`;
     const createdAt = new Date();
     createdAt.setTime(solution.created_at * 1000);
     return (
       <div>
+        <Typography variant={'h3'}>Solution { solutionID }</Typography>
+        <Viewer problem={problem.data} solution={solution.data} />
         <TableContainer component={Paper}>
           <Table size="small" aria-label="a dense table">
             <TableHead>
@@ -45,12 +55,12 @@ export const SolutionPage = (props: SolutionPageProps) => {
             </TableHead>
             <TableBody>
               <TableRow>
-                <TableCell component="th" scope="row" align="right">ProblemID</TableCell>
-                <TableCell>{solution.problem_id}</TableCell>
-              </TableRow>
-              <TableRow>
                 <TableCell component="th" scope="row" align="right">SolutionID</TableCell>
                 <TableCell>{solution.solution_id}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell component="th" scope="row" align="right">ProblemID</TableCell>
+                <TableCell><Link to={problemLink}>{solution.problem_id}</Link></TableCell>
               </TableRow>
               <TableRow>
                 <TableCell component="th" scope="row" align="right">Created at</TableCell>
@@ -62,10 +72,13 @@ export const SolutionPage = (props: SolutionPageProps) => {
                   <TableCell>{solution.tags.map((tag) => <Link to={`/tags/${tag}`}><Chip label={tag} /></Link>)}</TableCell>
                 </TableRow>
               }
+              <TableRow>
+                <TableCell component="th" scope="row" align="right">JSON</TableCell>
+                <TableCell><textarea style={{width: '100%', height: '200px'}}>{JSON.stringify(solution)}</textarea></TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </TableContainer>
-        <pre>{JSON.stringify(solution)}</pre>
       </div>
     );
 };

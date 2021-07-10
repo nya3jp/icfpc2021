@@ -69,15 +69,18 @@ fn is_inside_hole_internal(
 
         let p1 = &pose.vertices[edge.v1];
         let p2 = &pose.vertices[edge.v2];
+        let mut ccw_hint = ccw(p1, p2, &problem.hole.polygon.vertices[0]);
         for i in 0..problem.hole.polygon.vertices.len() {
             let h1 = &problem.hole.polygon.vertices[i];
             let h2 = &problem.hole.polygon.vertices[(i + 1) % problem.hole.polygon.vertices.len()];
-            if is_crossing(p1, p2, h1, h2) {
+            let (crossing, next_ccw_hint) = is_crossing_with_hint(p1, p2, h1, h2, ccw_hint);
+            if crossing {
                 if verbose {
                     eprintln!("Point {:?} {:?} is crossing with {:?} {:?}", p1, p2, h1, h2);
                 }
                 return false;
             }
+            ccw_hint = next_ccw_hint;
         }
         // All mid points should be contained in the hole.
         let mid = (*p1 + *p2) / 2.;

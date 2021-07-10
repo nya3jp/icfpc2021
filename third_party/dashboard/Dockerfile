@@ -15,6 +15,7 @@ RUN go get -d -v ./...
 RUN CGO_ENABLED=1 go install -v ./...
 
 FROM base-env
+COPY ./static /static
 COPY --from=build-env /go/bin/dashboard-server /
 COPY --from=fe-build-env /usr/src/app/build /build
 ENTRYPOINT ["/dashboard-server"]
