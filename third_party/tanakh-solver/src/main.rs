@@ -87,7 +87,7 @@ impl Annealer for Problem {
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
-        init_score / 10.0
+        (init_score / 100.0).max(self.penalty_ratio)
     }
 
     fn is_done(&self, score: f64) -> bool {
@@ -307,6 +307,7 @@ fn solve(
     exact: bool,
 
     #[opt(long, default_value = "100.0")] penalty_ratio: f64,
+    #[opt(long, default_value = "1.0")] min_temp: f64,
 
     #[opt(long)] no_submit: bool,
 
@@ -325,7 +326,7 @@ fn solve(
         &problem,
         &AnnealingOptions {
             time_limit,
-            limit_temp: 1.0,
+            limit_temp: min_temp,
             restart,
             threads,
             silent: false,
