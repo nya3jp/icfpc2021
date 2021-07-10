@@ -44,7 +44,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
     return (
       <div>
         <Typography variant={'h3'}>Solution { solutionID }</Typography>
-        <Viewer problem={problem.data} solution={solution.data} />
+        <Viewer problem={problem} solution={solution} />
         <TableContainer component={Paper}>
           <Table size="small" aria-label="a dense table">
             <TableHead>

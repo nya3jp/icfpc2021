@@ -1,4 +1,4 @@
-import {Point, ProblemData, SolutionData} from '../types';
+import {Point, Problem, ProblemData, Solution, SolutionData} from '../types';
 import React, {useEffect, useRef} from 'react';
 
 function distance(p: Point, q: Point) {
@@ -37,21 +37,22 @@ class Translator {
     }
 }
 
-function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: SolutionData) {
+function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) {
     // TODO: Consider problem.hole and solution.vertices.
-    const translator = Translator.fitTo(problem.figure.vertices, canvas.width, canvas.height);
+    const translator = Translator.fitTo(problem.data.figure.vertices, canvas.width, canvas.height);
 
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = 'rgb(222, 222, 222)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw hole.
-    if (problem.hole.length > 0) {
+    const hole = problem.data.hole;
+    if (hole.length > 0) {
         ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
-        ctx.moveTo(...translator.modelToCanvas(problem.hole[problem.hole.length - 1]));
-        for (const v of problem.hole) {
+        ctx.moveTo(...translator.modelToCanvas(hole[hole.length - 1]));
+        for (const v of hole) {
             ctx.lineTo(...translator.modelToCanvas(v));
         }
         ctx.fill();
@@ -61,12 +62,12 @@ function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: Soluti
     // TODO: Consider drawing the original pose.
 
     // Draw pose.
-    const {edges, vertices} = problem.figure;
-    const pose = solution ? solution.vertices : vertices;
+    const {edges, vertices} = problem.data.figure;
+    const pose = solution && solution.invalid_reason === '' ? solution.data.vertices : vertices;
 
     ctx.strokeStyle = 'rgb(255, 0, 0)';
     for (const edge of edges) {
-        ctx.strokeStyle = getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]), problem.epsilon);
+        ctx.strokeStyle = getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]), problem.data.epsilon);
         ctx.beginPath();
         ctx.moveTo(...translator.modelToCanvas(pose[edge[0]]));
         ctx.lineTo(...translator.modelToCanvas(pose[edge[1]]));
@@ -94,8 +95,8 @@ function getLineColor(current: number, original: number, epsilon: number): strin
 }
 
 interface ViewerProps {
-    problem: ProblemData;
-    solution?: SolutionData;
+    problem: Problem;
+    solution?: Solution;
     size?: number;
 }
 

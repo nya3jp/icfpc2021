@@ -15,7 +15,7 @@ import {Viewer} from './editor/Viewer';
 function ProblemPane({ problem }: {problem: Problem}) {
     return (
         <div>
-            <Viewer problem={problem.data} />
+            <Viewer problem={problem} />
         </div>
     );
 }
@@ -40,7 +40,7 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                         return (
                             <TableRow>
                                 <TableCell><Link to={link}>{solution.solution_id}</Link></TableCell>
-                                <TableCell><Link to={link}><Viewer problem={problem.data} solution={solution.data} size={100} /></Link></TableCell>
+                                <TableCell><Link to={link}><Viewer problem={problem} solution={solution} size={100} /></Link></TableCell>
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
                             </TableRow>

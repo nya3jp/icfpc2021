@@ -65,7 +65,7 @@ const ProblemList = (props: ProblemListProps) => {
                                 return (
                                     <TableRow key={problem.problem_id}>
                                         <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
-                                        <TableCell><Link to={problemLink}><Viewer problem={problem.data} size={100} /></Link></TableCell>
+                                        <TableCell><Link to={problemLink}><Viewer problem={problem} size={100} /></Link></TableCell>
                                         <TableCell></TableCell>
                                         <TableCell></TableCell>
                                     </TableRow>
@@ -78,7 +78,7 @@ const ProblemList = (props: ProblemListProps) => {
                             return (
                                 <TableRow key={problem.problem_id}>
                                     <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
-                                    <TableCell><Link to={problemLink}><Viewer problem={problem.data} size={100} /></Link></TableCell>
+                                    <TableCell><Link to={problemLink}><Viewer problem={problem} size={100} /></Link></TableCell>
                                     <TableCell><Link to={solutionLink}>{sol.solution_id}</Link></TableCell>
                                     <TableCell>{sol.dislike}</TableCell>
                                 </TableRow>

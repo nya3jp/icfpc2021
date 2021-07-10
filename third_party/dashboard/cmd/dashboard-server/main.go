@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -32,10 +34,9 @@ func main() {
 	}
 	defer mgr.Close()
 
-	updateDislike := make(chan bool, 1)
-	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr, updateDislike)
+	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
 
-	s := &server{mgr, updateDislike}
+	s := &server{mgr}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
@@ -53,8 +54,7 @@ func main() {
 }
 
 type server struct {
-	mgr           *solutionmgr.Manager
-	updateDislike chan<- bool
+	mgr *solutionmgr.Manager
 }
 
 func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
@@ -152,7 +152,7 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	problem := &solutionmgr.Problem{
 		ProblemID:      problemID,
-		MinimalDislike: solutionmgr.DefaultDislike,
+		MinimalDislike: eval.RejectDislike,
 		Data:           problemJSON,
 	}
 	if err := s.mgr.AddProblem(problem); err != nil {
@@ -185,18 +185,28 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := strings.Split(r.Form.Get("tags"), ",")
+	tmp, err := ioutil.TempFile("", "scorer.")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer tmp.Close()
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(solutionJSON); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason := eval.Eval(*scorerPath, s.mgr.ProblemFilePath(problemID), tmp.Name())
 	solution := &solutionmgr.Solution{
-		ProblemID: problemID,
-		Tags:      tags,
-		Data:      solutionJSON,
+		ProblemID:    problemID,
+		Tags:         tags,
+		Dislike:      dislike,
+		RejectReason: rejectReason,
+		Data:         solutionJSON,
 	}
 	if err := s.mgr.AddSolution(solution); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	select {
-	case s.updateDislike <- true:
-	default:
 	}
 	io.WriteString(w, "ok")
 }

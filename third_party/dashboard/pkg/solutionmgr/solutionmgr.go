@@ -12,8 +12,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-const DefaultDislike = 999999999
-
 type Problem struct {
 	ProblemID      int64           `json:"problem_id"`
 	CreatedAt      int64           `json:"created_at"`
@@ -22,12 +20,13 @@ type Problem struct {
 }
 
 type Solution struct {
-	SolutionID int64           `json:"solution_id"`
-	ProblemID  int64           `json:"problem_id"`
-	CreatedAt  int64           `json:"created_at"`
-	Dislike    int64           `json:"dislike,omitempty"`
-	Tags       []string        `json:"tags"`
-	Data       json.RawMessage `json:"data"`
+	SolutionID   int64           `json:"solution_id"`
+	ProblemID    int64           `json:"problem_id"`
+	CreatedAt    int64           `json:"created_at"`
+	Dislike      int64           `json:"dislike"`
+	RejectReason string          `json:"reject_reason"`
+	Tags         []string        `json:"tags"`
+	Data         json.RawMessage `json:"data"`
 }
 
 type Manager struct {
@@ -61,7 +60,18 @@ func runMigration(db *sql.DB) error {
 		return fmt.Errorf("cannot get the user_version: %v", err)
 	}
 	switch version {
-	case 0:
+	case 0, 1:
+		_, err = db.Exec(`
+			DROP TABLE IF EXISTS problems;
+			DROP TABLE IF EXISTS solutions;
+			DROP TABLE IF EXISTS tags;
+		`)
+		if err != nil {
+			return fmt.Errorf("cannot drop tables: %v", err)
+		}
+		version = 2
+		fallthrough
+	case 2:
 		// This is the initial schema.
 		_, err = db.Exec(`
 			CREATE TABLE IF NOT EXISTS problems (
@@ -75,7 +85,7 @@ func runMigration(db *sql.DB) error {
 				created_at INTEGER NOT NULL,
 				file_hash STRING NOT NULL,
 				dislike INTEGER NOT NULL,
-				valid INTEGER NOT NULL
+				reject_reason STRING NOT NULL DEFAULT ""
 			);
 			CREATE TABLE IF NOT EXISTS tags (
 				solution_id INTEGER NOT NULL,
@@ -86,7 +96,7 @@ func runMigration(db *sql.DB) error {
 		if err != nil {
 			return fmt.Errorf("cannot create tables: %v", err)
 		}
-		version = 1
+		version = 3
 		fallthrough
 	default:
 	}
@@ -155,10 +165,10 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 }
 
 func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
-	var fileHash string
+	var fileHash, rejectReason string
 	var problemID, createdAt, dislike int64
-	row := m.db.QueryRow("SELECT problem_id, created_at, file_hash, dislike FROM solutions WHERE solution_id = ?", solutionID)
-	if err := row.Scan(&problemID, &createdAt, &fileHash, &dislike); err != nil {
+	row := m.db.QueryRow("SELECT problem_id, created_at, file_hash, dislike, reject_reason FROM solutions WHERE solution_id = ?", solutionID)
+	if err := row.Scan(&problemID, &createdAt, &fileHash, &dislike, &rejectReason); err != nil {
 		return nil, err
 	}
 
@@ -184,17 +194,18 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 	}
 
 	return &Solution{
-		SolutionID: solutionID,
-		ProblemID:  problemID,
-		CreatedAt:  createdAt,
-		Dislike:    dislike,
-		Tags:       tags,
-		Data:       data,
+		SolutionID:   solutionID,
+		ProblemID:    problemID,
+		CreatedAt:    createdAt,
+		Dislike:      dislike,
+		RejectReason: rejectReason,
+		Tags:         tags,
+		Data:         data,
 	}, nil
 }
 
 func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
-	rows, err := m.db.Query("SELECT solution_id, created_at, file_hash, dislike FROM solutions WHERE problem_id = ?", problemID)
+	rows, err := m.db.Query("SELECT solution_id, created_at, file_hash, dislike, reject_reason FROM solutions WHERE problem_id = ?", problemID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,9 +213,9 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 
 	solutionMap := make(map[int64]*Solution)
 	for rows.Next() {
-		var fileHash string
+		var fileHash, rejectReason string
 		var solutionID, createdAt, dislike int64
-		if err := rows.Scan(&solutionID, &createdAt, &fileHash, &dislike); err != nil {
+		if err := rows.Scan(&solutionID, &createdAt, &fileHash, &dislike, &rejectReason); err != nil {
 			return nil, err
 		}
 
@@ -215,12 +226,13 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 		}
 
 		solutionMap[solutionID] = &Solution{
-			SolutionID: solutionID,
-			ProblemID:  problemID,
-			CreatedAt:  createdAt,
-			Dislike:    dislike,
-			Tags:       make([]string, 0), // must be non-nil
-			Data:       data,
+			SolutionID:   solutionID,
+			ProblemID:    problemID,
+			CreatedAt:    createdAt,
+			Dislike:      dislike,
+			RejectReason: rejectReason,
+			Tags:         make([]string, 0), // must be non-nil
+			Data:         data,
 		}
 	}
 
@@ -258,31 +270,35 @@ type SolutionPendingEval struct {
 }
 
 func (m *Manager) GetSolutionsPendingEval() ([]*SolutionPendingEval, error) {
-	rows, err := m.db.Query("SELECT problem_id, solution_id, file_hash FROM solutions WHERE dislike = ? AND valid IS NULL", DefaultDislike)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	solutions := make([]*SolutionPendingEval, 0) // must be non-nil
-	for rows.Next() {
-		var fileHash string
-		var problemID, solutionID int64
-		if err := rows.Scan(&problemID, &solutionID, &fileHash); err != nil {
+	// TODO: Restore this logic.
+	/*
+		rows, err := m.db.Query("SELECT problem_id, solution_id, file_hash FROM solutions WHERE dislike = ? AND reject_reason IS NULL", DefaultDislike)
+		if err != nil {
 			return nil, err
 		}
+		defer rows.Close()
 
-		solutions = append(solutions, &SolutionPendingEval{
-			SolutionID: solutionID,
-			ProblemID:  problemID,
-			FileHash:   fileHash,
-		})
-	}
-	return solutions, nil
+		solutions := make([]*SolutionPendingEval, 0) // must be non-nil
+		for rows.Next() {
+			var fileHash string
+			var problemID, solutionID int64
+			if err := rows.Scan(&problemID, &solutionID, &fileHash); err != nil {
+				return nil, err
+			}
+
+			solutions = append(solutions, &SolutionPendingEval{
+				SolutionID: solutionID,
+				ProblemID:  problemID,
+				FileHash:   fileHash,
+			})
+		}
+		return solutions, nil
+	*/
+	return nil, nil
 }
 
-func (m *Manager) UpdateSolutionEvalResult(solutionID int64, valid bool, dislike int64) error {
-	_, err := m.db.Exec("UPDATE solutions SET valid = ?, dislike = ? WHERE solution_id = ?", valid, dislike, solutionID)
+func (m *Manager) UpdateSolutionEvalResult(solutionID int64, rejectReason string, dislike int64) error {
+	_, err := m.db.Exec("UPDATE solutions SET reject_reason = ?, dislike = ? WHERE solution_id = ?", rejectReason, dislike, solutionID)
 	if err != nil {
 		return err
 	}
@@ -301,9 +317,6 @@ func (m *Manager) AddProblem(problem *Problem) error {
 	createdAt := time.Now().Unix()
 
 	fp := m.ProblemFilePath(problem.ProblemID)
-	if _, err := os.Lstat(fp); err == nil {
-		return fmt.Errorf("already exists")
-	}
 	if err := os.MkdirAll(filepath.Dir(fp), 0755); err != nil {
 		return fmt.Errorf("cannot make directories: %v", err)
 	}
@@ -346,8 +359,8 @@ func (m *Manager) AddSolution(solution *Solution) error {
 	defer tx.Rollback()
 
 	result, err := tx.Exec(
-		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?)",
-		solution.ProblemID, createdAt, h, DefaultDislike,
+		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike, reject_reason) VALUES (?, ?, ?, ?, ?)",
+		solution.ProblemID, createdAt, h, solution.Dislike, solution.RejectReason,
 	)
 	if err != nil {
 		return err
