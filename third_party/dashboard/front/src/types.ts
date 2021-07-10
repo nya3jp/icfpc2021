@@ -23,3 +23,10 @@ export interface Solution {
     tags: string[];
     solution_sets: string[];
 }
+
+export type SolutionMap = { [key: string]: Solution };
+export type PoseMap = { [key: string]: Pose };
+
+export function solutionKey(problem_id: string, solution_id: string): string {
+    return problem_id + "-" + solution_id;
+}
