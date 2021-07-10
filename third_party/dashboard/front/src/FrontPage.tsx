@@ -1,11 +1,14 @@
-import {useEffect, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Problem, Solution} from './types';
 import {Model} from './model';
 import {Link} from 'react-router-dom';
 
 import Container from '@material-ui/core/Container';
+import FormControlLabel from '@material-ui/core/FormControlLabel';
+import FormGroup from '@material-ui/core/FormGroup';
 import Grid from '@material-ui/core/Grid';
 import Paper from '@material-ui/core/Paper';
+import Switch from '@material-ui/core/Switch';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
 import TableCell from '@material-ui/core/TableCell';
@@ -50,13 +53,9 @@ const ProblemCell = ({problem}: {problem: Problem}) => {
 
 const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution}) => {
     const solutionLink = `/solutions/${solution.solution_id}`;
-    let color = "#FFF";
-    if (solution.dislike === 0) {
-        color = green[100];
-    }
     return (
         <Link to={solutionLink}>
-            <Grid container spacing={2} style={{background: color}}>
+            <Grid container spacing={2}>
                 <Grid item>
                     <Viewer problem={problem} solution={solution} size={100} />
                 </Grid>
@@ -79,9 +78,16 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
     );
 };
 
+interface FormFilterState {
+    hideTopTie: boolean;
+};
+
 const ProblemList = (props: ProblemListProps) => {
     const {model} = props;
 
+    const [formFilter, setFormFilter] = useState<FormFilterState>({
+        hideTopTie: false,
+    });
     const [problems, setProblems] = useState<Problem[]>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
 
@@ -105,10 +111,26 @@ const ProblemList = (props: ProblemListProps) => {
         }
     });
 
+    const switchHideTopTie = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setFormFilter({...formFilter, hideTopTie: event.target.checked});
+    };
+
     if (problems.length === 0) return <p>No solutions</p>;
 
     return (
         <Container component={Paper}>
+            <FormGroup row>
+                <FormControlLabel
+                    control={
+                        <Switch
+                            checked={formFilter.hideTopTie}
+                            onChange={switchHideTopTie}
+                            color="primary"
+                        />
+                    }
+                    label="Hide top tie problems"
+                />
+            </FormGroup>
             <Table size="small">
                 <TableHead>
                     <TableRow>
@@ -130,8 +152,16 @@ const ProblemList = (props: ProblemListProps) => {
                         const sol = ss.reduce((prev, current) => {
                             return prev.dislike < current.dislike ? prev : current;
                         });
+                        const topTie = sol.dislike === problem.minimal_dislike;
+                        if (formFilter.hideTopTie && topTie) {
+                            return <div></div>;
+                        }
+                        let color = "#FFF";
+                        if (topTie) {
+                            color = green[100];
+                        }
                         return (
-                            <TableRow key={problem.problem_id}>
+                            <TableRow key={problem.problem_id} style={{background: color}}>
                                 <TableCell><ProblemCell problem={problem} /></TableCell>
                                 <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
                             </TableRow>
