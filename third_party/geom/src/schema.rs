@@ -128,11 +128,48 @@ pub struct Figure {
     pub edges: Vec<Edge>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(from = "String", into = "String")]
+pub enum BonusType {
+    GLOBALIST,
+    BREAK_A_LEG,
+}
+
+impl From<String> for BonusType {
+    fn from(t: String) -> BonusType {
+        if t == "GLOBALIST" {
+            BonusType::GLOBALIST
+        } else if t == "BREAK_A_LEG" {
+            BonusType::BREAK_A_LEG
+        } else {
+            panic!("Unknown Bonus Type")
+        }
+    }
+}
+
+impl From<BonusType> for String {
+    fn from(t: BonusType) -> String {
+        match t {
+            BonusType::GLOBALIST => "GLOBALIST".to_string(),
+            BonusType::BREAK_A_LEG => "BREAK_A_LEG".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Bonus {
+    pub position: Point,
+    pub bonus: BonusType,
+    pub problem: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Problem {
     pub hole: Hole,
     pub figure: Figure,
     pub epsilon: i64,
+
+    pub bonuses: Vec<Bonus>,
 }
 
 pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>> {
