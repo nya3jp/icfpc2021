@@ -223,7 +223,7 @@ class Editor extends EventTarget {
 
     private onMouseWheel(ev: WheelEvent): void {
         ev.preventDefault();
-        this.translator.zoom = Math.min(10, Math.max(1, this.translator.zoom + ev.deltaY / 1000));
+        this.translator.zoom = Math.min(20, Math.max(1, this.translator.zoom + ev.deltaY / 200));
         this.refresh();
     }
 
