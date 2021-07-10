@@ -117,6 +117,7 @@ struct Problem {
     problem: P,
     penalty_ratio: f64,
     exact: bool,
+    parallel: bool,
     triangles: Vec<(usize, usize, usize)>,
     init_state: Option<Pose>,
     start_temp: Option<f64>,
@@ -335,6 +336,10 @@ impl Annealer for Problem {
                 }
 
                 20 => {
+                    if !self.parallel {
+                        continue;
+                    }
+
                     // Parallel move
                     let d = rng.gen_range(-w..=w);
                     if d == 0 {
@@ -442,6 +447,11 @@ fn solve(
 
     #[opt(long)] no_submit: bool,
 
+    /// search parallel moves
+    //
+    #[opt(long)]
+    parallel: bool,
+
     problem_id: i64,
 ) -> Result<()> {
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
@@ -491,6 +501,7 @@ fn solve(
         let problem = Problem {
             problem: problem.clone(),
             exact,
+            parallel,
             penalty_ratio,
             triangles: triangles.clone(),
             fixed_points: hint.clone(),
