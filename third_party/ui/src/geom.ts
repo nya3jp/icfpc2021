@@ -1,6 +1,6 @@
 import {Point} from './types';
 
-export function distance(p: Point, q: Point): number {
+export function distance2(p: Point, q: Point): number {
     const dx = p[0] - q[0];
     const dy = p[1] - q[1];
     return dx * dx + dy * dy;
@@ -11,7 +11,7 @@ export function roundPoint(p: Point): Point {
 }
 
 export function midPoint(p: Point, q: Point): Point {
-    return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    return vdiv(vadd(p, q), 2);
 }
 
 export class Translator {
@@ -21,12 +21,30 @@ export class Translator {
     }
 
     public modelToCanvas(p: Point): Point {
-        return [(p[0] - this.center[0]) * this.zoom,
-            (p[1] - this.center[1]) * this.zoom];
+        return vmul(vsub(p, this.center), this.zoom);
     }
 
     public canvasToModel(p: Point): Point {
-        return [p[0] / this.zoom + this.center[0],
-            p[1] / this.zoom + this.center[1]];
+        return vadd(vdiv(p, this.zoom), this.center);
     }
+}
+
+export function vadd(p: Point, q: Point): Point {
+    return [p[0] + q[0], p[1] + q[1]];
+}
+
+export function vsub(p: Point, q: Point): Point {
+    return [p[0] - q[0], p[1] - q[1]];
+}
+
+export function vmul(p: Point, m: number): Point {
+    return [p[0] * m, p[1] * m];
+}
+
+export function vdiv(p: Point, m: number): Point {
+    return [p[0] / m, p[1] / m];
+}
+
+export function vdot(p: Point, q: Point): number {
+    return p[0] * q[0] + p[1] * q[1];
 }

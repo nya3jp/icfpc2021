@@ -1,5 +1,5 @@
 import {Point, Pose, Problem} from './types';
-import {distance, midPoint, roundPoint, Translator} from './geom';
+import {distance2, midPoint, roundPoint, Translator, vdiv, vsub} from './geom';
 
 export class Editor extends EventTarget {
     private problem: Problem = {
@@ -65,7 +65,7 @@ export class Editor extends EventTarget {
         let dislike = 0;
         for (const h of this.problem.hole) {
             dislike += this.pose
-                .map((p) => distance(p, h))
+                .map((p) => distance2(p, h))
                 .reduce((a, b) => Math.min(a, b));
         }
         return dislike;
@@ -103,7 +103,7 @@ export class Editor extends EventTarget {
         const pose = this.pose;
         ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
-            ctx.strokeStyle = this.getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]));
+            ctx.strokeStyle = this.getLineColor(distance2(pose[edge[0]], pose[edge[1]]), distance2(vertices[edge[0]], vertices[edge[1]]));
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
             ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
@@ -138,8 +138,8 @@ export class Editor extends EventTarget {
         const {edges, vertices} = this.problem.figure;
         const pose = this.pose;
         for (const edge of edges) {
-            const dist = distance(pose[edge[0]], pose[edge[1]]);
-            const original = distance(vertices[edge[0]], vertices[edge[1]]);
+            const dist = distance2(pose[edge[0]], pose[edge[1]]);
+            const original = distance2(vertices[edge[0]], vertices[edge[1]]);
             const margin = original * this.problem.epsilon / 1000000;
             const mid = this.translator.modelToCanvas(midPoint(pose[edge[0]], pose[edge[1]]));
             const text = dist.toString() + "∈ [" + Math.ceil(original - margin).toString()
@@ -166,7 +166,7 @@ export class Editor extends EventTarget {
             }
             ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
             for (const adjacent of adjacents) {
-                const original2 = distance(vertices[adjacent], vertices[this.draggingVertex]);
+                const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex]);
                 const margin2 = original2 * this.problem.epsilon / 1000000;
                 const min = Math.sqrt(original2 - margin2);
                 const max = Math.sqrt(original2 + margin2);
@@ -188,11 +188,11 @@ export class Editor extends EventTarget {
                 const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
                 let nearest = 0;
                 for (let i = 0; i < this.pose.length; ++i) {
-                    if (distance(this.pose[i], pos) < distance(this.pose[nearest], pos)) {
+                    if (distance2(this.pose[i], pos) < distance2(this.pose[nearest], pos)) {
                         nearest = i;
                     }
                 }
-                if (distance(this.pose[nearest], pos) < 10 * 10) {
+                if (distance2(this.pose[nearest], pos) < 10 * 10) {
                     this.draggingVertex = nearest;
                     this.onDragVertex(pos);
                 }
@@ -225,9 +225,8 @@ export class Editor extends EventTarget {
             this.render();
         }
         if (this.slideStartCanvas !== null) {
-            const dx = (ev.offsetX - this.slideStartCanvas[0]) / this.translator.zoom;
-            const dy = (ev.offsetY - this.slideStartCanvas[1]) / this.translator.zoom;
-            this.translator.center = [this.slideStartCenter![0] - dx, this.slideStartCenter![1] - dy];
+            const delta = vdiv(vsub([ev.offsetX, ev.offsetY], this.slideStartCanvas), this.translator.zoom);
+            this.translator.center = vsub(this.slideStartCenter!, delta);
             this.render();
         }
     }
