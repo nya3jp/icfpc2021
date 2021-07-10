@@ -16,3 +16,8 @@ export interface Problem {
     figure: Figure
     epsilon: number
 }
+
+export interface Solution {
+    id: number
+    pose: Pose
+}

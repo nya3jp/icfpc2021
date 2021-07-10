@@ -71,6 +71,31 @@ export class OutputTextArea {
     }
 }
 
+export class FragmentUpdater {
+    constructor(
+        private readonly editor: Editor,
+        private readonly problemSelector: ProblemSelector) {
+    }
+
+    public start(): void {
+        this.editor.addEventListener('refresh', () => this.onRefresh());
+        this.onRefresh();
+    }
+
+    private onRefresh(): void {
+        const problemId = this.problemSelector.getProblemId()
+        if (Number.isNaN(problemId)) {
+            // The UI is initializing. Do not update the fragment.
+            return;
+        }
+        const pose = this.editor.getPose();
+        const url = new URL('/', 'http://example.com');
+        url.searchParams.set('problem_id', problemId.toString());
+        url.searchParams.set('pose', JSON.stringify(pose));
+        window.location.hash = '#?' + url.searchParams.toString();
+    }
+}
+
 export class DistanceToggle {
     constructor(
         private readonly checkbox: HTMLInputElement,
