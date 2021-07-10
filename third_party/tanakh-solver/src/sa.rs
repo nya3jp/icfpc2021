@@ -106,6 +106,8 @@ fn do_annealing<A: Annealer>(
 
     let mut temp = t_max;
     let mut progress_ratio = 0.0;
+    let mut prev_heart_beat = timer.elapsed().unwrap();
+
     for i in 0.. {
         if i % 100 == 0 {
             progress_ratio = timer.elapsed().unwrap().as_secs_f64() / time_limit;
@@ -121,6 +123,16 @@ fn do_annealing<A: Annealer>(
             }
 
             temp = t_max * (t_min / t_max).powf(progress_ratio);
+
+            if (timer.elapsed().unwrap() - prev_heart_beat).as_secs_f64() >= 10.0 {
+                progress!(
+                    "Best: score = {:15.3}, temp = {:12.3}, progress: {:6.2}% *",
+                    best_score,
+                    temp,
+                    progress_ratio * 100.0
+                );
+                prev_heart_beat = timer.elapsed().unwrap();
+            }
         }
 
         let mov = annealer.neighbour(&mut state, &mut rng, progress_ratio);
@@ -138,6 +150,7 @@ fn do_annealing<A: Annealer>(
                         temp,
                         progress_ratio * 100.0
                     );
+                    prev_heart_beat = timer.elapsed().unwrap();
                 }
                 best_score = cur_score;
                 best_ans = state.clone();
