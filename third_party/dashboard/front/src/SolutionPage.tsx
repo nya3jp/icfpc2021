@@ -41,6 +41,10 @@ export const SolutionPage = (props: SolutionPageProps) => {
     const problemLink = `/problems/${problem.problem_id}`;
     const createdAt = new Date();
     createdAt.setTime(solution.created_at * 1000);
+    const dump = JSON.stringify({
+        problem_id: solution.problem_id,
+        ...solution.data
+    })
     return (
       <div>
         <Typography variant={'h3'}>Solution { solutionID }</Typography>
@@ -74,7 +78,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
               }
               <TableRow>
                 <TableCell component="th" scope="row" align="right">JSON</TableCell>
-                <TableCell><textarea style={{width: '100%', height: '200px'}}>{JSON.stringify(solution)}</textarea></TableCell>
+                <TableCell><textarea style={{width: '100%', height: '200px'}}>{dump}</textarea></TableCell>
               </TableRow>
             </TableBody>
           </Table>
