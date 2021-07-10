@@ -35,13 +35,6 @@ func main() {
 	}
 	defer mgr.Close()
 
-	if err := solutionmgr.BatchDedupe(mgr); err != nil {
-		log.Fatal(err)
-	}
-	if err := solutionmgr.BatchRemoveEmptyTags(mgr); err != nil {
-		log.Fatal(err)
-	}
-
 	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
 
 	scraper, err := scrape.NewScraper()
