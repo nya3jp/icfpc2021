@@ -1,145 +1,29 @@
-import React, {useEffect, useState} from 'react';
-import {
-  BrowserRouter as Router,
-  Switch,
-  Route,
-  Link,
-  useParams
-} from 'react-router-dom';
-import List from '@material-ui/core/List';
-import ListItem from '@material-ui/core/ListItem';
-import ListItemText from '@material-ui/core/ListItemText';
+import React, {useState} from 'react';
+import {BrowserRouter as Router, Link, Route, Switch} from 'react-router-dom';
+import {PoseMap, SolutionMap} from './types';
+import {FrontPage} from './FrontPage';
+import {SolutionPage} from './SolutionPage';
+
+import {makeStyles} from '@material-ui/core/styles';
+import AppBar from '@material-ui/core/AppBar';
+import Toolbar from '@material-ui/core/Toolbar';
+import Container from '@material-ui/core/Container';
+import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
 
-const solutionKey = (problem_id: string, solution_id: string): string => problem_id + "-" + solution_id;
+const useStyles = makeStyles((theme) => ({
+  root: {
+    flexGrow: 1,
+  },
+  title: {
+    flexGrow: 1,
+  },
+}));
 
-export type Point = [number, number];
-
-export type Edge = [number, number];
-
-export type Hole = Point[];
-
-export interface Figure {
-    edges: Edge[];
-    vertices: Point[];
-}
-
-export interface Problem {
-    hole: Hole;
-    figure: Figure;
-    epsilon: number;
-}
-
-export interface Solution {
-    vertices: Point[];
-}
-
-type SolutionMap = {[key: string]: Solution};
-
-interface SolutionMeta {
-    problem_id: string;
-    solution_id: string;
-    tags: string[];
-    solution_sets: string[];
-}
-
-type SolutionMetaMap = {[key: string]: SolutionMeta};
-
-interface RecentSolutionsListProps {
-    solutions: SolutionMetaMap;
-    recentSolutions: SolutionMeta[];
-}
-
-const RecentSolutionsList = (props: RecentSolutionsListProps) => {
-  const {solutions, recentSolutions} = props;
-  if (!recentSolutions || recentSolutions.length === 0) return <p>No solutions</p>;
-  return (
-    <div>
-      <Typography variant="h6">
-        Recent solutions
-      </Typography>
-      <List>
-        {recentSolutions.map(({problem_id, solution_id}) => {
-          const key = solutionKey(problem_id, solution_id);
-          const link = `/problems/${problem_id}/solutions/${solution_id}`;
-          if (solutions[key]) {
-            const s = solutions[key];
-            const primary = `Problem ${problem_id} Solution ${solution_id} ${s.tags} ${s.solution_sets}`;
-            return <Link key={key} to={link}><ListItem><ListItemText primary={primary} /></ListItem></Link>;
-          }
-          return <Link key={key} to={link}><ListItem><ListItemText>Problem {problem_id} Solution {solution_id}</ListItemText></ListItem></Link>;
-        })}
-      </List>
-    </div>
-  );
-};
-
-interface HomeProps {
-    solutions: SolutionMetaMap;
-    ensureSolution: (problemID: string, solutionID: string) => void;
-}
-
-interface HomeState {
-    loading: boolean;
-    recentSolutions: SolutionMeta[];
-}
-
-const Home = (props: HomeProps) => {
-  const {solutions, ensureSolution} = props;
-  const [appState, setAppState] = useState<HomeState>({
-    loading: false,
-    recentSolutions: [],
-  });
-
-  useEffect(() => {
-    setAppState({loading: true, recentSolutions: []});
-      fetch(`https://spweek.badalloc.com/api/solutions`)
-      .then((res) => res.json())
-      .then((recentSolutions: SolutionMeta[]) => {
-        setAppState({loading: false, recentSolutions: recentSolutions});
-        recentSolutions.map((solution) => {
-          ensureSolution(solution.problem_id, solution.solution_id);
-        });
-      });
-  }, [setAppState]);
-
-  return (
-    <div>
-      <h2></h2>
-      <RecentSolutionsList solutions={solutions} recentSolutions={appState.recentSolutions} />
-    </div>
-  );
-};
-
-interface SolutionProps {
-    solutions: SolutionMetaMap;
-    ensureSolution: (problemID: string, solutionID: string) => void;
-    solutionFiles: SolutionMap;
-    ensureSolutionFile: (problemID: string, solutionID: string) => void;
-}
-
-const SolutionDump = (props: SolutionProps) => {
-  const {solutions, ensureSolution, solutionFiles, ensureSolutionFile} = props;
-  const {problemID, solutionID} = useParams<{problemID: string, solutionID: string}>();
-
-  useEffect(() => {
-    ensureSolution(problemID, solutionID);
-    ensureSolutionFile(problemID, solutionID);
-  })
-
-  const key = problemID + "-" + solutionID;
-  console.log(solutionFiles);
-  if (solutionFiles[key]) {
-    return <div>{JSON.stringify(solutionFiles[key])}</div>
-  }
-  return (
-    <div></div>
-  );
-};
 
 export default function App() {
-  const [solutions, setSolutions] = useState<SolutionMetaMap>({});
-  const [solutionFiles, setSolutionFiles] = useState<SolutionMap>({});
+  const [solutions, setSolutions] = useState<SolutionMap>({});
+  const [poses, setPoses] = useState<PoseMap>({});
 
   const ensureSolution = (problemID: string, solutionID: string) => {
     const idx = problemID + "-" + solutionID;
@@ -149,42 +33,48 @@ export default function App() {
     fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID + `/meta`)
       .then((res) => res.json())
       .then((s) => {
-        const obj: SolutionMetaMap = {};
+        const obj: SolutionMap = {};
         obj[idx] = s;
         setSolutions(obj);
       });
   };
-  const ensureSolutionFile = (problemID: string, solutionID: string) => {
+  const ensurePose = (problemID: string, solutionID: string) => {
     const idx = problemID + "-" + solutionID;
-    if (solutionFiles[idx]) {
+    if (poses[idx]) {
       return;
     }
     fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID)
       .then((res) => res.json())
       .then((s) => {
-        const obj: SolutionMap = {};
+        const obj: PoseMap = {};
         obj[idx] = s;
-        setSolutionFiles(obj);
+        setPoses(obj);
       });
   };
 
+  const classes = useStyles();
+
   return (
-    <Router>
-      <nav>
-        <ul>
-          <li>
-            <Link to="/">Home</Link>
-          </li>
-        </ul>
-      </nav>
-      <Switch>
-        <Route path="/problems/:problemID/solutions/:solutionID">
-          <SolutionDump solutions={solutions} ensureSolution={ensureSolution} solutionFiles={solutionFiles} ensureSolutionFile={ensureSolutionFile} />
-        </Route>
-        <Route path="/">
-          <Home solutions={solutions} ensureSolution={ensureSolution} />
-        </Route>
-      </Switch>
-    </Router>
+    <div className={classes.root}>
+      <Router>
+        <AppBar position="static">
+          <Toolbar>
+            <Typography variant="h6" className={classes.title}>
+            </Typography>
+            <Button color="inherit" component={Link} to="/">Home</Button>
+          </Toolbar>
+        </AppBar>
+        <Container>
+          <Switch>
+            <Route path="/problems/:problemID/solutions/:solutionID">
+              <SolutionPage solutions={solutions} ensureSolution={ensureSolution} poses={poses} ensurePoses={ensurePose} />
+            </Route>
+            <Route path="/">
+              <FrontPage solutions={solutions} ensureSolution={ensureSolution} />
+            </Route>
+          </Switch>
+        </Container>
+      </Router>
+    </div>
   );
 }
