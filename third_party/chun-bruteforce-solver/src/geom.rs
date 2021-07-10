@@ -214,17 +214,17 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
         let q2 = pose[*e2 as usize];
         let d2 = (q1.0 - q2.0) * (q1.0 - q2.0) + (q1.1 - q2.1) * (q1.1 - q2.1);
         // if d1 < d2
-        //   | d1/d2 - 1 | = 1 - d1/d2.
-        //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d2
+        //   | d2/d1 - 1 | = d2/d1 - 1
+        //   <=> check d2 * 1000000 - d1 * 1000000 <= eps * d1
         // else
-        //   | d1/d2 - 1 | = d1/d2 - 1
-        //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d2
+        //   | d2/d1 - 1 | = 1 - d2/d1
+        //   <=>check d1 * 1000000 - d2 * 1000000 <= eps * d1
         let lhs = if d1 < d2 {
             d2 * 1000000 - d1 * 1000000
         } else {
             d1 * 1000000 - d2 * 1000000
         };
-        let rhs = problem.epsilon * d2;
+        let rhs = problem.epsilon * d1;
         if lhs > rhs {
             return false;
         }
