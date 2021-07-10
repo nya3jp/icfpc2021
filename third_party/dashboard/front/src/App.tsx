@@ -12,7 +12,7 @@ import Typography from '@material-ui/core/Typography';
 import {Model} from './model';
 import {ProblemPage} from './ProblemPage';
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles((_) => ({
   root: {
     flexGrow: 1,
   },
@@ -22,7 +22,7 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 export default function App() {
-  const [model, _] = useState<Model>(() => new Model());
+  const [model] = useState<Model>(() => new Model());
   const classes = useStyles();
 
   return (

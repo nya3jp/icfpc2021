@@ -63,7 +63,7 @@ fn is_inside_hole_internal(
 
     // All segments should not cross each other.
     for edge in &problem.figure.edges {
-        if changed.is_none() || !(changed.unwrap().contains(&edge.v1) || changed.unwrap().contains(&edge.v2)) {
+        if !changed.is_none() && !(changed.unwrap().contains(&edge.v1) || changed.unwrap().contains(&edge.v2)) {
             continue;
         }
 

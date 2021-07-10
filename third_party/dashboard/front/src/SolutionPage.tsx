@@ -1,5 +1,5 @@
 import {useParams} from 'react-router-dom';
-import React, {useEffect, useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Solution} from './types';
 import {Link} from 'react-router-dom';
 
@@ -24,7 +24,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
 
     useEffect(() => {
         (async () => {
-            setSolution(await model.getSolution(solutionID));
+            setSolution(await model.getSolution(+solutionID));
         })();
     });
 

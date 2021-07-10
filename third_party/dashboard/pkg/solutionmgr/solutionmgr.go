@@ -125,7 +125,7 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 	}
 	defer rows.Close()
 
-	var problems []*Problem
+	problems := make([]*Problem, 0) // must be non-nil
 	for rows.Next() {
 		var problemID, createdAt int64
 		if err := rows.Scan(&problemID, &createdAt); err != nil {
@@ -162,7 +162,7 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 	}
 	defer rows.Close()
 
-	var tags []string
+	tags := make([]string, 0) // must be non-nil
 	for rows.Next() {
 		var tag string
 		if err := rows.Scan(&tag); err != nil {
@@ -185,6 +185,64 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 		Tags:       tags,
 		Data:       data,
 	}, nil
+}
+
+func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
+	rows, err := m.db.Query("SELECT solution_id, created_at, file_hash, dislike FROM solutions WHERE problem_id = ?", problemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	solutionMap := make(map[int64]*Solution)
+	for rows.Next() {
+		var fileHash string
+		var solutionID, createdAt, dislike int64
+		if err := rows.Scan(&solutionID, &createdAt, &fileHash, &dislike); err != nil {
+			return nil, err
+		}
+
+		fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
+		data, err := os.ReadFile(fp)
+		if err != nil {
+			return nil, err
+		}
+
+		solutionMap[solutionID] = &Solution{
+			SolutionID: solutionID,
+			ProblemID:  problemID,
+			CreatedAt:  createdAt,
+			Dislike:    dislike,
+			Tags:       make([]string, 0),
+			Data:       data,
+		}
+	}
+
+	rows, err = m.db.Query("SELECT solution_id, tag FROM tags INNER JOIN solutions USING (solution_id) WHERE solutions.problem_id = ?", problemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var solutionID int64
+		var tag string
+		if err := rows.Scan(&solutionID, &tag); err != nil {
+			return nil, err
+		}
+
+		solution := solutionMap[solutionID]
+		if solution == nil {
+			continue
+		}
+		solution.Tags = append(solution.Tags, tag)
+	}
+
+	solutions := make([]*Solution, 0) // must be non-nil
+	for _, s := range solutionMap {
+		solutions = append(solutions, s)
+	}
+	return solutions, nil
 }
 
 func (m *Manager) AddProblem(problem *Problem) error {
