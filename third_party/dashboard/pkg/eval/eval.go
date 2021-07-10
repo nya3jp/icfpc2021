@@ -35,11 +35,11 @@ func UpdateDislikes(scorerPath string, mgr *solutionmgr.Manager) error {
 		return err
 	}
 	for _, solution := range solutions {
-		isInvalid, dislike, err := eval(scorerPath, mgr, solution)
+		valid, dislike, err := eval(scorerPath, mgr.ProblemFilePath(solution.ProblemID), mgr.SolutionFilePath(solution.FileHash))
 		if err != nil {
 			return err
 		}
-		if err := mgr.UpdateSolutionEvalResult(solution.SolutionID, isInvalid, dislike); err != nil {
+		if err := mgr.UpdateSolutionEvalResult(solution.SolutionID, valid, dislike); err != nil {
 			return err
 		}
 	}
@@ -51,11 +51,11 @@ type scorerOutput struct {
 	Dislike int64 `json:"dislike"`
 }
 
-func eval(scorerPath string, mgr *solutionmgr.Manager, solution *solutionmgr.SolutionPendingEval) (bool, int64, error) {
+func eval(scorerPath string, problemPath, solutionPath string) (bool, int64, error) {
 	cmd := exec.Command(
 		scorerPath,
-		mgr.ProblemFilePath(solution.ProblemID),
-		mgr.SolutionFilePath(solution.FileHash),
+		problemPath,
+		solutionPath,
 		"json",
 	)
 	bs, err := cmd.Output()
@@ -67,5 +67,5 @@ func eval(scorerPath string, mgr *solutionmgr.Manager, solution *solutionmgr.Sol
 		return false, 0, err
 	}
 
-	return !output.IsValid, output.Dislike, nil
+	return output.IsValid, output.Dislike, nil
 }

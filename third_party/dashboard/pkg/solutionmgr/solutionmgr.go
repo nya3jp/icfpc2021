@@ -65,14 +65,16 @@ func runMigration(db *sql.DB) error {
 		_, err = db.Exec(`
 			CREATE TABLE IF NOT EXISTS problems (
 				problem_id INTEGER PRIMARY KEY,
-				created_at INTEGER NOT NULL
+				created_at INTEGER NOT NULL,
+				minimal_dislike INTEGER NOT NULL
 			);
 			CREATE TABLE IF NOT EXISTS solutions (
 				solution_id INTEGER PRIMARY KEY AUTOINCREMENT,
 				problem_id INTEGER NOT NULL,
 				created_at INTEGER NOT NULL,
 				file_hash STRING NOT NULL,
-				dislike INTEGER NOT NULL
+				dislike INTEGER NOT NULL,
+				valid INTEGER NOT NULL
 			);
 			CREATE TABLE IF NOT EXISTS tags (
 				solution_id INTEGER NOT NULL,
@@ -82,12 +84,6 @@ func runMigration(db *sql.DB) error {
 		`)
 		if err != nil {
 			return fmt.Errorf("cannot create tables: %v", err)
-		}
-		_, err = db.Exec(`
-			ALTER TABLE solutions ADD is_invalid INTEGER;
-		`)
-		if err != nil {
-			return fmt.Errorf("cannot update to the schema version %d: %v", version+1, err)
 		}
 		version = 1
 		fallthrough
@@ -259,7 +255,7 @@ type SolutionPendingEval struct {
 }
 
 func (m *Manager) GetSolutionsPendingEval() ([]*SolutionPendingEval, error) {
-	rows, err := m.db.Query("SELECT problem_id, solution_id, file_hash FROM solutions WHERE dislike = ? AND is_invalid IS NULL", DefaultDislike)
+	rows, err := m.db.Query("SELECT problem_id, solution_id, file_hash FROM solutions WHERE dislike = ? AND valid IS NULL", DefaultDislike)
 	if err != nil {
 		return nil, err
 	}
@@ -282,8 +278,8 @@ func (m *Manager) GetSolutionsPendingEval() ([]*SolutionPendingEval, error) {
 	return solutions, nil
 }
 
-func (m *Manager) UpdateSolutionEvalResult(solutionID int64, isInvalid bool, dislike int64) error {
-	_, err := m.db.Exec("UPDATE solutions SET is_invalid = ?, dislike = ? WHERE solution_id = ?", isInvalid, dislike, solutionID)
+func (m *Manager) UpdateSolutionEvalResult(solutionID int64, valid bool, dislike int64) error {
+	_, err := m.db.Exec("UPDATE solutions SET valid = ?, dislike = ? WHERE solution_id = ?", valid, dislike, solutionID)
 	if err != nil {
 		return err
 	}
