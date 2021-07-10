@@ -132,7 +132,7 @@ fn do_annealing<A: Annealer>(
             if cur_score < best_score {
                 if best_score - cur_score > 1e-6 {
                     progress!(
-                        "Best: score = {:.3}, temp = {:.9}, progress: {:.2}%",
+                        "Best: score = {:15.3}, temp = {:12.3}, progress: {:6.2}%",
                         cur_score,
                         temp,
                         progress_ratio * 100.0

@@ -13,6 +13,30 @@ pub struct Hole {
     pub polygon: Polygon,
 }
 
+impl Hole {
+    pub fn len(&self) -> usize {
+        self.polygon.vertices.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Point> {
+        self.polygon.vertices.iter()
+    }
+}
+
+impl std::ops::Index<usize> for Hole {
+    type Output = Point;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.polygon.vertices[index]
+    }
+}
+
+impl std::ops::IndexMut<usize> for Hole {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.polygon.vertices[index]
+    }
+}
+
 impl From<Vec<(i64, i64)>> for Hole {
     fn from(t: Vec<(i64, i64)>) -> Self {
         Hole {

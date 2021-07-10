@@ -3,13 +3,13 @@ extern crate prettytable;
 
 mod sa;
 
-use std::cmp::{max, min, Reverse};
+use std::cmp::{max, Reverse};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use chrono::{Datelike, Timelike};
 use easy_scraper::Pattern;
 use geom::{
@@ -29,6 +29,7 @@ use tanakh_solver::{get_problem, ENDPOINT};
 #[derive(Clone)]
 struct Problem {
     problem: P,
+    penalty_ratio: f64,
     exact: bool,
 }
 
@@ -38,51 +39,51 @@ impl Annealer for Problem {
     type Move = Vec<(usize, Point)>;
 
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
-        // let ix = rng.gen_range(0..self.hole.len());
+        let ix = rng.gen_range(0..self.problem.hole.len());
 
-        // (0..self.figure.vertices.len())
-        //     .map(|_| {
-        //         /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-        //         self.hole[ix].clone()
-        //     })
-        //     .collect_vec()
+        let ret = (0..self.problem.figure.vertices.len())
+            .map(|_| {
+                /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
+                self.problem.hole[ix].clone()
+            })
+            .collect_vec();
 
-        loop {
-            let mut minx = i64::MAX;
-            let mut maxx = i64::MIN;
-            let mut miny = i64::MAX;
-            let mut maxy = i64::MIN;
+        Pose { vertices: ret }
 
-            for p in self.problem.hole.polygon.vertices.iter() {
-                minx = min(minx, p.x as i64);
-                maxx = max(maxx, p.x as i64);
-                miny = min(miny, p.y as i64);
-                maxy = max(maxy, p.y as i64);
-            }
+        // loop {
+        //     let mut minx = i64::MAX;
+        //     let mut maxx = i64::MIN;
+        //     let mut miny = i64::MAX;
+        //     let mut maxy = i64::MIN;
 
-            let ret = (0..self.problem.figure.vertices.len())
-                .map(|_| loop {
-                    let x = rng.gen_range(minx..=maxx);
-                    let y = rng.gen_range(miny..=maxy);
+        //     for p in self.problem.hole.iter() {
+        //         minx = min(minx, p.x as i64);
+        //         maxx = max(maxx, p.x as i64);
+        //         miny = min(miny, p.y as i64);
+        //         maxy = max(maxy, p.y as i64);
+        //     }
 
-                    if self
-                        .problem
-                        .hole
-                        .polygon
-                        .contains(&Point::new(x as _, y as _))
-                        != ContainsResult::OUT
-                    {
-                        break Point::new(x as _, y as _);
-                    }
-                })
-                .collect_vec();
+        //     let ret = (0..self.problem.figure.vertices.len())
+        //         .map(|_| loop {
+        //             let x = rng.gen_range(minx..=maxx);
+        //             let y = rng.gen_range(miny..=maxy);
 
-            let ret = Pose { vertices: ret };
+        //             if self
+        //                 .problem
+        //                 .contains(&Point::new(x as _, y as _))
+        //                 != ContainsResult::OUT
+        //             {
+        //                 break Point::new(x as _, y as _);
+        //             }
+        //         })
+        //         .collect_vec();
 
-            if is_inside_hole(&self.problem, &ret) {
-                break ret;
-            }
-        }
+        //     let ret = Pose { vertices: ret };
+
+        //     if is_inside_hole(&self.problem, &ret) {
+        //         break ret;
+        //     }
+        // }
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
@@ -116,7 +117,7 @@ impl Annealer for Problem {
             pena += err / eps;
         }
 
-        for h in self.problem.hole.polygon.vertices.iter() {
+        for h in self.problem.hole.iter() {
             score += state
                 .vertices
                 .iter()
@@ -124,7 +125,7 @@ impl Annealer for Problem {
                 .fold(0.0 / 0.0, f64::min);
         }
 
-        score * (1.0 + pena / 10.0) + pena * 100.0
+        score * (1.0 + pena / 10.0) + pena * self.penalty_ratio
         // score
     }
 
@@ -134,7 +135,7 @@ impl Annealer for Problem {
         rng: &mut impl rand::Rng,
         progress_ratio: f64,
     ) -> Self::Move {
-        let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
+        let w = max(2, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
         if self.exact {
             loop {
@@ -177,10 +178,10 @@ impl Annealer for Problem {
                     state.vertices[i] -= d;
 
                     if ok {
-                        break vec![(i, d)];
+                        return vec![(i, d)];
                     }
                 }
-                1 => {
+                1 => loop {
                     let i = rng.gen_range(0..state.vertices.len());
                     let j = rng.gen_range(0..state.vertices.len());
                     if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
@@ -214,9 +215,9 @@ impl Annealer for Problem {
                     state.vertices[j] -= d2;
 
                     if ok {
-                        break vec![(i, d1), (j, d2)];
+                        return vec![(i, d1), (j, d2)];
                     }
-                }
+                },
                 2 => {
                     let i = rng.gen_range(0..state.vertices.len());
                     let j = rng.gen_range(0..state.vertices.len());
@@ -261,7 +262,7 @@ impl Annealer for Problem {
                     state.vertices[k] -= d3;
 
                     if ok {
-                        break vec![(i, d1), (j, d2), (k, d3)];
+                        return vec![(i, d1), (j, d2), (k, d3)];
                     }
                 }
 
@@ -305,6 +306,8 @@ fn solve(
     #[opt(long)]
     exact: bool,
 
+    #[opt(long, default_value = "100.0")] penalty_ratio: f64,
+
     #[opt(long)] no_submit: bool,
 
     problem_id: i64,
@@ -312,7 +315,11 @@ fn solve(
     let seed = rand::thread_rng().gen();
 
     let problem: P = get_problem(problem_id)?;
-    let problem = Problem { problem, exact };
+    let problem = Problem {
+        problem,
+        exact,
+        penalty_ratio,
+    };
 
     let (score, solution) = annealing(
         &problem,
@@ -374,15 +381,16 @@ fn solve(
     }
 
     let problems = get_problem_states()?;
-    let problem = problems
-        .iter()
-        .find(|r| r.problem_id == problem_id)
-        .ok_or_else(|| anyhow!("Problem {} is not found", problem_id))?;
+    let problem = problems.iter().find(|r| r.problem_id == problem_id);
 
-    eprintln!(
-        "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
-        score as i64, problem.your_dislikes, problem.minimal_dislikes
-    );
+    if let Some(problem) = problem {
+        eprintln!(
+            "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
+            score as i64, problem.your_dislikes, problem.minimal_dislikes
+        );
+    } else {
+        eprintln!("No submission for problem {} found.", problem_id);
+    }
 
     if dialoguer::Confirm::new()
         .with_prompt("Submit?")
@@ -587,5 +595,21 @@ fn list() -> Result<()> {
     Ok(())
 }
 
-#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list])]
+#[argopt::subcmd]
+fn info(problem_id: i64) -> Result<()> {
+    let problem = get_problem(problem_id)?;
+
+    println!("Problem {}:", problem_id);
+    println!("  * hole vertices:   {}", problem.hole.len());
+    println!("  * figure vertices: {}", problem.figure.vertices.len());
+    println!("  * figure edges:    {}", problem.figure.edges.len());
+    println!(
+        "  * epsilon:         {:.2}%",
+        problem.epsilon as f64 / 1_000_000.0 * 100.0
+    );
+
+    Ok(())
+}
+
+#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list, info])]
 fn main() -> Result<()> {}
