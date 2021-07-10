@@ -11,5 +11,5 @@ export function fetch_problem(problem_id: number): Promise<Problem> {
 }
 
 export function problem_list(): number[] {
-    return Array.from(Array(58).keys()).map(num => num + 1)
+    return Array.from(Array(78).keys()).map(num => num + 1)
 }
