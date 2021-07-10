@@ -112,6 +112,7 @@ fn do_annealing<A: Annealer>(
             if progress_ratio >= 1.0 {
                 restart_cnt += 1;
                 if restart_cnt >= opt.restart {
+                    progress!("{} iteration processed", i);
                     break;
                 }
                 progress!("Restarting... {}/{}", restart_cnt, opt.restart);

@@ -31,6 +31,7 @@ struct Problem {
     problem: P,
     penalty_ratio: f64,
     exact: bool,
+    triangles: Vec<(usize, usize, usize)>,
 }
 
 impl Annealer for Problem {
@@ -135,32 +136,11 @@ impl Annealer for Problem {
         rng: &mut impl rand::Rng,
         progress_ratio: f64,
     ) -> Self::Move {
-        let w = max(2, (4.0 * (1.0 - progress_ratio)).round() as i64);
-
-        if self.exact {
-            loop {
-                let i = rng.gen_range(0..state.vertices.len());
-                let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
-                if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
-                    continue;
-                }
-
-                let t = state.vertices[i];
-                state.vertices[i] = self.problem.hole.polygon.vertices[j];
-                let ok = is_inside_hole(&self.problem, &state);
-                state.vertices[i] = t;
-
-                if !ok {
-                    continue;
-                }
-
-                return vec![(i, self.problem.hole.polygon.vertices[j] - state.vertices[i])];
-            }
-        }
+        let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
         loop {
-            match rng.gen_range(0..3) {
-                0 => {
+            match rng.gen_range(0..if self.exact { 21 } else { 20 }) {
+                0..=9 => {
                     let i = rng.gen_range(0..state.vertices.len());
 
                     let dx = rng.gen_range(-w..=w);
@@ -181,12 +161,17 @@ impl Annealer for Problem {
                         return vec![(i, d)];
                     }
                 }
-                1 => loop {
-                    let i = rng.gen_range(0..state.vertices.len());
-                    let j = rng.gen_range(0..state.vertices.len());
-                    if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
-                        continue;
-                    }
+                10..=14 => loop {
+                    let e = &self.problem.figure.edges
+                        [rng.gen_range(0..self.problem.figure.edges.len())];
+                    let i = e.v1;
+                    let j = e.v2;
+
+                    // let i = rng.gen_range(0..state.vertices.len());
+                    // let j = rng.gen_range(0..state.vertices.len());
+                    // if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                    //     continue;
+                    // }
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -195,15 +180,6 @@ impl Annealer for Problem {
                     }
 
                     let d1 = Point::new(dx as _, dy as _);
-
-                    // let dx = rng.gen_range(-w..=w);
-                    // let dy = rng.gen_range(-w..=w);
-                    // if (dx, dy) == (0, 0) {
-                    //     continue;
-                    // }
-
-                    // let d2 = Point::new(dx as _, dy as _);
-
                     let d2 = d1;
 
                     state.vertices[i] += d1;
@@ -218,19 +194,25 @@ impl Annealer for Problem {
                         return vec![(i, d1), (j, d2)];
                     }
                 },
-                2 => {
-                    let i = rng.gen_range(0..state.vertices.len());
-                    let j = rng.gen_range(0..state.vertices.len());
-                    let k = rng.gen_range(0..state.vertices.len());
-                    if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                15..=19 => {
+                    if self.triangles.is_empty() {
                         continue;
                     }
-                    if !self.problem.figure.edges.contains(&Edge::new(j, k)) {
-                        continue;
-                    }
-                    if !self.problem.figure.edges.contains(&Edge::new(k, i)) {
-                        continue;
-                    }
+
+                    let (i, j, k) = self.triangles[rng.gen_range(0..self.triangles.len())];
+
+                    // let i = rng.gen_range(0..state.vertices.len());
+                    // let j = rng.gen_range(0..state.vertices.len());
+                    // let k = rng.gen_range(0..state.vertices.len());
+                    // if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                    //     continue;
+                    // }
+                    // if !self.problem.figure.edges.contains(&Edge::new(j, k)) {
+                    //     continue;
+                    // }
+                    // if !self.problem.figure.edges.contains(&Edge::new(k, i)) {
+                    //     continue;
+                    // }
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -239,15 +221,6 @@ impl Annealer for Problem {
                     }
 
                     let d1 = Point::new(dx as _, dy as _);
-
-                    // let dx = rng.gen_range(-w..=w);
-                    // let dy = rng.gen_range(-w..=w);
-                    // if (dx, dy) == (0, 0) {
-                    //     continue;
-                    // }
-
-                    // let d2 = Point::new(dx as _, dy as _);
-
                     let d2 = d1;
                     let d3 = d1;
 
@@ -266,7 +239,25 @@ impl Annealer for Problem {
                     }
                 }
 
-                _ => unreachable!(),
+                _ => loop {
+                    let i = rng.gen_range(0..state.vertices.len());
+                    let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
+                    if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
+                        continue;
+                    }
+
+                    let t = state.vertices[i];
+                    state.vertices[i] = self.problem.hole.polygon.vertices[j];
+                    let ok = is_inside_hole(&self.problem, &state);
+                    state.vertices[i] = t;
+
+                    if ok {
+                        return vec![(
+                            i,
+                            self.problem.hole.polygon.vertices[j] - state.vertices[i],
+                        )];
+                    }
+                },
             }
         }
     }
@@ -316,10 +307,29 @@ fn solve(
     let seed = rand::thread_rng().gen();
 
     let problem: P = get_problem(problem_id)?;
+
+    let mut triangles = vec![];
+
+    for i in 0..problem.figure.vertices.len() {
+        for j in 0..problem.figure.vertices.len() {
+            for k in 0..problem.figure.vertices.len() {
+                if problem.figure.edges.contains(&Edge::new(i, j))
+                    && problem.figure.edges.contains(&Edge::new(j, k))
+                    && problem.figure.edges.contains(&Edge::new(k, i))
+                {
+                    triangles.push((i, j, k));
+                }
+            }
+        }
+    }
+
+    eprintln!("Problem contains {} triangles", triangles.len());
+
     let problem = Problem {
         problem,
         exact,
         penalty_ratio,
+        triangles,
     };
 
     let (score, solution) = annealing(
