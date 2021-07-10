@@ -1,47 +1,20 @@
 import React, {useEffect, useState} from 'react';
 import {
-  BrowserRouter as Router,
-  Switch,
-  Route,
-  Link,
-  useParams
+    BrowserRouter as Router,
+    Link,
+    Route,
+    Switch,
+    useParams
 } from 'react-router-dom';
 import List from '@material-ui/core/List';
 import ListItem from '@material-ui/core/ListItem';
 import ListItemText from '@material-ui/core/ListItemText';
 import Typography from '@material-ui/core/Typography';
+import {Solution, SolutionMeta} from './types';
 
 const solutionKey = (problem_id: string, solution_id: string): string => problem_id + "-" + solution_id;
 
-export type Point = [number, number];
-
-export type Edge = [number, number];
-
-export type Hole = Point[];
-
-export interface Figure {
-    edges: Edge[];
-    vertices: Point[];
-}
-
-export interface Problem {
-    hole: Hole;
-    figure: Figure;
-    epsilon: number;
-}
-
-export interface Solution {
-    vertices: Point[];
-}
-
 type SolutionMap = {[key: string]: Solution};
-
-interface SolutionMeta {
-    problem_id: string;
-    solution_id: string;
-    tags: string[];
-    solution_sets: string[];
-}
 
 type SolutionMetaMap = {[key: string]: SolutionMeta};
 
