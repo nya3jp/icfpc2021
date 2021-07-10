@@ -17,7 +17,7 @@ function midPoint(p: Point, q: Point): Point {
 }
 
 class Translator {
-    private center: Point = [0, 0];
+    public center: Point = [0, 0];
 
     constructor(public zoom: number = 5.0) {}
 
@@ -41,6 +41,8 @@ class UI {
     private pose: Point[] = [];
 
     private draggingVertex: number | null = null;
+    private slideStartCenter: Point | null = null;
+    private slideStartCanvas: Point | null = null;
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
@@ -54,6 +56,7 @@ class UI {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
+        this.canvas.oncontextmenu = (ev) => { ev.preventDefault(); return false; };
         document.addEventListener('keydown', (ev) => this.onKeyDown(ev))
         document.addEventListener('wheel', (ev) => this.onMouseWheel(ev), {passive: false})
         this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
@@ -155,38 +158,51 @@ class UI {
     }
 
     private onMouseDown(ev: MouseEvent) {
-        if (ev.button !== 0) {
-            return;
-        }
-        const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
-        let nearest = 0;
-        for (let i = 0; i < this.pose.length; ++i) {
-            if (distance(this.pose[i], pos) < distance(this.pose[nearest], pos)) {
-                nearest = i;
-            }
-        }
-        if (distance(this.pose[nearest], pos) < 10*10) {
-            this.draggingVertex = nearest;
-            this.onDragVertex(pos);
+        switch (ev.button) {
+            case 0: // Left click
+                const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+                let nearest = 0;
+                for (let i = 0; i < this.pose.length; ++i) {
+                    if (distance(this.pose[i], pos) < distance(this.pose[nearest], pos)) {
+                        nearest = i;
+                    }
+                }
+                if (distance(this.pose[nearest], pos) < 10*10) {
+                    this.draggingVertex = nearest;
+                    this.onDragVertex(pos);
+                }
+                break;
+            case 2: // Right click
+                this.slideStartCanvas = [ev.offsetX, ev.offsetY];
+                this.slideStartCenter = this.translator.center;
+                break;
         }
     }
 
     private onMouseUp(ev: MouseEvent) {
-        if (ev.button !== 0) {
-            return;
+        switch (ev.button) {
+            case 0: // Left click
+                this.draggingVertex = null;
+                break;
+            case 2: // Right click
+                this.slideStartCanvas = null;
+                this.slideStartCenter = null;
+                break;
         }
-        this.draggingVertex = null;
     }
 
     private onMouseMove(ev: MouseEvent) {
-        if (ev.button !== 0) {
-            return;
+        if (this.draggingVertex !== null) {
+            const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+            this.onDragVertex(pos);
+            this.draw();
         }
-        if (this.draggingVertex === null) {
-            return;
+        if (this.slideStartCanvas !== null) {
+            const dx = (ev.offsetX - this.slideStartCanvas[0]) / this.translator.zoom;
+            const dy = (ev.offsetY - this.slideStartCanvas[1]) / this.translator.zoom;
+            this.translator.center = [this.slideStartCenter![0] - dx, this.slideStartCenter![1] - dy];
+            this.draw();
         }
-        const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
-        this.onDragVertex(pos);
     }
 
     private onKeyDown(ev: KeyboardEvent) {
