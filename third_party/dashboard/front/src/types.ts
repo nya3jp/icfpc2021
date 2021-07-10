@@ -13,11 +13,11 @@ export interface Problem {
     epsilon: number;
 }
 
-export interface Solution {
+export interface Pose {
     vertices: Point[];
 }
 
-export interface SolutionMeta {
+export interface Solution {
     problem_id: string;
     solution_id: string;
     tags: string[];
