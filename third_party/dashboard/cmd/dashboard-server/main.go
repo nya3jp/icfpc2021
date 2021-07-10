@@ -35,6 +35,13 @@ func main() {
 	}
 	defer mgr.Close()
 
+	if err := solutionmgr.BatchDedupe(mgr); err != nil {
+		log.Fatal(err)
+	}
+	if err := solutionmgr.BatchRemoveEmptyTags(mgr); err != nil {
+		log.Fatal(err)
+	}
+
 	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
 
 	scraper, err := scrape.NewScraper()
@@ -202,7 +209,7 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	tags := strings.Split(r.Form.Get("tags"), ",")
+	tags := trimAndRemoveEmpty(strings.Split(r.Form.Get("tags"), ","))
 	tmp, err := ioutil.TempFile("", "scorer.")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -222,9 +229,30 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		RejectReason: rejectReason,
 		Data:         data,
 	}
-	if err := s.mgr.AddSolution(solution); err != nil {
+	solutionID, err := s.mgr.AddSolution(solution)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	io.WriteString(w, "ok")
+	solution, err = s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func trimAndRemoveEmpty(ss []string) []string {
+	var res []string
+	for _, s := range ss {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			res = append(res, s)
+		}
+	}
+	return res
 }

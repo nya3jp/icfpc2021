@@ -103,6 +103,7 @@ type Solution struct {
 	RejectReason string       `json:"reject_reason"`
 	Tags         []string     `json:"tags"`
 	Data         SolutionData `json:"data"`
+	fileHash     string
 }
 
 type Manager struct {
@@ -297,6 +298,7 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 		RejectReason: rejectReason,
 		Tags:         tags,
 		Data:         data,
+		fileHash:     fileHash,
 	}, nil
 }
 
@@ -333,6 +335,7 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 			RejectReason: rejectReason,
 			Tags:         make([]string, 0), // must be non-nil
 			Data:         data,
+			fileHash:     fileHash,
 		}
 	}
 
@@ -452,26 +455,49 @@ func (m *Manager) AddProblem(problem *Problem) error {
 	return nil
 }
 
-func (m *Manager) AddSolution(solution *Solution) error {
+func (m *Manager) deleteSolution(solutionID int64) error {
+	_, err := m.db.Exec(`DELETE FROM tags WHERE solution_id = ?`, solutionID)
+	if err != nil {
+		return err
+	}
+	_, err = m.db.Exec(`DELETE FROM solutions WHERE solution_id = ?`, solutionID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Manager) AddSolution(solution *Solution) (int64, error) {
 	createdAt := time.Now().Unix()
 
 	problem, err := m.GetProblem(solution.ProblemID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if err := solution.Data.Validate(&problem.Data); err != nil {
-		return err
+		return 0, err
 	}
 
-	h, err := m.saveSolutionToDisk(&solution.Data)
+	h, alreadyExist, err := m.saveSolutionToDisk(&solution.Data)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	if alreadyExist {
+		var solutionID int64
+		err := m.db.QueryRow("SELECT solution_id FROM solutions WHERE file_hash = ?", h).Scan(&solutionID)
+		if err == nil {
+			return solutionID, nil
+		}
+		if err != sql.ErrNoRows {
+			return 0, err
+		}
+		// Continue to create a solution.
 	}
 
 	tx, err := m.db.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 
@@ -480,41 +506,41 @@ func (m *Manager) AddSolution(solution *Solution) error {
 		solution.ProblemID, createdAt, h, solution.Dislike, solution.RejectReason,
 	)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	solutionID, err := result.LastInsertId()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	for _, tag := range solution.Tags {
 		if _, err := tx.Exec("INSERT INTO tags(solution_id, tag) VALUES (?, ?) ON CONFLICT(solution_id, tag) DO NOTHING", solutionID, tag); err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return solutionID, nil
 }
 
-func (m *Manager) saveSolutionToDisk(data *SolutionData) (string, error) {
+func (m *Manager) saveSolutionToDisk(data *SolutionData) (string, bool, error) {
 	bs, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("cannot unmarshal the JSON data: %v", err)
+		return "", false, fmt.Errorf("cannot unmarshal the JSON data: %v", err)
 	}
 	h := fmt.Sprintf("%x", sha256.Sum256(bs))
 	fp := m.SolutionFilePath(h)
 	if _, err := os.Lstat(fp); err == nil {
 		// Already exists.
-		return h, nil
+		return h, true, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(fp), 0755); err != nil {
-		return "", fmt.Errorf("cannot make directories: %v", err)
+		return "", false, fmt.Errorf("cannot make directories: %v", err)
 	}
 	if err := os.WriteFile(fp, bs, 0644); err != nil {
-		return "", fmt.Errorf("cannot write the data file: %v", err)
+		return "", false, fmt.Errorf("cannot write the data file: %v", err)
 	}
-	return h, nil
+	return h, false, nil
 }
