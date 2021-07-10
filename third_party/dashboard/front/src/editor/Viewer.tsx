@@ -96,15 +96,16 @@ function getLineColor(current: number, original: number, epsilon: number): strin
 interface ViewerProps {
     problem: ProblemData;
     solution?: SolutionData;
+    size?: number;
 }
 
 export function Viewer(props: ViewerProps) {
-    const {problem, solution} = props;
+    const {problem, solution, size = 400} = props;
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
         draw(canvasRef.current!, problem, solution);
     }, []);
 
-    return <canvas ref={canvasRef} width={400} height={400} style={{border: '3px solid black', userSelect: 'none'}} />;
+    return <canvas ref={canvasRef} width={size} height={size} style={{border: '3px solid black', userSelect: 'none'}} />;
 }
