@@ -26,7 +26,7 @@ class Client {
         return await res.json();
     }
 
-    async getSolutionsForProblem(id: string): Promise<Problem[]> {
+    async getSolutionsForProblem(id: string): Promise<Solution[]> {
         const res = await fetch(`${this.baseURL}/api/problems/${id}/solutions`);
         return await res.json();
     }
@@ -64,7 +64,7 @@ export class Model {
         return fresh;
     }
 
-    getSolutionsForProblem(id: string): Promise<Problem[]> {
+    getSolutionsForProblem(id: string): Promise<Solution[]> {
         // Solutions for a problem change over time, do not cache.
         return this.client.getSolutionsForProblem(id);
     }

@@ -35,7 +35,7 @@ const RecentSolutionsList = (props: RecentSolutionsListProps) => {
                             return (
                                 <TableRow>
                                     <TableCell>{solution.problem_id}</TableCell>
-                                    <TableCell><Link to={link}>{solution.solution_id.substring(0, 8)}...</Link></TableCell>
+                                    <TableCell><Link to={link}>{solution.solution_id}...</Link></TableCell>
                                     <TableCell>{createdAt.toString()}</TableCell>
                                 </TableRow>
                             );

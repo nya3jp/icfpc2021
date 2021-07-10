@@ -14,7 +14,7 @@ export interface ProblemData {
 }
 
 export interface Problem {
-    problem_id: string;
+    problem_id: number;
     created_at: number;
     data: ProblemData;
 }
@@ -24,10 +24,10 @@ export interface SolutionData {
 }
 
 export interface Solution {
-    problem_id: string;
-    solution_id: string;
+    problem_id: number;
+    solution_id: number;
     created_at: number;
     tags: string[];
-    solution_sets: string[];
+    dislike: number;
     data: SolutionData;
 }
