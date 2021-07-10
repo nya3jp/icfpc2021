@@ -61,6 +61,7 @@ export default function App() {
           <Toolbar>
             <Typography variant="h6" className={classes.title}>
             </Typography>
+            <Button color="inherit" href="https://poses.live/problems">ICFPC Dash</Button>
             <Button color="inherit" component={Link} to="/">Home</Button>
           </Toolbar>
         </AppBar>

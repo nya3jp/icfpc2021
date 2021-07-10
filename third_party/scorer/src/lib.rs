@@ -20,6 +20,54 @@ pub fn dislike(hole: &Hole, pose: &Pose) -> usize {
     dislike as usize
 }
 
+pub fn is_inside_hole_partial(problem: &Problem, pose: &Pose, changed: &[usize]) -> bool {
+    // The vertices in pose should match with figure.
+    if problem.figure.vertices.len() != pose.vertices.len() {
+        eprintln!(
+            "Edge mismatch: {:?}, {:?}",
+            problem.figure.vertices.len(),
+            pose.vertices.len()
+        );
+        return false;
+    }
+
+    // All points should be contained in the hole.
+    for i in changed.iter() {
+        let p = &pose.vertices[*i];
+        if problem.hole.polygon.contains(p) == ContainsResult::OUT {
+            // eprintln!("Point {:?} is not contained in hole:", Point::from(*p));
+            return false;
+        }
+    }
+
+    // All segments should not cross each other.
+    for edge in &problem.figure.edges {
+        if !(changed.contains(&edge.v1) || changed.contains(&edge.v2)) {
+            continue;
+        }
+
+        let p1 = pose.vertices[edge.v1].clone();
+        let p2 = pose.vertices[edge.v2].clone();
+        for i in 0..problem.hole.polygon.vertices.len() {
+            let h1 = problem.hole.polygon.vertices[i].clone();
+            let h2 = problem.hole.polygon.vertices[(i + 1) % problem.hole.polygon.vertices.len()]
+                .clone();
+            if is_crossing(&p1, &p2, &h1, &h2) {
+                // eprintln!("Point {:?} {:?} is crossing with {:?} {:?}", p1, p2, h1, h2);
+                return false;
+            }
+        }
+        // All mid points should be contained in the hole.
+        let mid = (p1 + p2) / 2.;
+        if problem.hole.polygon.contains(&mid) == ContainsResult::OUT {
+            // eprintln!("Mid point {:?} is not contained in the hole", mid);
+            return false;
+        }
+    }
+
+    true
+}
+
 pub fn is_inside_hole(problem: &Problem, pose: &Pose) -> bool {
     // The vertices in pose should match with figure.
     if problem.figure.vertices.len() != pose.vertices.len() {
