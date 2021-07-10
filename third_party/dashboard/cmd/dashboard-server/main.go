@@ -151,8 +151,9 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	problem := &solutionmgr.Problem{
-		ProblemID: problemID,
-		Data:      problemJSON,
+		ProblemID:      problemID,
+		MinimalDislike: solutionmgr.DefaultDislike,
+		Data:           problemJSON,
 	}
 	if err := s.mgr.AddProblem(problem); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

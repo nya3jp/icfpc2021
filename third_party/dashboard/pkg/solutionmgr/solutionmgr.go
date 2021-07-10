@@ -15,9 +15,10 @@ import (
 const DefaultDislike = 999999999
 
 type Problem struct {
-	ProblemID int64           `json:"problem_id"`
-	CreatedAt int64           `json:"created_at"`
-	Data      json.RawMessage `json:"data"`
+	ProblemID      int64           `json:"problem_id"`
+	CreatedAt      int64           `json:"created_at"`
+	MinimalDislike int64           `json:"minimal_dislike"`
+	Data           json.RawMessage `json:"data"`
 }
 
 type Solution struct {
@@ -102,9 +103,9 @@ func (m *Manager) Close() error {
 }
 
 func (m *Manager) GetProblem(problemID int64) (*Problem, error) {
-	var createdAt int64
-	row := m.db.QueryRow("SELECT created_at FROM problems WHERE problem_id = ?", problemID)
-	if err := row.Scan(&createdAt); err != nil {
+	var createdAt, minimalDislike int64
+	row := m.db.QueryRow("SELECT created_at, minimal_dislike FROM problems WHERE problem_id = ?", problemID)
+	if err := row.Scan(&createdAt, &minimalDislike); err != nil {
 		return nil, err
 	}
 
@@ -115,14 +116,15 @@ func (m *Manager) GetProblem(problemID int64) (*Problem, error) {
 	}
 
 	return &Problem{
-		ProblemID: problemID,
-		CreatedAt: createdAt,
-		Data:      data,
+		ProblemID:      problemID,
+		CreatedAt:      createdAt,
+		MinimalDislike: minimalDislike,
+		Data:           data,
 	}, nil
 }
 
 func (m *Manager) GetProblems() ([]*Problem, error) {
-	rows, err := m.db.Query("SELECT problem_id, created_at FROM problems")
+	rows, err := m.db.Query("SELECT problem_id, created_at, minimal_dislike FROM problems")
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +132,8 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 
 	problems := make([]*Problem, 0) // must be non-nil
 	for rows.Next() {
-		var problemID, createdAt int64
-		if err := rows.Scan(&problemID, &createdAt); err != nil {
+		var problemID, createdAt, minimalDislike int64
+		if err := rows.Scan(&problemID, &createdAt, &minimalDislike); err != nil {
 			return nil, err
 		}
 
@@ -142,9 +144,10 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 		}
 
 		problems = append(problems, &Problem{
-			ProblemID: problemID,
-			CreatedAt: createdAt,
-			Data:      data,
+			ProblemID:      problemID,
+			CreatedAt:      createdAt,
+			MinimalDislike: minimalDislike,
+			Data:           data,
 		})
 	}
 
@@ -315,8 +318,8 @@ func (m *Manager) AddProblem(problem *Problem) error {
 	defer tx.Rollback()
 
 	_, err = tx.Exec(
-		"INSERT INTO problems(problem_id, created_at) VALUES (?, ?)",
-		problem.ProblemID, createdAt,
+		"INSERT INTO problems(problem_id, created_at, minimal_dislike) VALUES (?, ?, ?)",
+		problem.ProblemID, createdAt, problem.MinimalDislike,
 	)
 	if err != nil {
 		return err
