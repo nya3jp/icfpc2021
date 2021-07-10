@@ -29,7 +29,7 @@ export class Editor extends EventTarget {
             return false;
         });
         this.canvas.addEventListener('wheel', (ev) => this.onMouseWheel(ev), {passive: false})
-        this.refresh();
+        this.render();
     }
 
     public getZoom(): number {
@@ -38,18 +38,18 @@ export class Editor extends EventTarget {
 
     public setZoom(zoom: number) {
         this.translator.zoom = zoom;
-        this.refresh();
+        this.render();
     }
 
     public setProblem(problem: Problem): void {
         this.problem = problem;
         this.pose = [...problem.figure.vertices];
-        this.refresh();
+        this.render();
     }
 
     public setDrawDistance(drawDistance: boolean): void {
         this.drawDistance = drawDistance;
-        this.refresh();
+        this.render();
     }
 
     public getPose(): Pose {
@@ -58,7 +58,7 @@ export class Editor extends EventTarget {
 
     public setPose(pose: Pose): void {
         this.pose = pose;
-        this.refresh();
+        this.render();
     }
 
     public computeDislike(): number {
@@ -71,13 +71,14 @@ export class Editor extends EventTarget {
         return dislike;
     }
 
-    private refresh(): void {
+    private render(): void {
         const ctx = this.canvas.getContext('2d')!;
         ctx.fillStyle = 'rgb(222, 222, 222)';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.renderHole(ctx);
         this.renderPose(ctx);
         this.renderDistance(ctx);
+        this.renderHints(ctx);
         this.dispatchEvent(new CustomEvent('refresh'));
     }
 
@@ -151,6 +152,36 @@ export class Editor extends EventTarget {
         }
     }
 
+    private renderHints(ctx: CanvasRenderingContext2D): void {
+        if (this.draggingVertex) {
+            const {edges, vertices} = this.problem.figure;
+            const adjacents = [];
+            for (const edge of edges) {
+                if (edge[0] === this.draggingVertex) {
+                    adjacents.push(edge[1]);
+                }
+                if (edge[1] === this.draggingVertex) {
+                    adjacents.push(edge[0]);
+                }
+            }
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
+            for (const adjacent of adjacents) {
+                const original2 = distance(vertices[adjacent], vertices[this.draggingVertex]);
+                const margin2 = original2 * this.problem.epsilon / 1000000;
+                const min = Math.sqrt(original2 - margin2);
+                const max = Math.sqrt(original2 + margin2);
+                const center = this.pose[adjacent];
+                const minCanvas = min * this.translator.zoom;
+                const maxCanvas = max * this.translator.zoom;
+                const centerCanvas = this.translator.modelToCanvas(center);
+                ctx.beginPath();
+                ctx.arc(centerCanvas[0], centerCanvas[1], maxCanvas, 0, Math.PI * 2, false);
+                ctx.arc(centerCanvas[0], centerCanvas[1], minCanvas, 0, Math.PI * 2, true);
+                ctx.fill();
+            }
+        }
+    }
+
     private onMouseDown(ev: MouseEvent): void {
         switch (ev.button) {
             case 0: // Left click
@@ -177,10 +208,12 @@ export class Editor extends EventTarget {
         switch (ev.button) {
             case 0: // Left click
                 this.draggingVertex = null;
+                this.render();
                 break;
             case 2: // Right click
                 this.slideStartCanvas = null;
                 this.slideStartCenter = null;
+                this.render();
                 break;
         }
     }
@@ -189,24 +222,24 @@ export class Editor extends EventTarget {
         if (this.draggingVertex !== null) {
             const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
             this.onDragVertex(pos);
-            this.refresh();
+            this.render();
         }
         if (this.slideStartCanvas !== null) {
             const dx = (ev.offsetX - this.slideStartCanvas[0]) / this.translator.zoom;
             const dy = (ev.offsetY - this.slideStartCanvas[1]) / this.translator.zoom;
             this.translator.center = [this.slideStartCenter![0] - dx, this.slideStartCenter![1] - dy];
-            this.refresh();
+            this.render();
         }
     }
 
     private onMouseWheel(ev: WheelEvent): void {
         ev.preventDefault();
         this.translator.zoom = Math.min(20, Math.max(1, this.translator.zoom + ev.deltaY / 200));
-        this.refresh();
+        this.render();
     }
 
     private onDragVertex(pos: Point): void {
         this.pose[this.draggingVertex!] = roundPoint(pos);
-        this.refresh();
+        this.render();
     }
 }
