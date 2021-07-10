@@ -63,7 +63,7 @@ function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) 
 
     // Draw pose.
     const {edges, vertices} = problem.data.figure;
-    const pose = solution && solution.invalid_reason === '' ? solution.data.vertices : vertices;
+    const pose = solution ? solution.data.vertices : vertices;
 
     ctx.strokeStyle = 'rgb(255, 0, 0)';
     for (const edge of edges) {

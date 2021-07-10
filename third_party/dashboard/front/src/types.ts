@@ -29,7 +29,7 @@ export interface Solution {
     created_at: number;
     tags: string[];
     dislike: number;
-    invalid_reason: string;
+    reject_reason: string;
     data: SolutionData;
 }
 
