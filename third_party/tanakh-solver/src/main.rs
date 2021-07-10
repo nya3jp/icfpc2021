@@ -697,11 +697,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
         let problem_id: i64 = m["problem-id"].parse()?;
         let your_dislikes = m["your-dislikes"].parse();
 
-        if your_dislikes.is_err() {
-            continue;
-        }
-
-        let your_dislikes: i64 = your_dislikes.unwrap();
+        let your_dislikes = your_dislikes.unwrap_or(9999999);
 
         let minimal_dislikes: i64 = m["minimal-dislikes"].parse()?;
 
