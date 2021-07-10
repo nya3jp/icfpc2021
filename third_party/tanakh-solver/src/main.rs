@@ -4,6 +4,7 @@ extern crate prettytable;
 mod sa;
 
 use std::cmp::{max, Reverse};
+use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -26,12 +27,70 @@ use sa::*;
 use scorer::{is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
 
+
+fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
+    let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
+    let mut m = BTreeMap::new();
+    for (i1, i2) in &v {
+        m.insert(*i1, *i2);
+    }
+    Ok(m)
+}
+
+fn check_hint(problem: &P, assignment: &BTreeMap<usize, Point>) -> bool {
+    let eps = problem.epsilon as f64 / 1e6;
+    for e in &problem.figure.edges {
+        if !assignment.contains_key(&e.v1) || !assignment.contains_key(&e.v2) {
+            continue;
+        }
+        let p1 = assignment.get(&e.v1).unwrap();
+        let p2 = assignment.get(&e.v2).unwrap();
+        let q1 = &problem.figure.vertices[e.v1];
+        let q2 = &problem.figure.vertices[e.v2];
+        let d1 = (*p1 - *p2).norm_sqr();
+        let d2 = (*q1 - *q2).norm_sqr();
+        let err = ((d1 as f64 / d2 as f64) - 1.0).abs();
+        if err > eps {
+            return false;
+        }
+    }
+    true
+}
+
+fn find_hint_dfs(problem: &P, assignment: &mut BTreeMap<usize, Point>, result: &mut Vec<BTreeMap<usize, Point>>) {
+    let level = assignment.len();
+    if level == problem.hole.len() {
+        result.push(assignment.clone());
+        return;
+    }
+
+    for i in 0..problem.figure.vertices.len() {
+        if assignment.contains_key(&i) {
+            continue;
+        }
+
+        assignment.insert(i, problem.hole[level]);
+        if check_hint(problem, assignment) {
+            find_hint_dfs(problem, assignment, result);
+        }
+        assignment.remove(&i);
+    }
+}
+
+fn find_hint(problem: &P) -> Vec<BTreeMap<usize, Point>> {
+    let mut result = Vec::new();
+    let mut assignment = BTreeMap::new();
+    find_hint_dfs(problem, &mut assignment, &mut result);
+    result
+}
+
 #[derive(Clone)]
 struct Problem {
     problem: P,
     penalty_ratio: f64,
     exact: bool,
     triangles: Vec<(usize, usize, usize)>,
+    fixed_points: BTreeMap<usize, Point>,  // From |node| to |point|.
 }
 
 impl Annealer for Problem {
@@ -42,10 +101,12 @@ impl Annealer for Problem {
     fn init_state(&self, rng: &mut impl rand::Rng) -> Self::State {
         let ix = rng.gen_range(0..self.problem.hole.len());
 
+        let default_point = self.problem.hole[ix].clone();
+
         let ret = (0..self.problem.figure.vertices.len())
-            .map(|_| {
+            .map(|i| {
+                *self.fixed_points.get(&i).unwrap_or(&default_point.clone())
                 /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-                self.problem.hole[ix].clone()
             })
             .collect_vec();
 
@@ -143,6 +204,10 @@ impl Annealer for Problem {
                 0..=9 => {
                     let i = rng.gen_range(0..state.vertices.len());
 
+                    if self.fixed_points.contains_key(&i) {
+                        continue;
+                    }
+
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
                     if (dx, dy) == (0, 0) {
@@ -166,6 +231,10 @@ impl Annealer for Problem {
                         [rng.gen_range(0..self.problem.figure.edges.len())];
                     let i = e.v1;
                     let j = e.v2;
+
+                    if self.fixed_points.contains_key(&i) || self.fixed_points.contains_key(&j) {
+                        continue;
+                    }
 
                     // let i = rng.gen_range(0..state.vertices.len());
                     // let j = rng.gen_range(0..state.vertices.len());
@@ -200,6 +269,11 @@ impl Annealer for Problem {
                     }
 
                     let (i, j, k) = self.triangles[rng.gen_range(0..self.triangles.len())];
+                    if self.fixed_points.contains_key(&i) ||
+                        self.fixed_points.contains_key(&j) ||
+                        self.fixed_points.contains_key(&k) {
+                        continue;
+                    }
 
                     // let i = rng.gen_range(0..state.vertices.len());
                     // let j = rng.gen_range(0..state.vertices.len());
@@ -241,6 +315,10 @@ impl Annealer for Problem {
 
                 _ => loop {
                     let i = rng.gen_range(0..state.vertices.len());
+                    if self.fixed_points.contains_key(&i) {
+                        continue;
+                    }
+
                     let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
                     if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
                         continue;
@@ -299,8 +377,11 @@ fn solve(
 
     /// search only optimal solution
     //
-    #[opt(long)]
-    exact: bool,
+    #[opt(long)] exact: bool,
+
+    // Find the hole->node mapping at the beginning.
+    //
+    #[opt(long)] use_hint: bool,
 
     #[opt(long, default_value = "100.0")] penalty_ratio: f64,
     #[opt(long, default_value = "1.0")] min_temp: f64,
@@ -331,45 +412,70 @@ fn solve(
     eprintln!("Start annealing seed: {}", seed);
     eprintln!("Problem contains {} triangles", triangles.len());
 
-    let problem = Problem {
-        problem,
-        exact,
-        penalty_ratio,
-        triangles,
-    };
-
-    let (score, solution) = annealing(
-        &problem,
-        &AnnealingOptions {
-            time_limit,
-            limit_temp: min_temp,
-            restart,
-            threads,
-            silent: false,
-            header: format!("Problem {}: ", problem_id),
-        },
-        seed,
-    );
-
-    if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
-        eprintln!("Cannot find solution");
-        eprintln!(
-            "Wrong solution: score = {}, {}",
-            score,
-            serde_json::to_string(&solution)?
-        );
-        return Ok(());
+    let mut hints = Vec::new();
+    if use_hint {
+        hints = find_hint(&problem);
+        eprintln!("Use hints: {:?}", hints);
+    } else {
+        hints.push(BTreeMap::new());
     }
 
-    if !is_valid_solution(&problem.problem, &solution) {
-        eprintln!("Validation failed");
-        eprintln!(
-            "Wrong solution: score = {}, {}",
-            score,
-            serde_json::to_string(&solution)?
+    let mut min_score = None;
+    let mut min_solution = None;
+    for i in 0..hints.len() {
+        eprintln!("Trial: {:?}/{:?}: {:?}", i + 1, hints.len(), hints[i]);
+
+        let problem = Problem {
+            problem: problem.clone(),
+            exact,
+            penalty_ratio,
+            triangles: triangles.clone(),
+            fixed_points: hints[i].clone(),
+        };
+
+        let (score, solution) = annealing(
+            &problem,
+            &AnnealingOptions {
+                time_limit,
+                limit_temp: min_temp,
+                restart,
+                threads,
+                silent: false,
+                header: format!("Problem {}: ", problem_id),
+            },
+            seed,
         );
-        return Ok(());
+    
+        if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
+            eprintln!("Cannot find solution");
+            eprintln!(
+                "Wrong solution: score = {}, {}",
+                score,
+                serde_json::to_string(&solution)?
+            );
+            continue;
+        }
+
+        if !is_valid_solution(&problem.problem, &solution) {
+            eprintln!("Validation failed");
+            eprintln!(
+                "Wrong solution: score = {}, {}",
+                score,
+                serde_json::to_string(&solution)?
+            );
+        }
+
+        if min_score.is_none() || min_score.unwrap() > score {
+            min_score = Some(score);
+            min_solution = Some(solution);
+            if score == 0. {
+                break;
+            }
+        }
     }
+
+    let score = min_score.unwrap();
+    let solution = min_solution.unwrap();
 
     eprintln!("Score for problem {}: {}", problem_id, score);
 
