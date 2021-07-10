@@ -172,6 +172,9 @@ export class Editor extends EventTarget {
                     highlight = true;
                 }
             }
+            if (this.draggingVertex !== null && edge[0] === this.draggingVertex || edge[1] == this.draggingVertex) {
+                highlight = true;
+            }
             ctx.lineWidth = highlight ? 3 : 1;
             ctx.strokeStyle = this.getLineColor(distance2(pose[edge[0]], pose[edge[1]]), distance2(vertices[edge[0]], vertices[edge[1]]), highlight);
             ctx.beginPath();
@@ -304,14 +307,15 @@ export class Editor extends EventTarget {
             this.translator.offset = vadd(this.slideStartCenter!, delta);
             this.render();
         }
-        if (this.draggingVertex === null || this.slideStartCanvas === null) {
-            const highlight = {
-                holeEdge: this.similarEdgeHighlight ? this.nearHoleEdge(this.translator.canvasToModel(mouse), 50 / this.translator.zoom) : undefined,
-            };
-            if (!deepEqual(highlight, this.currentHighlight)) {
-                this.currentHighlight = highlight;
-                this.render();
+        const highlight: Highlight = {};
+        if (this.draggingVertex === null && this.slideStartCanvas === null) {
+            if (this.similarEdgeHighlight) {
+                highlight.holeEdge = this.nearHoleEdge(this.translator.canvasToModel(mouse), 50 / this.translator.zoom);
             }
+        }
+        if (!deepEqual(highlight, this.currentHighlight)) {
+            this.currentHighlight = highlight;
+            this.render();
         }
     }
 
