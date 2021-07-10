@@ -11,9 +11,46 @@ import ListItem from '@material-ui/core/ListItem';
 import ListItemText from '@material-ui/core/ListItemText';
 import Typography from '@material-ui/core/Typography';
 
-const solutionKey = (problem_id, solution_id) => problem_id + "-" + solution_id;
+const solutionKey = (problem_id: string, solution_id: string): string => problem_id + "-" + solution_id;
 
-const RecentSolutionsList = (props) => {
+export type Point = [number, number];
+
+export type Edge = [number, number];
+
+export type Hole = Point[];
+
+export interface Figure {
+    edges: Edge[];
+    vertices: Point[];
+}
+
+export interface Problem {
+    hole: Hole;
+    figure: Figure;
+    epsilon: number;
+}
+
+export interface Solution {
+    vertices: Point[];
+}
+
+type SolutionMap = {[key: string]: Solution};
+
+interface SolutionMeta {
+    problem_id: string;
+    solution_id: string;
+    tags: string[];
+    solution_sets: string[];
+}
+
+type SolutionMetaMap = {[key: string]: SolutionMeta};
+
+interface RecentSolutionsListProps {
+    solutions: SolutionMetaMap;
+    recentSolutions: SolutionMeta[];
+}
+
+const RecentSolutionsList = (props: RecentSolutionsListProps) => {
   const {solutions, recentSolutions} = props;
   if (!recentSolutions || recentSolutions.length === 0) return <p>No solutions</p>;
   return (
@@ -37,18 +74,28 @@ const RecentSolutionsList = (props) => {
   );
 };
 
-const Home = (props) => {
+interface HomeProps {
+    solutions: SolutionMetaMap;
+    ensureSolution: (problemID: string, solutionID: string) => void;
+}
+
+interface HomeState {
+    loading: boolean;
+    recentSolutions: SolutionMeta[];
+}
+
+const Home = (props: HomeProps) => {
   const {solutions, ensureSolution} = props;
-  const [appState, setAppState] = useState({
+  const [appState, setAppState] = useState<HomeState>({
     loading: false,
-    recentSolutions: null,
+    recentSolutions: [],
   });
 
   useEffect(() => {
-    setAppState({loading: true});
-    fetch(`https://spweek.badalloc.com/api/solutions`)
+    setAppState({loading: true, recentSolutions: []});
+      fetch(`https://spweek.badalloc.com/api/solutions`)
       .then((res) => res.json())
-      .then((recentSolutions) => {
+      .then((recentSolutions: SolutionMeta[]) => {
         setAppState({loading: false, recentSolutions: recentSolutions});
         recentSolutions.map((solution) => {
           ensureSolution(solution.problem_id, solution.solution_id);
@@ -64,9 +111,16 @@ const Home = (props) => {
   );
 };
 
-const Solution = (props) => {
+interface SolutionProps {
+    solutions: SolutionMetaMap;
+    ensureSolution: (problemID: string, solutionID: string) => void;
+    solutionFiles: SolutionMap;
+    ensureSolutionFile: (problemID: string, solutionID: string) => void;
+}
+
+const SolutionDump = (props: SolutionProps) => {
   const {solutions, ensureSolution, solutionFiles, ensureSolutionFile} = props;
-  const {problemID, solutionID} = useParams();
+  const {problemID, solutionID} = useParams<{problemID: string, solutionID: string}>();
 
   useEffect(() => {
     ensureSolution(problemID, solutionID);
@@ -84,10 +138,10 @@ const Solution = (props) => {
 };
 
 export default function App() {
-  const [solutions, setSolutions] = useState({});
-  const [solutionFiles, setSolutionFiles] = useState({});
+  const [solutions, setSolutions] = useState<SolutionMetaMap>({});
+  const [solutionFiles, setSolutionFiles] = useState<SolutionMap>({});
 
-  const ensureSolution = (problemID, solutionID) => {
+  const ensureSolution = (problemID: string, solutionID: string) => {
     const idx = problemID + "-" + solutionID;
     if (solutions[idx]) {
       return;
@@ -95,12 +149,12 @@ export default function App() {
     fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID + `/meta`)
       .then((res) => res.json())
       .then((s) => {
-        var obj = {};
+        const obj: SolutionMetaMap = {};
         obj[idx] = s;
         setSolutions(obj);
       });
   };
-  const ensureSolutionFile = (problemID, solutionID) => {
+  const ensureSolutionFile = (problemID: string, solutionID: string) => {
     const idx = problemID + "-" + solutionID;
     if (solutionFiles[idx]) {
       return;
@@ -108,7 +162,7 @@ export default function App() {
     fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID)
       .then((res) => res.json())
       .then((s) => {
-        var obj = {};
+        const obj: SolutionMap = {};
         obj[idx] = s;
         setSolutionFiles(obj);
       });
@@ -125,7 +179,7 @@ export default function App() {
       </nav>
       <Switch>
         <Route path="/problems/:problemID/solutions/:solutionID">
-          <Solution solutions={solutions} ensureSolution={ensureSolution} solutionFiles={solutionFiles} ensureSolutionFile={ensureSolutionFile} />
+          <SolutionDump solutions={solutions} ensureSolution={ensureSolution} solutionFiles={solutionFiles} ensureSolutionFile={ensureSolutionFile} />
         </Route>
         <Route path="/">
           <Home solutions={solutions} ensureSolution={ensureSolution} />
