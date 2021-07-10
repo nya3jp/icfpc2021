@@ -36,6 +36,9 @@ func NewManager(basePath string) (*Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot open the database: %v", err)
 	}
+	if err := runMigration(db); err != nil {
+		return nil, err
+	}
 
 	return &Manager{
 		basePath: basePath,
@@ -147,7 +150,7 @@ func (m *Manager) AddSolution(problemID int64, solutionJSON []byte, tags []strin
 		return err
 	}
 	result, err := tx.Exec(
-		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?, ?)",
+		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?)",
 		problemID, createdAt, h, defaultDislike,
 	)
 	if err != nil {
