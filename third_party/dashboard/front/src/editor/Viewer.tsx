@@ -12,6 +12,16 @@ class Translator {
 
     constructor(public zoom: number = 5.0) {}
 
+    static fitTo(points: Point[], canvasWidth: number, canvasHeight: number): Translator {
+        let maxX = 1.0, maxY = 1.0;
+        for (const p of points) {
+            maxX = Math.max(maxX, p[0]);
+            maxY = Math.max(maxY, p[1]);
+        }
+        const zoom = Math.min(canvasWidth / (maxX + 10), canvasHeight / (maxY + 10));
+        return new Translator(zoom);
+    }
+
     modelToCanvas(p: Point): Point {
         return [(p[0] - this.center[0]) * this.zoom,
             (p[1] - this.center[1]) * this.zoom];
@@ -27,7 +37,10 @@ class Translator {
     }
 }
 
-function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: SolutionData, translator: Translator = new Translator()) {
+function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: SolutionData) {
+    // TODO: Consider problem.hole and solution.vertices.
+    const translator = Translator.fitTo(problem.figure.vertices, canvas.width, canvas.height);
+
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = 'rgb(222, 222, 222)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
