@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"icfpc2021/dashboard/pkg/solutionmgr"
@@ -30,11 +31,8 @@ func main() {
 
 	s := &server{mgr}
 	r := mux.NewRouter()
-	r.HandleFunc("/api/solutionsets", s.handleSolutionSetsList).Methods("GET")
-	r.HandleFunc("/api/solutionsets/{solution_set}", s.handleSolutionSetsGet).Methods("GET")
-	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}", s.handleProblemsSolutionsGet).Methods("GET")
-	r.HandleFunc("/api/problems/{problem_id}/solutions/{solution_id}/meta", s.handleProblemsSolutionsMetaGet).Methods("GET")
-	r.HandleFunc("/api/solutions", s.handleSolutionsList).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionsGet).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}/meta", s.handleSolutionsMetaGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
@@ -49,33 +47,14 @@ type server struct {
 	mgr *solutionmgr.Manager
 }
 
-func (s *server) handleSolutionSetsList(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleSolutionsGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	ret, err := s.mgr.GetRecentSolutionSets(0, 10)
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ret)
-}
-
-func (s *server) handleSolutionSetsGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	vars := mux.Vars(r)
-	ret, err := s.mgr.GetSolutionSet(vars["solution_set"])
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ret)
-}
-
-func (s *server) handleProblemsSolutionsGet(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	vars := mux.Vars(r)
-	bs, err := s.mgr.GetSolution(vars["problem_id"], vars["solution_id"])
+	bs, err := s.mgr.GetSolution(solutionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -87,10 +66,14 @@ func (s *server) handleProblemsSolutionsGet(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (s *server) handleProblemsSolutionsMetaGet(w http.ResponseWriter, r *http.Request) {
+func (s *server) handleSolutionsMetaGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	vars := mux.Vars(r)
-	solution, err := s.mgr.GetSolutionMetadata(vars["problem_id"], vars["solution_id"])
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	solution, err := s.mgr.GetSolutionMetadata(solutionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -99,24 +82,17 @@ func (s *server) handleProblemsSolutionsMetaGet(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(solution)
 }
 
-func (s *server) handleSolutionsList(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	solutions, err := s.mgr.GetRecentSolutions(0, 10)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(solutions)
-}
-
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	problemID := r.Form.Get("problem_id")
+	problemID, err := strconv.ParseInt(r.Form.Get("problem_id"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	file, _, err := r.FormFile("solution")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -129,8 +105,7 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := strings.Split(r.Form.Get("tags"), ",")
-	solutionSet := r.Form.Get("solution_set")
-	if err := s.mgr.Add(problemID, solutionJSON, tags, solutionSet); err != nil {
+	if err := s.mgr.AddSolution(problemID, solutionJSON, tags); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -75,7 +75,7 @@ export const FrontPage = (props: FrontPageProps) => {
 
     useEffect(() => {
         setAppState({currList: []});
-        fetch(`https://spweek.badalloc.com/api/solutions`)
+        fetch(`//localhost:8080/api/solutions/highscore`)
             .then((res) => res.json())
             .then((ss: Solution[]) => {
                 setAppState({currList: ss});
