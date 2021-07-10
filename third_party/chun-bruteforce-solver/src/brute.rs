@@ -130,8 +130,8 @@ fn do_brute(ptr: usize, placeable: &Vec<(i64, i64)>, visit_order: &Vec<usize>, p
                     let h1 = &prob.hole[i];
                     let h2 = &prob.hole[(i + 1) % prob.hole.len()];
                     if is_crossing(&q1, &q2, h1, h2) {
-                        //isok = false;
-                        //break;
+                        isok = false;
+                        break;
                     }
                 }
                 if !isok {

@@ -9,6 +9,7 @@ import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
+import {Viewer} from './editor/Viewer';
 
 type SolutionsMap = {[key: number]: Solution[]};
 
@@ -51,18 +52,20 @@ const ProblemList = (props: ProblemListProps) => {
                     <TableHead>
                         <TableRow>
                             <TableCell>ProblemID</TableCell>
+                            <TableCell>Problem</TableCell>
                             <TableCell>Best SolutionID</TableCell>
                             <TableCell>Best Dislike</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {problems.map(({problem_id}) => {
-                            const ss = solutions[problem_id];
-                            const problemLink = `/problems/${problem_id}`;
+                        {problems.map((problem) => {
+                            const ss = solutions[problem.problem_id];
+                            const problemLink = `/problems/${problem.problem_id}`;
                             if (!ss || ss.length === 0) {
                                 return (
-                                    <TableRow key={problem_id}>
-                                        <TableCell><Link to={problemLink}>{problem_id}</Link></TableCell>
+                                    <TableRow key={problem.problem_id}>
+                                        <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
+                                        <TableCell><Link to={problemLink}><Viewer problem={problem.data} size={100} /></Link></TableCell>
                                         <TableCell></TableCell>
                                         <TableCell></TableCell>
                                     </TableRow>
@@ -73,8 +76,9 @@ const ProblemList = (props: ProblemListProps) => {
                             });
                             const solutionLink = `/solutions/${sol.solution_id}`;
                             return (
-                                <TableRow key={problem_id}>
-                                    <TableCell><Link to={problemLink}>{problem_id}</Link></TableCell>
+                                <TableRow key={problem.problem_id}>
+                                    <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
+                                    <TableCell><Link to={problemLink}><Viewer problem={problem.data} size={100} /></Link></TableCell>
                                     <TableCell><Link to={solutionLink}>{sol.solution_id}</Link></TableCell>
                                     <TableCell>{sol.dislike}</TableCell>
                                 </TableRow>

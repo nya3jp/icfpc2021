@@ -10,22 +10,24 @@ import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import TableCell from '@material-ui/core/TableCell';
 import TableBody from '@material-ui/core/TableBody';
+import {Viewer} from './editor/Viewer';
 
 function ProblemPane({ problem }: {problem: Problem}) {
     return (
         <div>
-            <canvas width={400} height={400} style={{border: '3px solid black', userSelect: 'none'}}></canvas>
+            <Viewer problem={problem.data} />
         </div>
     );
 }
 
-function SolutionsTable({ solutions }: { solutions: Solution[] }) {
+function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: Solution[] }) {
     return (
         <TableContainer component={Paper}>
             <Table size="small" aria-label="a dense table">
                 <TableHead>
                     <TableRow>
                         <TableCell>SolutionID</TableCell>
+                        <TableCell>Solution</TableCell>
                         <TableCell>Created at</TableCell>
                         <TableCell>Dislike</TableCell>
                     </TableRow>
@@ -38,6 +40,7 @@ function SolutionsTable({ solutions }: { solutions: Solution[] }) {
                         return (
                             <TableRow>
                                 <TableCell><Link to={link}>{solution.solution_id}</Link></TableCell>
+                                <TableCell><Link to={link}><Viewer problem={problem.data} solution={solution.data} size={100} /></Link></TableCell>
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
                             </TableRow>
@@ -81,7 +84,7 @@ export const ProblemPage = (props: ProblemPageProps) => {
         <Typography variant={'h3'}>Problem { problem.problem_id }</Typography>
         <ProblemPane problem={problem} />
         <Typography variant={'h4'}>Solutions</Typography>
-        <SolutionsTable solutions={solutions} />
+        <SolutionsTable problem={problem} solutions={solutions} />
       </div>
     );
 };

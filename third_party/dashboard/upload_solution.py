@@ -4,7 +4,7 @@ import os
 import subprocess
 
 parser = argparse.ArgumentParser()
-parser.add_argument('problem_id', metavar='N', type=int, help='problem ID')
+parser.add_argument('problem_id', metavar='PROBLEM_ID', type=int, help='problem ID')
 parser.add_argument('solution', metavar='FILE', type=str, help='solution JSON file')
 parser.add_argument('--tag', dest='tags', metavar='TAG', action='append', default=[], help='tag')
 parser.add_argument('--url', default='http://spweek.badalloc.com/api/solutions', help='API URL')
