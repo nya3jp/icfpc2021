@@ -42,7 +42,7 @@ fn is_inside_hole_internal(
     if changed.is_none() {
         for i in 0..pose.vertices.len() {
             let p = &pose.vertices[i];
-            if problem.hole.polygon.contains(p) == ContainsResult::OUT {
+            if !problem.hole.contains(p) {
                 if verbose {
                     eprintln!("Point {:?} is not contained in hole:", Point::from(*p));
                 }
@@ -52,7 +52,7 @@ fn is_inside_hole_internal(
     } else {
         for i in changed.unwrap() {
             let p = &pose.vertices[*i];
-            if problem.hole.polygon.contains(p) == ContainsResult::OUT {
+            if !problem.hole.contains(p) {
                 if verbose {
                     eprintln!("Point {:?} is not contained in hole:", Point::from(*p));
                 }
@@ -81,7 +81,7 @@ fn is_inside_hole_internal(
         }
         // All mid points should be contained in the hole.
         let mid = (*p1 + *p2) / 2.;
-        if problem.hole.polygon.contains(&mid) == ContainsResult::OUT {
+        if !problem.hole.contains(&mid) {
             if verbose {
                 eprintln!("Mid point {:?} is not contained in the hole", mid);
             }

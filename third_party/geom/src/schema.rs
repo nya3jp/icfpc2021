@@ -1,16 +1,42 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 use super::point::Point;
-use super::polygon::Polygon;
+use super::polygon::{Polygon, ContainsResult};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(from = "Vec<(i64, i64)>", into = "Vec<(i64, i64)>")]
 pub struct Hole {
     pub polygon: Polygon,
+    minx: i64,
+    miny: i64,
+    maxx: i64,
+    maxy: i64,
+    contains_set: Vec<Vec<bool>>,
+}
+
+fn create_contains_set(t: &Vec<(i64, i64)>, polygon: &Polygon) -> (i64, i64, i64, i64, Vec<Vec<bool>>) {
+    let mut ret = Vec::new();
+
+    let minx = t.iter().fold(1 << 20, |acc, x| std::cmp::min(acc, x.0)) * 2;
+    let maxx = t.iter().fold(-1 << 20, |acc, x| std::cmp::max(acc, x.0)) * 2;
+    let miny = t.iter().fold(1 << 20, |acc, x| std::cmp::min(acc, x.1)) * 2;
+    let maxy = t.iter().fold(-1 << 20, |acc, x| std::cmp::max(acc, x.1)) * 2;
+    for x in minx..=maxx {
+        let mut line = Vec::new();
+        for y in miny..=maxy {
+            match polygon.contains(&Point::new(x as f64 / 2., y as f64 / 2.)) {
+                ContainsResult::ON | ContainsResult::IN => line.push(true),
+                ContainsResult::OUT => line.push(false),
+            }
+        }
+        ret.push(line)
+    };
+    (minx, miny, maxx, maxy, ret)
 }
 
 impl Hole {
@@ -20,6 +46,16 @@ impl Hole {
 
     pub fn iter(&self) -> impl Iterator<Item = &Point> {
         self.polygon.vertices.iter()
+    }
+
+    // Point coord must be integers.
+    pub fn contains(&self, p: &Point) -> bool {
+        let x = (p.x * 2.) as i64;
+        let y = (p.y * 2.) as i64;
+        if x < self.minx || self.maxx < x || y < self.miny || self.maxy < y {
+            return false;
+        }
+        self.contains_set[(x - self.minx) as usize][(y - self.miny) as usize]
     }
 }
 
@@ -39,8 +75,15 @@ impl std::ops::IndexMut<usize> for Hole {
 
 impl From<Vec<(i64, i64)>> for Hole {
     fn from(t: Vec<(i64, i64)>) -> Self {
+        let polygon = Polygon::from(t.clone());
+        let (minx, miny, maxx, maxy, contains_set) = create_contains_set(&t, &polygon);
         Hole {
-            polygon: Polygon::from(t),
+            polygon,
+            minx,
+            miny,
+            maxx,
+            maxy,
+            contains_set,
         }
     }
 }
