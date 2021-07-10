@@ -2,20 +2,78 @@ import {useEffect, useState} from 'react';
 import {Problem, Solution} from './types';
 import {Model} from './model';
 import {Link} from 'react-router-dom';
+
+import Container from '@material-ui/core/Container';
+import Grid from '@material-ui/core/Grid';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
 import TableCell from '@material-ui/core/TableCell';
-import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import {Viewer} from './editor/Viewer';
+import {green} from '@material-ui/core/colors';
+
 
 type SolutionsMap = {[key: number]: Solution[]};
 
 interface ProblemListProps {
     model: Model;
 }
+
+const ProblemCell = ({problem}: {problem: Problem}) => {
+    const problemLink = `/problems/${problem.problem_id}`;
+    return (
+        <Link to={problemLink}>
+            <Grid container spacing={2}>
+                <Grid item>
+                    <Viewer problem={problem} size={100} />
+                </Grid>
+                <Grid item>
+                    <Table size="small">
+                        <TableBody>
+                            <TableRow>
+                                <TableCell>ProblemID</TableCell>
+                                <TableCell>{problem.problem_id}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </Grid>
+            </Grid>
+        </Link>
+    );
+};
+
+const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution}) => {
+    const solutionLink = `/solutions/${solution.solution_id}`;
+    let color = "#FFF";
+    if (solution.dislike === 0) {
+        color = green[100];
+    }
+    return (
+        <Link to={solutionLink}>
+            <Grid container spacing={2} style={{background: color}}>
+                <Grid item>
+                    <Viewer problem={problem} solution={solution} size={100} />
+                </Grid>
+                <Grid item>
+                    <Table size="small">
+                        <TableBody>
+                            <TableRow>
+                                <TableCell>SolutionID</TableCell>
+                                <TableCell>{solution.solution_id}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>Dislike</TableCell>
+                                <TableCell>{solution.dislike}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </Grid>
+            </Grid>
+        </Link>
+    );
+};
 
 const ProblemList = (props: ProblemListProps) => {
     const {model} = props;
@@ -46,48 +104,38 @@ const ProblemList = (props: ProblemListProps) => {
     if (problems.length === 0) return <p>No solutions</p>;
 
     return (
-        <div>
-            <TableContainer component={Paper}>
-                <Table size="small" aria-label="a dense table">
-                    <TableHead>
-                        <TableRow>
-                            <TableCell>ProblemID</TableCell>
-                            <TableCell>Problem</TableCell>
-                            <TableCell>Best SolutionID</TableCell>
-                            <TableCell>Best Dislike</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {problems.map((problem) => {
-                            const ss = solutions[problem.problem_id];
-                            const problemLink = `/problems/${problem.problem_id}`;
-                            if (!ss || ss.length === 0) {
-                                return (
-                                    <TableRow key={problem.problem_id}>
-                                        <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
-                                        <TableCell><Link to={problemLink}><Viewer problem={problem} size={100} /></Link></TableCell>
-                                        <TableCell></TableCell>
-                                        <TableCell></TableCell>
-                                    </TableRow>
-                                );
-                            }
-                            const sol = ss.reduce((prev, current) => {
-                                return prev.dislike < current.dislike ? prev : current;
-                            });
-                            const solutionLink = `/solutions/${sol.solution_id}`;
+        <Container component={Paper}>
+            <Table size="small">
+                <TableHead>
+                    <TableRow>
+                        <TableCell>Problem</TableCell>
+                        <TableCell>Best Solution</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {problems.map((problem) => {
+                        const ss = solutions[problem.problem_id];
+                        if (!ss || ss.length === 0) {
                             return (
                                 <TableRow key={problem.problem_id}>
-                                    <TableCell><Link to={problemLink}>{problem.problem_id}</Link></TableCell>
-                                    <TableCell><Link to={problemLink}><Viewer problem={problem} size={100} /></Link></TableCell>
-                                    <TableCell><Link to={solutionLink}>{sol.solution_id}</Link></TableCell>
-                                    <TableCell>{sol.dislike}</TableCell>
+                                    <TableCell><ProblemCell problem={problem} /></TableCell>
+                                    <TableCell></TableCell>
                                 </TableRow>
                             );
-                        })}
-                    </TableBody>
-                </Table>
-            </TableContainer>
-        </div>
+                        }
+                        const sol = ss.reduce((prev, current) => {
+                            return prev.dislike < current.dislike ? prev : current;
+                        });
+                        return (
+                            <TableRow key={problem.problem_id}>
+                                <TableCell><ProblemCell problem={problem} /></TableCell>
+                                <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
+                            </TableRow>
+                        );
+                    })}
+                </TableBody>
+            </Table>
+        </Container>
     );
 };
 
@@ -99,8 +147,6 @@ export const FrontPage = (props: FrontPageProps) => {
     const {model} = props;
 
     return (
-        <div>
-            <ProblemList model={model} />
-        </div>
+        <ProblemList model={model} />
     );
 };
