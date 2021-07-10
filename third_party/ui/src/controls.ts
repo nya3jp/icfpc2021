@@ -1,4 +1,5 @@
-import {Editor, ProblemSet} from './editor';
+import {Editor} from './editor';
+import {ProblemSet} from './problems';
 
 export class ProblemSelector {
     constructor(

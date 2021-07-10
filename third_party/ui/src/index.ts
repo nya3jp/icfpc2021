@@ -1,4 +1,4 @@
-import {Editor, ProblemSet} from './editor';
+import {Editor} from './editor';
 import {
     DistanceToggle,
     OutputTextArea,
@@ -6,6 +6,7 @@ import {
     StatusLabel,
     ZoomSlider
 } from './controls';
+import {ProblemSet} from './problems';
 
 async function init() {
     const problemSet = new ProblemSet();
