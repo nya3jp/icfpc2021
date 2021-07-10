@@ -10,11 +10,12 @@ import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import TableCell from '@material-ui/core/TableCell';
 import TableBody from '@material-ui/core/TableBody';
+import {Viewer} from './editor/Viewer';
 
 function ProblemPane({ problem }: {problem: Problem}) {
     return (
         <div>
-            <canvas width={400} height={400} style={{border: '3px solid black', userSelect: 'none'}}></canvas>
+            <Viewer problem={problem.data} />
         </div>
     );
 }
