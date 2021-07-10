@@ -1,5 +1,18 @@
 import {Point, Pose, Problem} from './types';
-import {distance2, midPoint, roundPoint, Translator, vdiv, vsub} from './geom';
+import {
+    distance2,
+    midPoint,
+    roundPoint,
+    Translator,
+    vdiv,
+    vsub,
+    vabs, vdot, vadd, vmul, vunit
+} from './geom';
+const deepEqual = require('deep-equal');
+
+interface Highlight {
+    holeEdge?: number;
+}
 
 export class Editor extends EventTarget {
     private problem: Problem = {
@@ -9,6 +22,7 @@ export class Editor extends EventTarget {
     };
     private pose: Pose = [];
 
+    private currentHighlight: Highlight = {};
     private draggingVertex: number | null = null;
     private slideStartCenter: Point | null = null;
     private slideStartCanvas: Point | null = null;
@@ -89,6 +103,7 @@ export class Editor extends EventTarget {
         }
         ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(...this.translator.modelToCanvas(hole[hole.length - 1]));
         for (const v of hole) {
@@ -96,14 +111,37 @@ export class Editor extends EventTarget {
         }
         ctx.fill();
         ctx.stroke();
+
+        if (this.currentHighlight.holeEdge !== undefined) {
+            const i = this.currentHighlight.holeEdge;
+            ctx.strokeStyle = 'rgb(0, 0, 0)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(...this.translator.modelToCanvas(hole[i]));
+            ctx.lineTo(...this.translator.modelToCanvas(hole[(i + 1) % hole.length]));
+            ctx.stroke();
+        }
     }
 
     private renderPose(ctx: CanvasRenderingContext2D): void {
+        let target2 = -1;
+        if (this.currentHighlight.holeEdge !== undefined) {
+            const {hole} = this.problem;
+            const i = this.currentHighlight.holeEdge;
+            target2 = distance2(hole[i], hole[(i + 1) % hole.length]);
+        }
         const {edges, vertices} = this.problem.figure;
         const pose = this.pose;
-        ctx.strokeStyle = 'rgb(255, 0, 0)';
         for (const edge of edges) {
-            ctx.strokeStyle = this.getLineColor(distance2(pose[edge[0]], pose[edge[1]]), distance2(vertices[edge[0]], vertices[edge[1]]));
+            let highlight = false;
+            if (target2 >= 0) {
+                const original2 = distance2(vertices[edge[0]], vertices[edge[1]]);
+                if (Math.abs(target2 / original2 - 1) < this.problem.epsilon / 1000000) {
+                    highlight = true;
+                }
+            }
+            ctx.lineWidth = highlight ? 3 : 1;
+            ctx.strokeStyle = this.getLineColor(distance2(pose[edge[0]], pose[edge[1]]), distance2(vertices[edge[0]], vertices[edge[1]]), highlight);
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(pose[edge[0]]));
             ctx.lineTo(...this.translator.modelToCanvas(pose[edge[1]]));
@@ -118,22 +156,28 @@ export class Editor extends EventTarget {
         }
     }
 
-    private getLineColor(current: number, original: number): string {
+    private getLineColor(current: number, original: number, highlight: boolean): string {
+        const hi = highlight ? 192 : 255;
+        const lo = 0;
         const margin = original * this.problem.epsilon / 1000000;
         const min = original - margin;
         const max = original + margin;
         if (current < min) {
-            return 'rgb(255, 0, 0)';
+            return `rgb(${hi}, ${lo}, ${lo})`;
         } else if (current > max) {
-            return 'rgb(0, 0, 255)';
+            return `rgb(${lo}, ${lo}, ${hi})`;
         }
-        return 'rgb(0, 255, 0)'
+        return `rgb(${lo}, ${hi}, ${lo})`
     }
 
     private renderDistance(ctx: CanvasRenderingContext2D): void {
         if (!this.drawDistance) {
             return;
         }
+
+        ctx.font = "11px serif";
+        ctx.strokeStyle = 'rgb(10, 10, 10)';
+        ctx.lineWidth = 1;
 
         const {edges, vertices} = this.problem.figure;
         const pose = this.pose;
@@ -144,10 +188,8 @@ export class Editor extends EventTarget {
             const mid = this.translator.modelToCanvas(midPoint(pose[edge[0]], pose[edge[1]]));
             const text = dist.toString() + "∈ [" + Math.ceil(original - margin).toString()
                 + "," + Math.floor(original + margin).toString() + "]";
-            ctx.font = "11px serif";
-            ctx.strokeStyle = 'rgb(10, 10, 10)';
             ctx.strokeText(text, mid[0], mid[1]);
-            ctx.fillStyle = this.getLineColor(dist, original);
+            ctx.fillStyle = this.getLineColor(dist, original, false);
             ctx.fillText(text, mid[0], mid[1]);
         }
     }
@@ -229,6 +271,15 @@ export class Editor extends EventTarget {
             this.translator.center = vsub(this.slideStartCenter!, delta);
             this.render();
         }
+        if (this.draggingVertex === null || this.slideStartCanvas === null) {
+            const highlight = {
+                holeEdge: this.nearHoleEdge(this.translator.canvasToModel([ev.offsetX, ev.offsetY]), 20 / this.translator.zoom),
+            };
+            if (!deepEqual(highlight, this.currentHighlight)) {
+                this.currentHighlight = highlight;
+                this.render();
+            }
+        }
     }
 
     private onMouseWheel(ev: WheelEvent): void {
@@ -240,5 +291,27 @@ export class Editor extends EventTarget {
     private onDragVertex(pos: Point): void {
         this.pose[this.draggingVertex!] = roundPoint(pos);
         this.render();
+    }
+
+    private nearHoleEdge(p: Point, threshold: number): number | undefined {
+        const {hole} = this.problem;
+        let bestIndex: number | undefined;
+        let bestDist2 = 1e10;
+        for (let i = 0; i < hole.length; i++) {
+            const a = hole[i];
+            const b = hole[(i + 1) % hole.length];
+            const delta = vsub(b, a);
+            const t = Math.max(0, Math.min(1, vdot(vsub(p, a), vunit(delta)) / vabs(delta)));
+            const nearest = vadd(a, vmul(delta, t));
+            const dist2 = distance2(p, nearest);
+            if (dist2 < bestDist2) {
+                bestIndex = i;
+                bestDist2 = dist2;
+            }
+        }
+        if (bestDist2 >= threshold) {
+            return undefined;
+        }
+        return bestIndex;
     }
 }

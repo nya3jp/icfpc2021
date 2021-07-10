@@ -1,9 +1,7 @@
 import {Point} from './types';
 
 export function distance2(p: Point, q: Point): number {
-    const dx = p[0] - q[0];
-    const dy = p[1] - q[1];
-    return dx * dx + dy * dy;
+    return vnorm(vsub(p, q));
 }
 
 export function roundPoint(p: Point): Point {
@@ -43,6 +41,18 @@ export function vmul(p: Point, m: number): Point {
 
 export function vdiv(p: Point, m: number): Point {
     return [p[0] / m, p[1] / m];
+}
+
+export function vnorm(p: Point): number {
+    return p[0] * p[0] + p[1] * p[1];
+}
+
+export function vabs(p: Point): number {
+    return Math.sqrt(vnorm(p));
+}
+
+export function vunit(p: Point): Point {
+    return vdiv(p, vabs(p));
 }
 
 export function vdot(p: Point, q: Point): number {
