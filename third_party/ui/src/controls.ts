@@ -180,3 +180,14 @@ export class StatusLabel {
         this.element.textContent = this.editor.computeDislike().toString();
     }
 }
+
+export class RelayoutButton {
+    constructor(
+        private readonly element: HTMLButtonElement,
+        private readonly editor: Editor) {
+    }
+
+    public start(): void {
+        this.element.addEventListener('click', () => this.editor.relayout());
+    }
+}

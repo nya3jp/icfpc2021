@@ -8,6 +8,7 @@ import {
     vsub,
     vabs, vdot, vadd, vmul, vunit
 } from './geom';
+import {forceLayout} from './layout';
 const deepEqual = require('deep-equal');
 
 interface Highlight {
@@ -325,5 +326,27 @@ export class Editor extends EventTarget {
             return undefined;
         }
         return bestIndex;
+    }
+
+    public relayout(): void {
+        const {edges, vertices} = this.problem.figure;
+        this.pose = forceLayout(this.pose, edges, 1000);
+        let scale = 0;
+        for (const [a, b] of edges) {
+            scale += vabs(vsub(vertices[a], vertices[b])) / vabs(vsub(this.pose[a], this.pose[b]));
+        }
+        scale /= edges.length;
+        for (let i = 0; i < this.pose.length; ++i) {
+            this.pose[i] = vmul(this.pose[i], scale);
+        }
+        let minX = 1e10, minY = 1e10;
+        for (const p of this.pose) {
+            minX = Math.min(minX, p[0]);
+            minY = Math.min(minY, p[1]);
+        }
+        for (let i = 0; i < this.pose.length; ++i) {
+            this.pose[i] = vsub(this.pose[i], [minX, minY]);
+        }
+        this.render();
     }
 }

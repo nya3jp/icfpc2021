@@ -4,7 +4,7 @@ import {
     DistanceToggle,
     FragmentUpdater,
     OutputTextArea,
-    ProblemSelector, SimilarEdgeHighlightToggle,
+    ProblemSelector, RelayoutButton, SimilarEdgeHighlightToggle,
     StatusLabel,
     ZoomSlider
 } from './controls';
@@ -26,6 +26,7 @@ async function init() {
     const similarEdgeHighlightToggle = new SimilarEdgeHighlightToggle(document.getElementById('similar_edge_highlight') as HTMLInputElement, editor);
     const constraintHintToggle = new ConstraintHintToggle(document.getElementById('constraint_hint') as HTMLInputElement, editor);
     const statusLabel = new StatusLabel(document.getElementById('dislike')!, editor);
+    const relayoutButton = new RelayoutButton(document.getElementById('run_relayout') as HTMLButtonElement, editor);
 
     editor.start();
 
@@ -37,6 +38,7 @@ async function init() {
     similarEdgeHighlightToggle.start();
     constraintHintToggle.start();
     statusLabel.start();
+    relayoutButton.start();
 
     let problemId = 1;
     let baseSolutionId = null;
