@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Solution, solutionKey, SolutionMap} from './types';
+import {Solution} from './types';
 import {Link} from 'react-router-dom';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';

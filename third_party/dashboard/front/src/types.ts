@@ -7,13 +7,19 @@ export interface Figure {
     vertices: Point[];
 }
 
-export interface Problem {
+export interface ProblemData {
     hole: Hole;
     figure: Figure;
     epsilon: number;
 }
 
-export interface Pose {
+export interface Problem {
+    problem_id: string;
+    created_at: number;
+    data: ProblemData;
+}
+
+export interface SolutionData {
     vertices: Point[];
 }
 
@@ -23,11 +29,5 @@ export interface Solution {
     created_at: number;
     tags: string[];
     solution_sets: string[];
-}
-
-export type SolutionMap = { [key: string]: Solution };
-export type PoseMap = { [key: string]: Pose };
-
-export function solutionKey(problem_id: string, solution_id: string): string {
-    return problem_id + "-" + solution_id;
+    data: SolutionData;
 }
