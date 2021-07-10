@@ -11,6 +11,11 @@ class Client {
         this.baseURL = (window.location.hostname === 'localhost' ? DEV_BASE_URL : PROD_BASE_URL);
     }
 
+    async getProblems(): Promise<Problem[]> {
+        const res = await fetch(`${this.baseURL}/api/problems`);
+        return await res.json();
+    }
+
     async getProblem(id: string): Promise<Problem> {
         const res = await fetch(`${this.baseURL}/api/problems/${id}`);
         return await res.json();
@@ -33,6 +38,11 @@ export class Model {
     private readonly solutions = new Map<string, Promise<Solution>>();
 
     constructor(private readonly client = new Client()) {}
+
+    getProblems(): Promise<Problem[]> {
+        // Problems change over time, do not cache.
+        return this.client.getProblems();
+    }
 
     getProblem(id: string): Promise<Problem> {
         const cached = this.problems.get(id);
