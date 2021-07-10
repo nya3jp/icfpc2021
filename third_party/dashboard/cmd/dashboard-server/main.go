@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"icfpc2021/dashboard/pkg/eval"
 	"icfpc2021/dashboard/pkg/solutionmgr"
 
 	"github.com/gorilla/mux"
@@ -19,6 +21,7 @@ var (
 	port        = flag.Int("port", 8080, "")
 	persistPath = flag.String("persist_path", "/tmp/dashboard-data", "")
 	staticPath  = flag.String("static_path", "/tmp/static-data", "")
+	scorerPath  = flag.String("scorer_path", "/static/scorer", "")
 )
 
 func main() {
@@ -29,7 +32,10 @@ func main() {
 	}
 	defer mgr.Close()
 
-	s := &server{mgr}
+	updateDislike := make(chan bool, 1)
+	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr, updateDislike)
+
+	s := &server{mgr, updateDislike}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
@@ -47,7 +53,8 @@ func main() {
 }
 
 type server struct {
-	mgr *solutionmgr.Manager
+	mgr           *solutionmgr.Manager
+	updateDislike chan<- bool
 }
 
 func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
@@ -185,6 +192,10 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	if err := s.mgr.AddSolution(solution); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	select {
+	case s.updateDislike <- true:
+	default:
 	}
 	io.WriteString(w, "ok")
 }
