@@ -1,39 +1,59 @@
 import React, {useEffect, useState} from 'react';
 import {Solution, solutionKey, SolutionMap} from './types';
-import Typography from '@material-ui/core/Typography';
-import List from '@material-ui/core/List';
 import {Link} from 'react-router-dom';
-import ListItem from '@material-ui/core/ListItem';
-import ListItemText from '@material-ui/core/ListItemText';
+import Paper from '@material-ui/core/Paper';
+import Table from '@material-ui/core/Table';
+import TableBody from '@material-ui/core/TableBody';
+import TableCell from '@material-ui/core/TableCell';
+import TableContainer from '@material-ui/core/TableContainer';
+import TableHead from '@material-ui/core/TableHead';
+import TableRow from '@material-ui/core/TableRow';
 
 interface RecentSolutionsListProps {
     solutions: SolutionMap;
-    recentSolutions: Solution[];
+    currList: Solution[];
 }
 
 const RecentSolutionsList = (props: RecentSolutionsListProps) => {
-    const {solutions, recentSolutions} = props;
-    if (!recentSolutions || recentSolutions.length === 0) return <p>No
-        solutions</p>;
+    const {solutions, currList} = props;
+    if (!currList || currList.length === 0) return <p>No solutions</p>;
     return (
         <div>
-            <Typography variant="h6">
-                Recent solutions
-            </Typography>
-            <List>
-                {recentSolutions.map(({problem_id, solution_id}) => {
-                    const key = solutionKey(problem_id, solution_id);
-                    const link = `/problems/${problem_id}/solutions/${solution_id}`;
-                    if (solutions[key]) {
-                        const s = solutions[key];
-                        const primary = `Problem ${problem_id} Solution ${solution_id} ${s.tags} ${s.solution_sets}`;
-                        return <Link key={key} to={link}><ListItem><ListItemText
-                            primary={primary}/></ListItem></Link>;
-                    }
-                    return <Link key={key}
-                                 to={link}><ListItem><ListItemText>Problem {problem_id} Solution {solution_id}</ListItemText></ListItem></Link>;
-                })}
-            </List>
+            <TableContainer component={Paper}>
+                <Table size="small" aria-label="a dense table">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>ProblemID</TableCell>
+                            <TableCell>SolutionID</TableCell>
+                            <TableCell>Created at</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {currList.map(({problem_id, solution_id}) => {
+                            const solution = solutions[problem_id + "-" + solution_id];
+                            const link = `/problems/${problem_id}/solutions/${solution_id}`;
+                            if (!solution) {
+                                return (
+                                    <TableRow>
+                                        <TableCell>{problem_id}</TableCell>
+                                        <TableCell><Link to={link}>{solution_id.substring(0, 8)}...</Link></TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                );
+                            }
+                            const createdAt = new Date();
+                            createdAt.setTime(solution.created_at * 1000);
+                            return (
+                                <TableRow>
+                                    <TableCell>{problem_id}</TableCell>
+                                    <TableCell><Link to={link}>{solution_id.substring(0, 8)}...</Link></TableCell>
+                                    <TableCell>{createdAt.toString()}</TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </TableContainer>
         </div>
     );
 };
@@ -44,24 +64,22 @@ export interface FrontPageProps {
 }
 
 interface FrontPageState {
-    loading: boolean;
-    recentSolutions: Solution[];
+    currList: Solution[];
 }
 
 export const FrontPage = (props: FrontPageProps) => {
     const {solutions, ensureSolution} = props;
     const [appState, setAppState] = useState<FrontPageState>({
-        loading: false,
-        recentSolutions: [],
+        currList: [],
     });
 
     useEffect(() => {
-        setAppState({loading: true, recentSolutions: []});
+        setAppState({currList: []});
         fetch(`https://spweek.badalloc.com/api/solutions`)
             .then((res) => res.json())
-            .then((recentSolutions: Solution[]) => {
-                setAppState({loading: false, recentSolutions: recentSolutions});
-                recentSolutions.map((solution) => {
+            .then((ss: Solution[]) => {
+                setAppState({currList: ss});
+                ss.map((solution) => {
                     ensureSolution(solution.problem_id, solution.solution_id);
                 });
             });
@@ -71,7 +89,7 @@ export const FrontPage = (props: FrontPageProps) => {
         <div>
             <h2></h2>
             <RecentSolutionsList solutions={solutions}
-                                 recentSolutions={appState.recentSolutions}/>
+                currList={appState.currList} />
         </div>
     );
 };
