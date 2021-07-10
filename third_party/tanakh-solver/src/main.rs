@@ -14,7 +14,7 @@ use chrono::{Datelike, Timelike};
 use easy_scraper::Pattern;
 use geom::{
     point::Point,
-    polygon::ContainsResult,
+    // polygon::ContainsResult,
     schema::{Edge, Pose, Problem as P},
 };
 use itertools::Itertools;
@@ -23,7 +23,7 @@ use reqwest::blocking::ClientBuilder;
 use reqwest::cookie::{CookieStore, Jar};
 use reqwest::header::HeaderValue;
 use sa::*;
-use scorer::{is_inside_hole, is_valid_solution};
+use scorer::{is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
 
 #[derive(Clone)]
@@ -153,7 +153,7 @@ impl Annealer for Problem {
 
                     state.vertices[i] += d;
 
-                    let ok = is_inside_hole(&self.problem, &state);
+                    let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
 
                     state.vertices[i] -= d;
 
@@ -185,7 +185,7 @@ impl Annealer for Problem {
                     state.vertices[i] += d1;
                     state.vertices[j] += d2;
 
-                    let ok = is_inside_hole(&self.problem, &state);
+                    let ok = is_inside_hole_partial(&self.problem, &state, &[i, j]);
 
                     state.vertices[i] -= d1;
                     state.vertices[j] -= d2;
@@ -228,7 +228,7 @@ impl Annealer for Problem {
                     state.vertices[j] += d2;
                     state.vertices[k] += d3;
 
-                    let ok = is_inside_hole(&self.problem, &state);
+                    let ok = is_inside_hole_partial(&self.problem, &state, &[i, j, k]);
 
                     state.vertices[i] -= d1;
                     state.vertices[j] -= d2;
@@ -248,7 +248,7 @@ impl Annealer for Problem {
 
                     let t = state.vertices[i];
                     state.vertices[i] = self.problem.hole.polygon.vertices[j];
-                    let ok = is_inside_hole(&self.problem, &state);
+                    let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
                     state.vertices[i] = t;
 
                     if ok {
@@ -292,6 +292,11 @@ fn solve(
     #[opt(long, default_value = "1")]
     restart: usize,
 
+    /// seed
+    //
+    #[opt(long)]
+    seed: Option<u64>,
+
     /// search only optimal solution
     //
     #[opt(long)]
@@ -304,7 +309,7 @@ fn solve(
 
     problem_id: i64,
 ) -> Result<()> {
-    let seed = rand::thread_rng().gen();
+    let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
     let problem: P = get_problem(problem_id)?;
 
@@ -323,6 +328,7 @@ fn solve(
         }
     }
 
+    eprintln!("Start annealing seed: {}", seed);
     eprintln!("Problem contains {} triangles", triangles.len());
 
     let problem = Problem {
@@ -539,7 +545,14 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
     for m in pat.matches(&resp) {
         let problem_id: i64 = m["problem-id"].parse()?;
-        let your_dislikes: i64 = m["your-dislikes"].parse()?;
+        let your_dislikes = m["your-dislikes"].parse();
+
+        if your_dislikes.is_err() {
+            continue;
+        }
+
+        let your_dislikes: i64 = your_dislikes.unwrap();
+
         let minimal_dislikes: i64 = m["minimal-dislikes"].parse()?;
 
         let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
