@@ -87,6 +87,31 @@ fn find_hint(problem: &P) -> Vec<BTreeMap<usize, Point>> {
     result
 }
 
+fn filter_vertices(vertices: &Vec<Point>, hint: &BTreeMap<usize, Point>) -> Vec<usize> {
+    (0..vertices.len())
+        .filter(|i| !hint.contains_key(&i))
+        .collect_vec()
+}
+
+fn filter_edges(edges: &Vec<Edge>, hint: &BTreeMap<usize, Point>) -> Vec<usize> {
+    (0..edges.len())
+        .filter(|i| !hint.contains_key(&edges[*i].v1) && !hint.contains_key(&edges[*i].v2))
+        .collect_vec()
+}
+
+fn filter_triangles(
+    triangles: &Vec<(usize, usize, usize)>,
+    hint: &BTreeMap<usize, Point>,
+) -> Vec<usize> {
+    (0..triangles.len())
+        .filter(|i| {
+            !hint.contains_key(&triangles[*i].0)
+                && !hint.contains_key(&triangles[*i].1)
+                && !hint.contains_key(&triangles[*i].2)
+        })
+        .collect_vec()
+}
+
 #[derive(Clone)]
 struct Problem {
     problem: P,
@@ -96,6 +121,9 @@ struct Problem {
     init_state: Option<Pose>,
     start_temp: Option<f64>,
     fixed_points: BTreeMap<usize, Point>, // From |node| to |point|.
+    candidate_vertices: Vec<usize>,
+    candidate_edges: Vec<usize>,
+    candidate_triangles: Vec<usize>,
 }
 
 impl Annealer for Problem {
@@ -123,7 +151,11 @@ impl Annealer for Problem {
             })
             .collect_vec();
 
-        Pose { vertices: ret }
+        let init_state = Pose { vertices: ret };
+        if !is_inside_hole(&self.problem, &init_state) {
+            eprintln!("Wrong Answer!!");
+        }
+        init_state
 
         // loop {
         //     let mut minx = i64::MAX;
@@ -216,11 +248,8 @@ impl Annealer for Problem {
         loop {
             match rng.gen_range(0..if self.exact { 21 } else { 20 }) {
                 0..=9 => {
-                    let i = rng.gen_range(0..state.vertices.len());
-
-                    if self.fixed_points.contains_key(&i) {
-                        continue;
-                    }
+                    let i = rng.gen_range(0..self.candidate_vertices.len());
+                    let i = self.candidate_vertices[i];
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -240,15 +269,17 @@ impl Annealer for Problem {
                         return vec![(i, d)];
                     }
                 }
-                10..=16 => {
-                    let e = &self.problem.figure.edges
-                        [rng.gen_range(0..self.problem.figure.edges.len())];
+                10..=16 => loop {
+                    let i = rng.gen_range(0..self.candidate_edges.len());
+                    let e = &self.problem.figure.edges[self.candidate_edges[i]];
                     let i = e.v1;
                     let j = e.v2;
 
-                    if self.fixed_points.contains_key(&i) || self.fixed_points.contains_key(&j) {
-                        continue;
-                    }
+                    // let i = rng.gen_range(0..state.vertices.len());
+                    // let j = rng.gen_range(0..state.vertices.len());
+                    // if !self.problem.figure.edges.contains(&Edge::new(i, j)) {
+                    //     continue;
+                    // }
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -270,19 +301,13 @@ impl Annealer for Problem {
                     if ok {
                         return vec![(i, d1), (j, d2)];
                     }
-                }
+                },
                 17..=19 => {
-                    if self.triangles.is_empty() {
+                    if self.candidate_triangles.is_empty() {
                         continue;
                     }
-
-                    let (i, j, k) = self.triangles[rng.gen_range(0..self.triangles.len())];
-                    if self.fixed_points.contains_key(&i)
-                        || self.fixed_points.contains_key(&j)
-                        || self.fixed_points.contains_key(&k)
-                    {
-                        continue;
-                    }
+                    let i = rng.gen_range(0..self.candidate_triangles.len());
+                    let (i, j, k) = self.triangles[self.candidate_triangles[i]];
 
                     let dx = rng.gen_range(-w..=w);
                     let dy = rng.gen_range(-w..=w);
@@ -311,10 +336,8 @@ impl Annealer for Problem {
 
                 _ => {
                     for _ in 0..10 {
-                        let i = rng.gen_range(0..state.vertices.len());
-                        if self.fixed_points.contains_key(&i) {
-                            continue;
-                        }
+                        let i = rng.gen_range(0..self.candidate_vertices.len());
+                        let i = self.candidate_vertices[i];
 
                         let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
                         if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
@@ -440,14 +463,18 @@ fn solve(
         eprintln!("Trial: {}/{}", i + 1, hints.len());
         // eprintln!("Trial: {}/{}: {:?}", i + 1, hints.len(), hints[i]);
 
+        let hint = hints[i].clone();
         let problem = Problem {
             problem: problem.clone(),
             exact,
             penalty_ratio,
             triangles: triangles.clone(),
-            fixed_points: hints[i].clone(),
+            fixed_points: hint.clone(),
             init_state: init_state.clone(),
             start_temp: start_temp.clone(),
+            candidate_vertices: filter_vertices(&problem.figure.vertices, &hint),
+            candidate_edges: filter_edges(&problem.figure.edges, &hint),
+            candidate_triangles: filter_triangles(&triangles, &hint),
         };
 
         let (score, solution) = annealing(

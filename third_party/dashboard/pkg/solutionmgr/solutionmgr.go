@@ -14,12 +14,19 @@ import (
 
 const defaultDislike = 999999999
 
+type Problem struct {
+	ProblemID int64           `json:"problem_id"`
+	CreatedAt int64           `json:"created_at"`
+	Data      json.RawMessage `json:"data"`
+}
+
 type Solution struct {
-	SolutionID int64    `json:"solution_id"`
-	ProblemID  int64    `json:"problem_id"`
-	CreatedAt  int64    `json:"created_at"`
-	Dislike    int64    `json:"dislike"`
-	Tags       []string `json:"tags"`
+	SolutionID int64           `json:"solution_id"`
+	ProblemID  int64           `json:"problem_id"`
+	CreatedAt  int64           `json:"created_at"`
+	Dislike    int64           `json:"dislike,omitempty"`
+	Tags       []string        `json:"tags"`
+	Data       json.RawMessage `json:"data"`
 }
 
 type Manager struct {
@@ -47,26 +54,42 @@ func NewManager(basePath string) (*Manager, error) {
 }
 
 func runMigration(db *sql.DB) error {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS problems (
-			problem_id INTEGER PRIMARY KEY,
-			created_at INTEGER NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS solutions (
-			solution_id INTEGER PRIMARY KEY AUTOINCREMENT,
-			problem_id INTEGER NOT NULL,
-			created_at INTEGER NOT NULL,
-			file_hash STRING NOT NULL,
-			dislike INTEGER NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS tags (
-			solution_id INTEGER NOT NULL,
-			tag TEXT NOT NULL,
-			PRIMARY KEY(solution_id, tag)
-		);
-	`)
+	var version int64
+	err := db.QueryRow("PRAGMA user_version").Scan(&version)
 	if err != nil {
-		return fmt.Errorf("cannot create tables: %v", err)
+		return fmt.Errorf("cannot get the user_version: %v", err)
+	}
+	switch version {
+	case 0:
+		// This is the initial schema.
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS problems (
+				problem_id INTEGER PRIMARY KEY,
+				created_at INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS solutions (
+				solution_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				problem_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL,
+				file_hash STRING NOT NULL,
+				dislike INTEGER NOT NULL
+			);
+			CREATE TABLE IF NOT EXISTS tags (
+				solution_id INTEGER NOT NULL,
+				tag TEXT NOT NULL,
+				PRIMARY KEY(solution_id, tag)
+			);
+		`)
+		if err != nil {
+			return fmt.Errorf("cannot create tables: %v", err)
+		}
+		fallthrough
+	default:
+	}
+	// Somehow this cannot accept the template.
+	_, err = db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, version))
+	if err != nil {
+		return fmt.Errorf("cannot set the schema version %d: %v", version, err)
 	}
 	return nil
 }
@@ -75,111 +98,175 @@ func (m *Manager) Close() error {
 	return m.db.Close()
 }
 
-func (m *Manager) GetSolution(solutionID int64) ([]byte, error) {
-	var fileHash string
-	err := m.db.QueryRow("SELECT file_hash FROM solutions WHERE solution_id = ?", solutionID).Scan(&fileHash)
+func (m *Manager) GetProblem(problemID int64) (*Problem, error) {
+	var createdAt int64
+	row := m.db.QueryRow("SELECT created_at FROM problems WHERE problem_id = ?", problemID)
+	if err := row.Scan(&createdAt); err != nil {
+		return nil, err
+	}
+
+	fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
+	data, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
-	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
-	return os.ReadFile(fp)
+
+	return &Problem{
+		ProblemID: problemID,
+		CreatedAt: createdAt,
+		Data:      data,
+	}, nil
 }
 
-func (m *Manager) GetSolutionMetadata(solutionID int64) (*Solution, error) {
-	rows, err := m.db.Query("SELECT problem_id, created_at, dislike FROM solutions WHERE solution_id = ?", solutionID)
+func (m *Manager) GetProblems() ([]*Problem, error) {
+	rows, err := m.db.Query("SELECT problem_id, created_at FROM problems")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
+
+	var problems []*Problem
 	for rows.Next() {
-		var problemID int64
-		var createdAt int64
-		var dislike int64
-		err = rows.Scan(&problemID, &createdAt, &dislike)
+		var problemID, createdAt int64
+		if err := rows.Scan(&problemID, &createdAt); err != nil {
+			return nil, err
+		}
+
+		fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
+		data, err := os.ReadFile(fp)
 		if err != nil {
 			return nil, err
 		}
-		tags, err := m.getTags(solutionID)
-		if err != nil {
-			return nil, err
-		}
-		return &Solution{
-			SolutionID: solutionID,
-			ProblemID:  problemID,
-			CreatedAt:  createdAt,
-			Tags:       tags,
-		}, nil
+
+		problems = append(problems, &Problem{
+			ProblemID: problemID,
+			CreatedAt: createdAt,
+			Data:      data,
+		})
 	}
-	err = rows.Err()
-	if err != nil {
-		return nil, err
-	}
-	return nil, fmt.Errorf("not found")
+
+	return problems, nil
 }
 
-func (m *Manager) getTags(solutionID int64) ([]string, error) {
+func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
+	var fileHash string
+	var problemID, createdAt, dislike int64
+	row := m.db.QueryRow("SELECT problem_id, created_at, file_hash, dislike FROM solutions WHERE solution_id = ?", solutionID)
+	if err := row.Scan(&problemID, &createdAt, &fileHash, &dislike); err != nil {
+		return nil, err
+	}
+
 	rows, err := m.db.Query("SELECT tag FROM tags WHERE solution_id = ?", solutionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var ret []string
+
+	var tags []string
 	for rows.Next() {
 		var tag string
-		err = rows.Scan(&tag)
-		if err != nil {
+		if err := rows.Scan(&tag); err != nil {
 			return nil, err
 		}
-		ret = append(ret, tag)
+		tags = append(tags, tag)
 	}
-	err = rows.Err()
+
+	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", fileHash))
+	data, err := os.ReadFile(fp)
 	if err != nil {
 		return nil, err
 	}
-	return ret, nil
+
+	return &Solution{
+		SolutionID: solutionID,
+		ProblemID:  problemID,
+		CreatedAt:  createdAt,
+		Dislike:    dislike,
+		Tags:       tags,
+		Data:       data,
+	}, nil
 }
 
-func (m *Manager) AddSolution(problemID int64, solutionJSON []byte, tags []string) error {
+func (m *Manager) AddProblem(problem *Problem) error {
 	createdAt := time.Now().Unix()
-	h, err := m.saveToDisk(problemID, solutionJSON)
-	if err != nil {
-		return err
+
+	fp := filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problem.ProblemID))
+	if _, err := os.Lstat(fp); err == nil {
+		return fmt.Errorf("already exists")
 	}
+	if err := os.MkdirAll(filepath.Dir(fp), 0755); err != nil {
+		return fmt.Errorf("cannot make directories: %v", err)
+	}
+	if err := os.WriteFile(fp, problem.Data, 0644); err != nil {
+		return fmt.Errorf("cannot write the data file: %v", err)
+	}
+
 	tx, err := m.db.Begin()
 	if err != nil {
 		return err
 	}
-	result, err := tx.Exec(
-		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?)",
-		problemID, createdAt, h, defaultDislike,
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT INTO problems(problem_id, created_at) VALUES (?, ?)",
+		problem.ProblemID, createdAt,
 	)
 	if err != nil {
 		return err
 	}
-	solutionID, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-	for _, tag := range tags {
-		_, err = tx.Exec("INSERT INTO tags(solution_id, tag) VALUES (?, ?) ON CONFLICT(solution_id, tag) DO NOTHING", solutionID, tag)
-		if err != nil {
-			return err
-		}
-	}
+
 	if err := tx.Commit(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *Manager) saveToDisk(problemID int64, solutionJSON []byte) (string, error) {
+func (m *Manager) AddSolution(solution *Solution) error {
+	createdAt := time.Now().Unix()
+
+	h, err := m.saveSolutionToDisk(solution.Data)
+	if err != nil {
+		return err
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	result, err := tx.Exec(
+		"INSERT INTO solutions(problem_id, created_at, file_hash, dislike) VALUES (?, ?, ?, ?)",
+		solution.ProblemID, createdAt, h, defaultDislike,
+	)
+	if err != nil {
+		return err
+	}
+
+	solutionID, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+	for _, tag := range solution.Tags {
+		if _, err := tx.Exec("INSERT INTO tags(solution_id, tag) VALUES (?, ?) ON CONFLICT(solution_id, tag) DO NOTHING", solutionID, tag); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Manager) saveSolutionToDisk(solutionJSON []byte) (string, error) {
 	var d json.RawMessage
 	if err := json.Unmarshal(solutionJSON, &d); err != nil {
-		return "", fmt.Errorf("cannot parse the solution: %v", err)
+		return "", fmt.Errorf("cannot parse the JSON data: %v", err)
 	}
 	bs, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
-		return "", fmt.Errorf("cannot unmarshal the solution: %v", err)
+		return "", fmt.Errorf("cannot unmarshal the JSON data: %v", err)
 	}
 	h := fmt.Sprintf("%x", sha256.Sum256(bs))
 	fp := filepath.Join(m.basePath, "solutions", fmt.Sprintf("%s.json", h))
@@ -191,7 +278,7 @@ func (m *Manager) saveToDisk(problemID int64, solutionJSON []byte) (string, erro
 		return "", fmt.Errorf("cannot make directories: %v", err)
 	}
 	if err := os.WriteFile(fp, bs, 0644); err != nil {
-		return "", fmt.Errorf("cannot write the solution: %v", err)
+		return "", fmt.Errorf("cannot write the data file: %v", err)
 	}
 	return h, nil
 }
