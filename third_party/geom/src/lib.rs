@@ -38,6 +38,22 @@ pub fn is_crossing(p1: &Point, p2: &Point, p3: &Point, p4: &Point) -> bool {
     ccw1 != ccw2 && ccw3 != ccw4
 }
 
+pub fn is_crossing_with_hint(p1: &Point, p2: &Point, p3: &Point, p4: &Point, ccw_hint: CCWResult) -> (bool, CCWResult) {
+    let ccw2 = ccw(p1, p2, p4);
+    if ccw_hint == CCWResult::OnLine || ccw2 == CCWResult::OnLine || ccw_hint == ccw2 {
+        return (false, ccw2);
+    }
+    let ccw3 = ccw(p3, p4, p1);
+    if ccw3 == CCWResult::OnLine {
+        return (false, ccw2);
+    }
+    let ccw4 = ccw(p3, p4, p2);
+    if ccw4 == CCWResult::OnLine {
+        return (false, ccw2);
+    }
+    (ccw3 == ccw4, ccw2)
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
