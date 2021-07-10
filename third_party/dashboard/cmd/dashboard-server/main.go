@@ -145,15 +145,20 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	problemJSON, err := io.ReadAll(file)
+	b, err := io.ReadAll(file)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var data solutionmgr.ProblemData
+	if err := json.Unmarshal(b, &data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	problem := &solutionmgr.Problem{
 		ProblemID:      problemID,
 		MinimalDislike: eval.RejectDislike,
-		Data:           problemJSON,
+		Data:           data,
 	}
 	if err := s.mgr.AddProblem(problem); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -179,8 +184,13 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	solutionJSON, err := io.ReadAll(file)
+	b, err := io.ReadAll(file)
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var data solutionmgr.SolutionData
+	if err := json.Unmarshal(b, &data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -192,7 +202,7 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tmp.Close()
 	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(solutionJSON); err != nil {
+	if err := json.NewEncoder(tmp).Encode(data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -202,7 +212,7 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		Tags:         tags,
 		Dislike:      dislike,
 		RejectReason: rejectReason,
-		Data:         solutionJSON,
+		Data:         data,
 	}
 	if err := s.mgr.AddSolution(solution); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -12,21 +12,97 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type Point []int64
+
+func (p Point) Validate() error {
+	if len(p) != 2 {
+		return fmt.Errorf("bad point: got %d elems, want 2 elems", len(p))
+	}
+	return nil
+}
+
+type Edge []int64
+
+type Hole []Point
+
+func (h Hole) Validate() error {
+	for _, p := range h {
+		if err := p.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type Figure struct {
+	Edges    []Edge  `json:"edges"`
+	Vertices []Point `json:"vertices"`
+}
+
+func (f *Figure) Validate() error {
+	for _, edge := range f.Edges {
+		if len(edge) != 2 {
+			return fmt.Errorf("bad edge: got %d elems, want 2 elems", len(edge))
+		}
+		for _, e := range edge {
+			if e < 0 || e >= int64(len(f.Vertices)) {
+				return fmt.Errorf("edge index out of range: got %d, want (0, %d)", e, len(f.Vertices))
+			}
+		}
+	}
+	for _, p := range f.Vertices {
+		if err := p.Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type ProblemData struct {
+	Hole    Hole   `json:"hole"`
+	Figure  Figure `json:"figure"`
+	Epsilon int64  `json:"epsilon"`
+}
+
+func (d *ProblemData) Validate() error {
+	if err := d.Hole.Validate(); err != nil {
+		return err
+	}
+	if err := d.Figure.Validate(); err != nil {
+		return err
+	}
+	if d.Epsilon < 0 {
+		return fmt.Errorf("negative epsilon: %d", d.Epsilon)
+	}
+	return nil
+}
+
 type Problem struct {
-	ProblemID      int64           `json:"problem_id"`
-	CreatedAt      int64           `json:"created_at"`
-	MinimalDislike int64           `json:"minimal_dislike"`
-	Data           json.RawMessage `json:"data"`
+	ProblemID      int64       `json:"problem_id"`
+	CreatedAt      int64       `json:"created_at"`
+	MinimalDislike int64       `json:"minimal_dislike"`
+	Data           ProblemData `json:"data"`
+}
+
+type SolutionData struct {
+	Vertices []Point `json:"vertices"`
+}
+
+func (s *SolutionData) Validate(problem *ProblemData) error {
+	if len(s.Vertices) != len(problem.Figure.Vertices) {
+		return fmt.Errorf("wrong number of vertices: got %d, want %d", len(s.Vertices), len(problem.Figure.Vertices))
+	}
+	return nil
 }
 
 type Solution struct {
-	SolutionID   int64           `json:"solution_id"`
-	ProblemID    int64           `json:"problem_id"`
-	CreatedAt    int64           `json:"created_at"`
-	Dislike      int64           `json:"dislike"`
-	RejectReason string          `json:"reject_reason"`
-	Tags         []string        `json:"tags"`
-	Data         json.RawMessage `json:"data"`
+	SolutionID   int64        `json:"solution_id"`
+	ProblemID    int64        `json:"problem_id"`
+	CreatedAt    int64        `json:"created_at"`
+	Dislike      int64        `json:"dislike"`
+	RejectReason string       `json:"reject_reason"`
+	Tags         []string     `json:"tags"`
+	Data         SolutionData `json:"data"`
 }
 
 type Manager struct {
@@ -120,8 +196,12 @@ func (m *Manager) GetProblem(problemID int64) (*Problem, error) {
 	}
 
 	fp := m.ProblemFilePath(problemID)
-	data, err := os.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
+		return nil, err
+	}
+	var data ProblemData
+	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}
 
@@ -148,8 +228,12 @@ func (m *Manager) GetProblems() ([]*Problem, error) {
 		}
 
 		fp := m.ProblemFilePath(problemID)
-		data, err := os.ReadFile(fp)
+		b, err := os.ReadFile(fp)
 		if err != nil {
+			return nil, err
+		}
+		var data ProblemData
+		if err := json.Unmarshal(b, &data); err != nil {
 			return nil, err
 		}
 
@@ -188,8 +272,12 @@ func (m *Manager) GetSolution(solutionID int64) (*Solution, error) {
 	}
 
 	fp := m.SolutionFilePath(fileHash)
-	data, err := os.ReadFile(fp)
+	b, err := os.ReadFile(fp)
 	if err != nil {
+		return nil, err
+	}
+	var data SolutionData
+	if err := json.Unmarshal(b, &data); err != nil {
 		return nil, err
 	}
 
@@ -220,8 +308,12 @@ func (m *Manager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
 		}
 
 		fp := m.SolutionFilePath(fileHash)
-		data, err := os.ReadFile(fp)
+		b, err := os.ReadFile(fp)
 		if err != nil {
+			return nil, err
+		}
+		var data SolutionData
+		if err := json.Unmarshal(b, &data); err != nil {
 			return nil, err
 		}
 
@@ -316,11 +408,19 @@ func (m *Manager) SolutionFilePath(fileHash string) string {
 func (m *Manager) AddProblem(problem *Problem) error {
 	createdAt := time.Now().Unix()
 
+	if err := problem.Data.Validate(); err != nil {
+		return err
+	}
+
 	fp := m.ProblemFilePath(problem.ProblemID)
 	if err := os.MkdirAll(filepath.Dir(fp), 0755); err != nil {
 		return fmt.Errorf("cannot make directories: %v", err)
 	}
-	if err := os.WriteFile(fp, problem.Data, 0644); err != nil {
+	b, err := json.Marshal(problem.Data)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(fp, b, 0644); err != nil {
 		return fmt.Errorf("cannot write the data file: %v", err)
 	}
 
@@ -347,7 +447,16 @@ func (m *Manager) AddProblem(problem *Problem) error {
 func (m *Manager) AddSolution(solution *Solution) error {
 	createdAt := time.Now().Unix()
 
-	h, err := m.saveSolutionToDisk(solution.Data)
+	problem, err := m.GetProblem(solution.ProblemID)
+	if err != nil {
+		return err
+	}
+
+	if err := solution.Data.Validate(&problem.Data); err != nil {
+		return err
+	}
+
+	h, err := m.saveSolutionToDisk(&solution.Data)
 	if err != nil {
 		return err
 	}
@@ -382,12 +491,8 @@ func (m *Manager) AddSolution(solution *Solution) error {
 	return nil
 }
 
-func (m *Manager) saveSolutionToDisk(solutionJSON []byte) (string, error) {
-	var d json.RawMessage
-	if err := json.Unmarshal(solutionJSON, &d); err != nil {
-		return "", fmt.Errorf("cannot parse the JSON data: %v", err)
-	}
-	bs, err := json.MarshalIndent(d, "", "  ")
+func (m *Manager) saveSolutionToDisk(data *SolutionData) (string, error) {
+	bs, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("cannot unmarshal the JSON data: %v", err)
 	}
