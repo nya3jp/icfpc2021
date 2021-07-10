@@ -3,13 +3,32 @@ import {
     distance2,
     midPoint,
     roundPoint,
-    Translator,
+    vabs,
+    vadd,
     vdiv,
+    vdot,
+    vmul,
     vsub,
-    vabs, vdot, vadd, vmul, vunit
+    vunit
 } from './geom';
 import {forceLayout} from './layout';
+
 const deepEqual = require('deep-equal');
+
+export class Translator {
+    public offset: Point = [0, 0];
+
+    constructor(public zoom: number) {
+    }
+
+    public modelToCanvas(p: Point): Point {
+        return vmul(vadd(p, this.offset), this.zoom);
+    }
+
+    public canvasToModel(p: Point): Point {
+        return vsub(vdiv(p, this.zoom), this.offset);
+    }
+}
 
 interface Highlight {
     holeEdge?: number;
@@ -254,7 +273,7 @@ export class Editor extends EventTarget {
                 break;
             case 2: // Right click
                 this.slideStartCanvas = [ev.offsetX, ev.offsetY];
-                this.slideStartCenter = this.translator.center;
+                this.slideStartCenter = this.translator.offset;
                 break;
         }
     }
@@ -274,19 +293,20 @@ export class Editor extends EventTarget {
     }
 
     private onMouseMove(ev: MouseEvent): void {
+        const mouse: Point = [ev.offsetX, ev.offsetY];
         if (this.draggingVertex !== null) {
-            const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+            const pos = this.translator.canvasToModel(mouse);
             this.onDragVertex(pos);
             this.render();
         }
         if (this.slideStartCanvas !== null) {
-            const delta = vdiv(vsub([ev.offsetX, ev.offsetY], this.slideStartCanvas), this.translator.zoom);
-            this.translator.center = vsub(this.slideStartCenter!, delta);
+            const delta = vdiv(vsub(mouse, this.slideStartCanvas), this.translator.zoom);
+            this.translator.offset = vadd(this.slideStartCenter!, delta);
             this.render();
         }
         if (this.draggingVertex === null || this.slideStartCanvas === null) {
             const highlight = {
-                holeEdge: this.similarEdgeHighlight ? this.nearHoleEdge(this.translator.canvasToModel([ev.offsetX, ev.offsetY]), 50 / this.translator.zoom) : undefined,
+                holeEdge: this.similarEdgeHighlight ? this.nearHoleEdge(this.translator.canvasToModel(mouse), 50 / this.translator.zoom) : undefined,
             };
             if (!deepEqual(highlight, this.currentHighlight)) {
                 this.currentHighlight = highlight;
@@ -297,7 +317,12 @@ export class Editor extends EventTarget {
 
     private onMouseWheel(ev: WheelEvent): void {
         ev.preventDefault();
-        this.translator.zoom = Math.min(20, Math.max(1, this.translator.zoom + ev.deltaY / 200));
+        const mouse: Point = [ev.offsetX, ev.offsetY];
+        const oldZoom = this.translator.zoom;
+        const newZoom = Math.min(20, Math.max(1, oldZoom + ev.deltaY / 200));
+        const deltaZoom = newZoom - oldZoom;
+        this.translator.offset = vsub(this.translator.offset, vmul(mouse, deltaZoom / (oldZoom * (oldZoom + deltaZoom))));
+        this.translator.zoom = newZoom;
         this.render();
     }
 

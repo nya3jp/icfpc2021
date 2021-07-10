@@ -12,21 +12,6 @@ export function midPoint(p: Point, q: Point): Point {
     return vdiv(vadd(p, q), 2);
 }
 
-export class Translator {
-    public center: Point = [0, 0];
-
-    constructor(public zoom: number) {
-    }
-
-    public modelToCanvas(p: Point): Point {
-        return vmul(vsub(p, this.center), this.zoom);
-    }
-
-    public canvasToModel(p: Point): Point {
-        return vadd(vdiv(p, this.zoom), this.center);
-    }
-}
-
 export function vadd(p: Point, q: Point): Point {
     return [p[0] + q[0], p[1] + q[1]];
 }
