@@ -4,9 +4,11 @@ export type Edge = [number, number];
 
 export type Hole = Point[];
 
+export type Pose = Point[];
+
 export interface Figure {
     edges: Edge[]
-    vertices: Point[]
+    vertices: Pose
 }
 
 export interface Problem {
