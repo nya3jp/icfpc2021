@@ -61,12 +61,12 @@ export const ProblemPage = (props: ProblemPageProps) => {
 
     useEffect(() => {
         (async () => {
-            setProblem(await model.getProblem(problemID));
+            setProblem(await model.getProblem(+problemID));
         })();
     }, []);
     useEffect(() => {
         (async () => {
-            setSolutions(await model.getSolutionsForProblem(problemID));
+            setSolutions(await model.getSolutionsForProblem(+problemID));
         })();
     }, []);
 

@@ -16,17 +16,17 @@ class Client {
         return await res.json();
     }
 
-    async getProblem(id: string): Promise<Problem> {
+    async getProblem(id: number): Promise<Problem> {
         const res = await fetch(`${this.baseURL}/api/problems/${id}`);
         return await res.json();
     }
 
-    async getSolution(id: string): Promise<Solution> {
+    async getSolution(id: number): Promise<Solution> {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}`);
         return await res.json();
     }
 
-    async getSolutionsForProblem(id: string): Promise<Solution[]> {
+    async getSolutionsForProblem(id: number): Promise<Solution[]> {
         const res = await fetch(`${this.baseURL}/api/problems/${id}/solutions`);
         return await res.json();
     }
@@ -34,8 +34,8 @@ class Client {
 
 // Model wraps Client for caching.
 export class Model {
-    private readonly problems = new Map<string, Promise<Problem>>();
-    private readonly solutions = new Map<string, Promise<Solution>>();
+    private readonly problems = new Map<number, Promise<Problem>>();
+    private readonly solutions = new Map<number, Promise<Solution>>();
 
     constructor(private readonly client = new Client()) {}
 
@@ -44,7 +44,7 @@ export class Model {
         return this.client.getProblems();
     }
 
-    getProblem(id: string): Promise<Problem> {
+    getProblem(id: number): Promise<Problem> {
         const cached = this.problems.get(id);
         if (cached) {
             return cached;
@@ -54,7 +54,7 @@ export class Model {
         return fresh;
     }
 
-    getSolution(id: string): Promise<Solution> {
+    getSolution(id: number): Promise<Solution> {
         const cached = this.solutions.get(id);
         if (cached) {
             return cached;
@@ -64,7 +64,7 @@ export class Model {
         return fresh;
     }
 
-    getSolutionsForProblem(id: string): Promise<Solution[]> {
+    getSolutionsForProblem(id: number): Promise<Solution[]> {
         // Solutions for a problem change over time, do not cache.
         return this.client.getSolutionsForProblem(id);
     }

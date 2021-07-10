@@ -1,5 +1,6 @@
-import React, {useEffect, useState} from 'react';
-import {Solution} from './types';
+import {useEffect, useState} from 'react';
+import {Problem, Solution} from './types';
+import {Model} from './model';
 import {Link} from 'react-router-dom';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
@@ -8,14 +9,41 @@ import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
-import {Model} from './model';
 
-interface RecentSolutionsListProps {
-    solutions: Solution[];
+type SolutionsMap = {[key: number]: Solution[]};
+
+interface ProblemListProps {
+    model: Model;
 }
 
-const RecentSolutionsList = (props: RecentSolutionsListProps) => {
-    const {solutions} = props;
+const ProblemList = (props: ProblemListProps) => {
+    const {model} = props;
+
+    const [problems, setProblems] = useState<Problem[]>([]);
+    const [solutions, setSolutions] = useState<SolutionsMap>({});
+
+    useEffect(() => {
+        // Every time the state is updated, this is called...
+        if (problems.length === 0) {
+            model.getProblems().then((ps: Problem[]) => setProblems(ps));
+        } else if (Object.keys(solutions).length === 0) {
+            problems.forEach((problem: Problem) => {
+                model.getSolutionsForProblem(problem.problem_id)
+                    .then((ss: Solution[]) => {
+                        setSolutions((solutions: SolutionsMap) => {
+                            let m = {
+                                ...solutions,
+                            };
+                            m[problem.problem_id] = ss;
+                            return m;
+                        });
+                    });
+            });
+        }
+    });
+
+    if (problems.length === 0) return <p>No solutions</p>;
+
     return (
         <div>
             <TableContainer component={Paper}>
@@ -23,20 +51,32 @@ const RecentSolutionsList = (props: RecentSolutionsListProps) => {
                     <TableHead>
                         <TableRow>
                             <TableCell>ProblemID</TableCell>
-                            <TableCell>SolutionID</TableCell>
-                            <TableCell>Created at</TableCell>
+                            <TableCell>Best SolutionID</TableCell>
+                            <TableCell>Best Dislike</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {solutions.map((solution) => {
-                            const link = `/problems/${solution.problem_id}/solutions/${solution.solution_id}`;
-                            const createdAt = new Date();
-                            createdAt.setTime(solution.created_at * 1000);
+                        {problems.map(({problem_id}) => {
+                            const ss = solutions[problem_id];
+                            const problemLink = `/problems/${problem_id}`;
+                            if (!ss || ss.length === 0) {
+                                return (
+                                    <TableRow key={problem_id}>
+                                        <TableCell><Link to={problemLink}>{problem_id}</Link></TableCell>
+                                        <TableCell></TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
+                                );
+                            }
+                            const sol = ss.reduce((prev, current) => {
+                                return prev.dislike < current.dislike ? prev : current;
+                            });
+                            const solutionLink = `/solutions/${sol.solution_id}`;
                             return (
-                                <TableRow>
-                                    <TableCell>{solution.problem_id}</TableCell>
-                                    <TableCell><Link to={link}>{solution.solution_id}...</Link></TableCell>
-                                    <TableCell>{createdAt.toString()}</TableCell>
+                                <TableRow key={problem_id}>
+                                    <TableCell><Link to={problemLink}>{problem_id}</Link></TableCell>
+                                    <TableCell><Link to={solutionLink}>{sol.solution_id}</Link></TableCell>
+                                    <TableCell>{sol.dislike}</TableCell>
                                 </TableRow>
                             );
                         })}
@@ -51,37 +91,12 @@ export interface FrontPageProps {
     model: Model;
 }
 
-interface FrontPageState {
-    currList: Solution[];
-}
-
 export const FrontPage = (props: FrontPageProps) => {
     const {model} = props;
-    const solutions: Solution[] = [];
-
-    /*
-    // TODO: Use Model to retrieve a list of problems.
-    const [appState, setAppState] = useState<FrontPageState>({
-        currList: [],
-    });
-
-    useEffect(() => {
-        setAppState({currList: []});
-        fetch(`//localhost:8080/api/solutions/highscore`)
-            .then((res) => res.json())
-            .then((ss: Solution[]) => {
-                setAppState({currList: ss});
-                ss.map((solution) => {
-                    ensureSolution(solution.problem_id, solution.solution_id);
-                });
-            });
-    }, [setAppState]);
-    */
 
     return (
         <div>
-            <h2></h2>
-            <RecentSolutionsList solutions={solutions} />
+            <ProblemList model={model} />
         </div>
     );
 };
