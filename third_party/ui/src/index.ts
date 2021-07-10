@@ -55,6 +55,7 @@ class UI {
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
         document.addEventListener('keydown', (ev) => this.onKeyDown(ev))
+        document.addEventListener('wheel', (ev) => this.onMouseWheel(ev), {passive: false})
         this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
         this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
 
@@ -206,6 +207,13 @@ class UI {
             this.draw()
             ev.preventDefault()
         }
+    }
+
+    private onMouseWheel(ev: WheelEvent) {
+        this.translator.zoom = Math.min(10, Math.max(1, parseFloat(this.zoom.value) + ev.deltaY / 1000))
+        this.zoom.value = this.translator.zoom.toString();
+        ev.preventDefault();
+        this.draw();
     }
 
     private onDragVertex(pos: Point) {
