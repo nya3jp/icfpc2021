@@ -17,22 +17,14 @@ function midPoint(p: Point, q: Point): Point {
 }
 
 class Translator {
-    private center: Point = [0, 0];
-
     constructor(public zoom: number = 5.0) {}
 
     modelToCanvas(p: Point): Point {
-        return [(p[0] - this.center[0]) * this.zoom,
-            (p[1] - this.center[1]) * this.zoom];
+        return [p[0] * this.zoom, p[1] * this.zoom];
     }
 
     canvasToModel(p: Point): Point {
-        return [p[0] / this.zoom - this.center[0],
-            p[1] / this.zoom - this.center[1]];
-    }
-
-    moveCenter(p: Point) {
-        this.center = [this.center[0] + p[0], this.center[1] + p[1]]
+        return [p[0] / this.zoom, p[1] / this.zoom];
     }
 }
 
@@ -54,7 +46,6 @@ class UI {
         this.canvas.addEventListener('mousedown', (ev) => this.onMouseDown(ev));
         this.canvas.addEventListener('mouseup', (ev) => this.onMouseUp(ev));
         this.canvas.addEventListener('mousemove', (ev) => this.onMouseMove(ev));
-        document.addEventListener('keydown', (ev) => this.onKeyDown(ev))
         this.zoom.addEventListener('input', (ev) => this.onZoomChanged(ev))
         this.output.addEventListener('change', (ev) => this.onOutputChanged(ev));
 
@@ -186,26 +177,6 @@ class UI {
         }
         const pos = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
         this.onDragVertex(pos);
-    }
-
-    private onKeyDown(ev: KeyboardEvent) {
-        if (ev.code == "ArrowUp") {
-            this.translator.moveCenter([0, -1])
-            this.draw()
-            ev.preventDefault()
-        } else if (ev.code == "ArrowDown") {
-            this.translator.moveCenter([0, 1])
-            this.draw()
-            ev.preventDefault()
-        } else if (ev.code == "ArrowLeft") {
-            this.translator.moveCenter([-1, 0])
-            this.draw()
-            ev.preventDefault()
-        } else if (ev.code == "ArrowRight") {
-            this.translator.moveCenter([1, 0])
-            this.draw()
-            ev.preventDefault()
-        }
     }
 
     private onDragVertex(pos: Point) {
