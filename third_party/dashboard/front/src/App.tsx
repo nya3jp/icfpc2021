@@ -1,6 +1,5 @@
 import React, {useState} from 'react';
 import {BrowserRouter as Router, Link, Route, Switch} from 'react-router-dom';
-import {PoseMap, SolutionMap} from './types';
 import {FrontPage} from './FrontPage';
 import {SolutionPage} from './SolutionPage';
 
@@ -10,6 +9,7 @@ import Toolbar from '@material-ui/core/Toolbar';
 import Container from '@material-ui/core/Container';
 import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
+import {Model} from './model';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -20,38 +20,8 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-
 export default function App() {
-  const [solutions, setSolutions] = useState<SolutionMap>({});
-  const [poses, setPoses] = useState<PoseMap>({});
-
-  const ensureSolution = (problemID: string, solutionID: string) => {
-    const idx = problemID + "-" + solutionID;
-    if (solutions[idx]) {
-      return;
-    }
-    fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID + `/meta`)
-      .then((res) => res.json())
-      .then((s) => {
-        const obj: SolutionMap = {};
-        obj[idx] = s;
-        setSolutions(obj);
-      });
-  };
-  const ensurePose = (problemID: string, solutionID: string) => {
-    const idx = problemID + "-" + solutionID;
-    if (poses[idx]) {
-      return;
-    }
-    fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID)
-      .then((res) => res.json())
-      .then((s) => {
-        const obj: PoseMap = {};
-        obj[idx] = s;
-        setPoses(obj);
-      });
-  };
-
+  const [model, _] = useState<Model>(() => new Model());
   const classes = useStyles();
 
   return (
@@ -67,11 +37,11 @@ export default function App() {
         </AppBar>
         <Container>
           <Switch>
-            <Route path="/problems/:problemID/solutions/:solutionID">
-              <SolutionPage solutions={solutions} ensureSolution={ensureSolution} poses={poses} ensurePoses={ensurePose} />
+            <Route path="/solutions/:solutionID">
+              <SolutionPage model={model} />
             </Route>
             <Route path="/">
-              <FrontPage solutions={solutions} ensureSolution={ensureSolution} />
+              <FrontPage model={model} />
             </Route>
           </Switch>
         </Container>

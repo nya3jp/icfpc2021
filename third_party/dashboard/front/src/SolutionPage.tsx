@@ -1,6 +1,6 @@
 import {useParams} from 'react-router-dom';
-import React, {useEffect} from 'react';
-import {PoseMap, SolutionMap} from './types';
+import React, {useEffect, useState} from 'react';
+import {Solution} from './types';
 import {Link} from 'react-router-dom';
 
 import Chip from '@material-ui/core/Chip';
@@ -11,30 +11,24 @@ import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
+import {Model} from './model';
 
 export interface SolutionPageProps {
-    solutions: SolutionMap;
-    ensureSolution: (problemID: string, solutionID: string) => void;
-    poses: PoseMap;
-    ensurePoses: (problemID: string, solutionID: string) => void;
+    model: Model;
 }
 
 export const SolutionPage = (props: SolutionPageProps) => {
-    const {solutions, ensureSolution, poses, ensurePoses} = props;
-    const {
-        problemID,
-        solutionID
-    } = useParams<{ problemID: string, solutionID: string }>();
+    const {model} = props;
+    const {solutionID} = useParams<{ solutionID: string }>();
+    const [solution, setSolution] = useState<Solution | null>(null);
 
     useEffect(() => {
-        ensureSolution(problemID, solutionID);
-        ensurePoses(problemID, solutionID);
-    })
+        (async () => {
+            setSolution(await model.getSolution(solutionID));
+        })();
+    });
 
-    const key = problemID + "-" + solutionID;
-    const solution = solutions[key];
-    const pose = poses[key];
-    if (!solution || !pose) {
+    if (!solution) {
       return <div></div>
     }
     const createdAt = new Date();
@@ -71,7 +65,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
             </TableBody>
           </Table>
         </TableContainer>
-        <pre>{JSON.stringify(pose)}</pre>
+        <pre>{JSON.stringify(solution)}</pre>
       </div>
     );
 };

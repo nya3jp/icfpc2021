@@ -8,15 +8,14 @@ import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
+import {Model} from './model';
 
 interface RecentSolutionsListProps {
-    solutions: SolutionMap;
-    currList: Solution[];
+    solutions: Solution[];
 }
 
 const RecentSolutionsList = (props: RecentSolutionsListProps) => {
-    const {solutions, currList} = props;
-    if (!currList || currList.length === 0) return <p>No solutions</p>;
+    const {solutions} = props;
     return (
         <div>
             <TableContainer component={Paper}>
@@ -29,24 +28,14 @@ const RecentSolutionsList = (props: RecentSolutionsListProps) => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {currList.map(({problem_id, solution_id}) => {
-                            const solution = solutions[problem_id + "-" + solution_id];
-                            const link = `/problems/${problem_id}/solutions/${solution_id}`;
-                            if (!solution) {
-                                return (
-                                    <TableRow>
-                                        <TableCell>{problem_id}</TableCell>
-                                        <TableCell><Link to={link}>{solution_id.substring(0, 8)}...</Link></TableCell>
-                                        <TableCell></TableCell>
-                                    </TableRow>
-                                );
-                            }
+                        {solutions.map((solution) => {
+                            const link = `/problems/${solution.problem_id}/solutions/${solution.solution_id}`;
                             const createdAt = new Date();
                             createdAt.setTime(solution.created_at * 1000);
                             return (
                                 <TableRow>
-                                    <TableCell>{problem_id}</TableCell>
-                                    <TableCell><Link to={link}>{solution_id.substring(0, 8)}...</Link></TableCell>
+                                    <TableCell>{solution.problem_id}</TableCell>
+                                    <TableCell><Link to={link}>{solution.solution_id.substring(0, 8)}...</Link></TableCell>
                                     <TableCell>{createdAt.toString()}</TableCell>
                                 </TableRow>
                             );
@@ -59,8 +48,7 @@ const RecentSolutionsList = (props: RecentSolutionsListProps) => {
 };
 
 export interface FrontPageProps {
-    solutions: SolutionMap;
-    ensureSolution: (problemID: string, solutionID: string) => void;
+    model: Model;
 }
 
 interface FrontPageState {
@@ -68,7 +56,11 @@ interface FrontPageState {
 }
 
 export const FrontPage = (props: FrontPageProps) => {
-    const {solutions, ensureSolution} = props;
+    const {model} = props;
+    const solutions: Solution[] = [];
+
+    /*
+    // TODO: Use Model to retrieve a list of problems.
     const [appState, setAppState] = useState<FrontPageState>({
         currList: [],
     });
@@ -84,12 +76,12 @@ export const FrontPage = (props: FrontPageProps) => {
                 });
             });
     }, [setAppState]);
+    */
 
     return (
         <div>
             <h2></h2>
-            <RecentSolutionsList solutions={solutions}
-                currList={appState.currList} />
+            <RecentSolutionsList solutions={solutions} />
         </div>
     );
 };
