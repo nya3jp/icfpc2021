@@ -46,7 +46,7 @@ const Home = (props) => {
 
   useEffect(() => {
     setAppState({loading: true});
-    fetch(`http://spweek.badalloc.com/api/solutions`)
+    fetch(`https://spweek.badalloc.com/api/solutions`)
       .then((res) => res.json())
       .then((recentSolutions) => {
         setAppState({loading: false, recentSolutions: recentSolutions});
@@ -92,7 +92,7 @@ export default function App() {
     if (solutions[idx]) {
       return;
     }
-    fetch(`http://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID + `/meta`)
+    fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID + `/meta`)
       .then((res) => res.json())
       .then((s) => {
         var obj = {};
@@ -105,7 +105,7 @@ export default function App() {
     if (solutionFiles[idx]) {
       return;
     }
-    fetch(`http://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID)
+    fetch(`https://spweek.badalloc.com/api/problems/` + problemID + `/solutions/` + solutionID)
       .then((res) => res.json())
       .then((s) => {
         var obj = {};
