@@ -10,6 +10,7 @@ import Container from '@material-ui/core/Container';
 import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
 import {Model} from './model';
+import {ProblemPage} from './ProblemPage';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -39,6 +40,9 @@ export default function App() {
           <Switch>
             <Route path="/solutions/:solutionID">
               <SolutionPage model={model} />
+            </Route>
+            <Route path="/problems/:problemID">
+              <ProblemPage model={model} />
             </Route>
             <Route path="/">
               <FrontPage model={model} />
