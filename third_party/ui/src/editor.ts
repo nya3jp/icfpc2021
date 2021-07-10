@@ -227,7 +227,7 @@ export class Editor extends EventTarget {
     }
 
     private renderHints(ctx: CanvasRenderingContext2D): void {
-        if (this.constraintHint && this.draggingVertex) {
+        if (this.constraintHint && this.draggingVertex !== null) {
             const {edges, vertices} = this.problem.figure;
             const adjacents = [];
             for (const edge of edges) {
