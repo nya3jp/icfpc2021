@@ -16,6 +16,7 @@ import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import {Viewer} from './editor/Viewer';
 import {green} from '@material-ui/core/colors';
+import {maxScore, scoreInfo} from './utils';
 
 
 type SolutionsMap = {[key: number]: Solution[]};
@@ -43,6 +44,10 @@ const ProblemCell = ({problem}: {problem: Problem}) => {
                                 <TableCell>Minimal Dislike</TableCell>
                                 <TableCell>{problem.minimal_dislike}</TableCell>
                             </TableRow>
+                            <TableRow>
+                                <TableCell>Max Score</TableCell>
+                                <TableCell>{maxScore(problem)}</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </Grid>
@@ -53,6 +58,17 @@ const ProblemCell = ({problem}: {problem: Problem}) => {
 
 const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution}) => {
     const solutionLink = `/solutions/${solution.solution_id}`;
+    const si = scoreInfo(problem, solution);
+
+    let diff = "";
+    let scoreText = "";
+    if (problem.minimal_dislike != solution.dislike) {
+        diff = ` (${solution.dislike - problem.minimal_dislike}点差)`
+        scoreText = `${si.score} (残り ${si.maxScore - si.score} / ${Math.ceil(100 - si.ratio*100)}%)`;
+    } else {
+        diff = " (トップタイ)"
+        scoreText = `${si.score} (MAX)`;
+    }
     return (
         <Link to={solutionLink}>
             <Grid container spacing={2}>
@@ -68,7 +84,11 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
                             </TableRow>
                             <TableRow>
                                 <TableCell>Dislike</TableCell>
-                                <TableCell>{solution.dislike}</TableCell>
+                                <TableCell>{solution.dislike}{diff}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>Score</TableCell>
+                                <TableCell>{scoreText}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
