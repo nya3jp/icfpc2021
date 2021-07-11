@@ -37,6 +37,11 @@ class Translator {
     }
 }
 
+interface Globalist {
+    current: number;
+    limit: number;
+}
+
 interface Highlight {
     holeEdge?: number;
 }
@@ -134,6 +139,21 @@ export class Editor extends EventTarget {
                 .reduce((a, b) => Math.min(a, b));
         }
         return dislike;
+    }
+
+    public computeGlobalist(): Globalist {
+        const {edges, vertices} = this.problem.figure;
+        const pose = this.pose;
+        const globalist: Globalist = {
+            current: 0,
+            limit: this.problem.epsilon * edges.length / 1000000,
+        };
+        for (const edge of edges) {
+            const original2 = distance2(vertices[edge[0]], vertices[edge[1]]);
+            const dist2 = distance2(pose[edge[0]], pose[edge[1]]);
+            globalist.current += Math.abs(dist2 / original2 - 1);
+        }
+        return globalist;
     }
 
     private render(): void {

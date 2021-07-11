@@ -191,7 +191,8 @@ export class ZoomSlider {
 
 export class StatusLabel {
     constructor(
-        private readonly element: HTMLElement,
+        private readonly dislike: HTMLElement,
+        private readonly globalist: HTMLElement,
         private readonly editor: Editor) {
     }
 
@@ -201,7 +202,10 @@ export class StatusLabel {
     }
 
     private onRefresh(): void {
-        this.element.textContent = this.editor.computeDislike().toString();
+        this.dislike.textContent = this.editor.computeDislike().toString();
+        const {current, limit} = this.editor.computeGlobalist();
+        this.globalist.textContent = `${current.toFixed(2)} / ${limit.toFixed(2)} (${(current / limit * 100).toFixed(1)}%)`;
+        this.globalist.style.color = current <= limit ? 'green' : 'red';
     }
 }
 

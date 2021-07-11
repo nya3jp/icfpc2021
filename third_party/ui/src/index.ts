@@ -30,7 +30,7 @@ async function init() {
     const zoomSlider = new ZoomSlider(document.getElementById('zoom') as HTMLInputElement, editor);
     const similarEdgeHighlightToggle = new SimilarEdgeHighlightToggle(document.getElementById('similar_edge_highlight') as HTMLInputElement, editor);
     const constraintHintToggle = new ConstraintHintToggle(document.getElementById('constraint_hint') as HTMLInputElement, editor);
-    const statusLabel = new StatusLabel(document.getElementById('dislike')!, editor);
+    const statusLabel = new StatusLabel(document.getElementById('dislike')!, document.getElementById('globalist')!, editor);
     const relayoutButton = new RelayoutButton(document.getElementById('run_relayout') as HTMLButtonElement, editor);
 
     editor.start();
