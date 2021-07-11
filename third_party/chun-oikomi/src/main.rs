@@ -180,7 +180,7 @@ fn eval_score(prob: &Problem, figure: &Vec<Point>) -> f64
     score
 }
 
-fn do_brute(ptr: usize, visit_order: &Vec<usize>, prob: &Problem, oikomi_options: &OikomiOptions, timer: &SystemTime,bestscore: &mut f64, resfigure: &mut Vec<Point>, bestfigure: &mut Vec<Point>)
+fn do_brute(ptr: usize, visit_order: &Vec<usize>, budget: i64, prob: &Problem, oikomi_options: &OikomiOptions, timer: &SystemTime,bestscore: &mut f64, resfigure: &mut Vec<Point>, bestfigure: &mut Vec<Point>)
 {
     if *bestscore == 0. {
         return;
@@ -191,11 +191,11 @@ fn do_brute(ptr: usize, visit_order: &Vec<usize>, prob: &Problem, oikomi_options
     // println!("depth {}/{}", ptr, resfigure.len());
     let trypos = visit_order[ptr];
     let origpos = prob.init_state.vertices[trypos];
-    let mut deltaorder: Vec<i64> = (-oikomi_options.neighbor..=oikomi_options.neighbor).collect();
-    deltaorder.sort_by_key(|a| a.abs());
-    for dx in deltaorder.iter() {
-        for dy in deltaorder.iter() {
-            let dxdy = Point {x: *dx as f64, y: *dy as f64};
+    for dx in -budget..=budget {
+        let budgetremain = budget - dx.abs();
+        for dy in -budgetremain..=budgetremain {
+            let budgetremain = budgetremain - dy.abs();
+            let dxdy = Point {x: dx as f64, y: dy as f64};
             let trialpt = origpos + dxdy;
             if !prob.problem.hole.contains(&trialpt) { continue; }
             resfigure[trypos] = trialpt;
@@ -268,7 +268,7 @@ fn do_brute(ptr: usize, visit_order: &Vec<usize>, prob: &Problem, oikomi_options
                 }
                 else
                 {
-                    do_brute(ptr + 1, visit_order, prob, oikomi_options, timer, bestscore, resfigure, bestfigure);
+                    do_brute(ptr + 1, visit_order, budgetremain, prob, oikomi_options, timer, bestscore, resfigure, bestfigure);
                 }
             }
         }
@@ -280,10 +280,11 @@ fn oikomi(prob: &Problem, oikomi_options: &OikomiOptions) -> (f64, Pose) {
     let visit_order = get_visit_order(prob);
     println!("visit_order = {:?}", visit_order);
     let n = prob.problem.figure.vertices.len();
-    let mut bestscore = 1e8;
-    let mut resfigure = vec![Point {x: 0., y: 0.}; n];
-    let mut bestfigure = vec![Point {x: 0., y: 0.}; n];
-    do_brute(0usize, &visit_order, &prob, &oikomi_options, &timer, &mut bestscore, &mut resfigure, &mut bestfigure);
+    let budget = oikomi_options.neighbor;
+    let mut bestscore = eval_score(prob, &prob.init_state.vertices);
+    let mut resfigure = prob.init_state.vertices.clone();
+    let mut bestfigure = resfigure.clone();
+    do_brute(0usize, &visit_order, budget, &prob, &oikomi_options, &timer, &mut bestscore, &mut resfigure, &mut bestfigure);
     (bestscore, Pose {vertices: bestfigure, bonuses: None})
 }
 
@@ -327,7 +328,7 @@ fn solve(
     }
     */
 
-    eprintln!("Oikomi: searching {} pixels from current one", neighbor);
+    eprintln!("Oikomi: searching up to {} pixel difference solutions from the current one", neighbor);
 
     let init_state: Pose = match init_state {
         Some (frompath) =>
@@ -414,21 +415,24 @@ fn solve(
             "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
             score as i64, problem.your_dislikes, problem.minimal_dislikes
         );
+        if (score as i64) < problem.your_dislikes {
+            if dialoguer::Confirm::new()
+                .with_prompt("Submit?")
+                .interact()?
+            {
+                eprintln!("Submitting");
+    
+                let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
+                eprintln!("Response: {:?}", resp);
+    
+                // Submit to the internal dashboard.
+                chun_oikomi_solver::submit_dashboard(problem_id, &result_file_name)?;
+            }
+        }else{
+            println!("Shinchoku damedesu (no point improvement)");
+        }
     } else {
         eprintln!("No submission for problem {} found.", problem_id);
-    }
-
-    if dialoguer::Confirm::new()
-        .with_prompt("Submit?")
-        .interact()?
-    {
-        eprintln!("Submitting");
-
-        let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
-        eprintln!("Response: {:?}", resp);
-
-        // Submit to the internal dashboard.
-        chun_oikomi_solver::submit_dashboard(problem_id, &result_file_name)?;
     }
 
     Ok(())
