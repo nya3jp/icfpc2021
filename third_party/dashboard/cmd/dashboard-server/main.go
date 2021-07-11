@@ -8,6 +8,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -22,6 +24,7 @@ var (
 	port         = flag.Int("port", 8080, "")
 	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
 	staticPath   = flag.String("static_path", "/tmp/static-data", "")
+	uiServer     = flag.String("ui_server", "", "")
 	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
 	enableScrape = flag.Bool("enable_scrape", true, "")
 )
@@ -46,6 +49,17 @@ func main() {
 		}
 	}
 
+	var fallbackHandler http.Handler
+	if *uiServer != "" {
+		u, err := url.Parse(*uiServer)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fallbackHandler = httputil.NewSingleHostReverseProxy(u)
+	} else {
+		fallbackHandler = http.FileServer(http.Dir(*staticPath))
+	}
+
 	s := &server{mgr, scraper}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
@@ -60,7 +74,7 @@ func main() {
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir(*staticPath)))
+	r.PathPrefix("/").Handler(fallbackHandler)
 
 	log.Print("Starting...")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), r))
