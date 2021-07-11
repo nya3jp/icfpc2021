@@ -22,7 +22,7 @@ export function forceLayout(pose: Pose, edges: Edge[], iters: number): Pose {
     const result = [];
     for (let i = 0; i < pose.length; ++i) {
         const pos = layout.getNodePosition(i);
-        result.push(roundPoint([pos.x, pos.y]));
+        result.push([pos.x, pos.y]);
     }
     return result;
 }

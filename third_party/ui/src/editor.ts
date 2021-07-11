@@ -374,7 +374,7 @@ export class Editor extends EventTarget {
             minY = Math.min(minY, p[1]);
         }
         for (let i = 0; i < this.pose.length; ++i) {
-            this.pose[i] = vsub(this.pose[i], [minX, minY]);
+            this.pose[i] = roundPoint(vsub(this.pose[i], [minX, minY]));
         }
         this.render();
     }
