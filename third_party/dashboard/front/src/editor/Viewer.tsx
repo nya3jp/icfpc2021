@@ -45,7 +45,17 @@ function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) 
         ctx.stroke();
     }
 
-    // TODO: Consider drawing the original pose.
+    // Draw bonuses.
+    const radius = 3.0 * translator.zoom;
+    ctx.strokeStyle = 'rgba(255, 255, 0, 1)';
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+    for (const bonus of problem.data.bonuses) {
+        ctx.beginPath();
+        const pos = translator.modelToCanvas(bonus.position);
+        ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
 
     // Draw pose.
     const {edges, vertices} = problem.data.figure;

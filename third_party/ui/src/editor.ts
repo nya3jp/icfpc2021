@@ -37,6 +37,11 @@ class Translator {
     }
 }
 
+interface Globalist {
+    current: number;
+    limit: number;
+}
+
 interface Highlight {
     holeEdge?: number;
 }
@@ -136,6 +141,21 @@ export class Editor extends EventTarget {
         return dislike;
     }
 
+    public computeGlobalist(): Globalist {
+        const {edges, vertices} = this.problem.figure;
+        const pose = this.pose;
+        const globalist: Globalist = {
+            current: 0,
+            limit: this.problem.epsilon * edges.length / 1000000,
+        };
+        for (const edge of edges) {
+            const original2 = distance2(vertices[edge[0]], vertices[edge[1]]);
+            const dist2 = distance2(pose[edge[0]], pose[edge[1]]);
+            globalist.current += Math.abs(dist2 / original2 - 1);
+        }
+        return globalist;
+    }
+
     private render(): void {
         const ctx = this.canvas.getContext('2d')!;
         ctx.fillStyle = 'rgb(222, 222, 222)';
@@ -200,7 +220,7 @@ export class Editor extends EventTarget {
             let highlight = false;
             if (target2 >= 0) {
                 const original2 = distance2(vertices[edge[0]], vertices[edge[1]]);
-                if (Math.abs(target2 / original2 - 1) < this.problem.epsilon / 1000000) {
+                if (Math.abs(target2 / original2 - 1) <= this.problem.epsilon / 1000000 + 1e-8) {
                     highlight = true;
                 }
             }
@@ -226,7 +246,7 @@ export class Editor extends EventTarget {
     private getLineColor(current: number, original: number, highlight: boolean): string {
         const hi = highlight ? 192 : 255;
         const lo = 0;
-        const margin = original * this.problem.epsilon / 1000000;
+        const margin = original * this.problem.epsilon / 1000000 + 1e-8;
         const min = original - margin;
         const max = original + margin;
         if (current < min) {
@@ -252,7 +272,7 @@ export class Editor extends EventTarget {
             ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
             for (const adjacent of adjacents) {
                 const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex]);
-                const margin2 = original2 * this.problem.epsilon / 1000000;
+                const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
                 const min = Math.sqrt(original2 - margin2);
                 const max = Math.sqrt(original2 + margin2);
                 const center = this.pose[adjacent];
@@ -339,6 +359,37 @@ export class Editor extends EventTarget {
 
     private snap(cursor: Point): Point {
         const candidates = this.problem.bonuses.map(({position}) => position).concat(this.problem.hole);
+        const {edges, vertices} = this.problem.figure;
+        const adjacents = [];
+        for (const edge of edges) {
+            if (edge[0] === this.draggingVertex) {
+                adjacents.push(edge[1]);
+            }
+            if (edge[1] === this.draggingVertex) {
+                adjacents.push(edge[0]);
+            }
+        }
+        for (let dy = -5; dy <= 5; dy++) {
+            for (let dx = -5; dx <= 5; dx++) {
+                const d: Point = [dx, dy];
+                if (vabs(d) > 5) {
+                    continue;
+                }
+                const p = roundPoint(vadd(cursor, d));
+                let ok = true;
+                for (const adjacent of adjacents) {
+                    const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex!]);
+                    const d2 = distance2(this.pose[adjacent], p);
+                    const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
+                    if (d2 < original2 - margin2 || d2 > original2 + margin2) {
+                        ok = false;
+                    }
+                }
+                if (ok) {
+                    candidates.push(p);
+                }
+            }
+        }
         const nearest = closest(candidates, cursor)[0];
         if (vabs(vsub(cursor, nearest)) < 30 / this.translator.zoom) {
             return nearest;

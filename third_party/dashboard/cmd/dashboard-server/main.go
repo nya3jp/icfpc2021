@@ -52,6 +52,7 @@ func main() {
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}", s.handleProblemGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
@@ -192,6 +193,51 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	io.WriteString(w, "ok")
+}
+
+func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	problemID, err := strconv.ParseInt(mux.Vars(r)["problem_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var data solutionmgr.SolutionData
+	if err := json.Unmarshal(b, &data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution := &solutionmgr.Solution{
+		ProblemID:    problemID,
+		Dislike:      dislike,
+		RejectReason: rejectReason,
+		Data:         data,
+	}
+	solutionID, err := s.mgr.AddSolution(solution)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err = s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
