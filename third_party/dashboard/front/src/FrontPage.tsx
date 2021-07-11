@@ -248,7 +248,7 @@ const ProblemList = (props: ProblemListProps) => {
             }
 
             ss = ss.filter((s) => {
-                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == 'GLOBALIST');
+                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == bonus);
             });
 
             if (ss.length == 0) {
