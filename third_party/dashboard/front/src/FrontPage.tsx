@@ -80,6 +80,7 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
 
 interface FormFilterState {
     hideTopTie: boolean;
+    hideZeroScore: boolean;
 };
 
 const ProblemList = (props: ProblemListProps) => {
@@ -87,6 +88,7 @@ const ProblemList = (props: ProblemListProps) => {
 
     const [formFilter, setFormFilter] = useState<FormFilterState>({
         hideTopTie: false,
+        hideZeroScore: false,
     });
     const [problems, setProblems] = useState<Problem[]>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
@@ -114,6 +116,9 @@ const ProblemList = (props: ProblemListProps) => {
     const switchHideTopTie = (event: React.ChangeEvent<HTMLInputElement>) => {
         setFormFilter({...formFilter, hideTopTie: event.target.checked});
     };
+    const switchHideZeroScore = (event: React.ChangeEvent<HTMLInputElement>) => {
+        setFormFilter({...formFilter, hideZeroScore: event.target.checked});
+    };
 
     if (problems.length === 0) return <p>No solutions</p>;
 
@@ -128,7 +133,17 @@ const ProblemList = (props: ProblemListProps) => {
                             color="primary"
                         />
                     }
-                    label="Hide top tie problems"
+                    label="トップタイの問題を隠す"
+                />
+                <FormControlLabel
+                    control={
+                        <Switch
+                            checked={formFilter.hideZeroScore}
+                            onChange={switchHideZeroScore}
+                            color="primary"
+                        />
+                    }
+                    label="0点の問題を隠す"
                 />
             </FormGroup>
             <Table size="small">
@@ -152,6 +167,9 @@ const ProblemList = (props: ProblemListProps) => {
                         const sol = ss.reduce((prev, current) => {
                             return prev.dislike < current.dislike ? prev : current;
                         });
+                        if (formFilter.hideZeroScore && sol.dislike === 0) {
+                            return <div></div>;
+                        }
                         const topTie = sol.dislike === problem.minimal_dislike;
                         if (formFilter.hideTopTie && topTie) {
                             return <div></div>;
