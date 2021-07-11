@@ -30,6 +30,7 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                         <TableCell>Solution</TableCell>
                         <TableCell>Created at</TableCell>
                         <TableCell>Dislike</TableCell>
+                        <TableCell>使用ボーナス</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
@@ -43,6 +44,11 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                                 <TableCell><Link to={link}><Viewer problem={problem} solution={solution} size={100} /></Link></TableCell>
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
+                                <TableCell>{
+                                    solution.data.bonuses.map((bonus) => {
+                                        return <div>{bonus.bonus}</div>
+                                    })
+                                }</TableCell>
                             </TableRow>
                         );
                     })}
