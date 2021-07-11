@@ -45,9 +45,10 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
                                 <TableCell>{
-                                    solution.data.bonuses.map((bonus) => {
-                                        return <div>{bonus.bonus}</div>
-                                    })
+                                    solution.data.bonuses != null &&
+                                        solution.data.bonuses.map((bonus) => {
+                                            return <div>{bonus.bonus}</div>
+                                        })
                                 }</TableCell>
                             </TableRow>
                         );
