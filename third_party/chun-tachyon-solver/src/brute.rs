@@ -26,6 +26,7 @@ fn get_placeable_positions(prob: &Problem) -> Vec<(i64, i64)>
 
 #[derive(Hash,Clone,Debug)]
 enum Plan {
+    FixSolutionVertex { vertex: usize, point: (i64, i64) },
     FixVertex (usize),
     FixEdge { edgeid: usize, basevertex: usize, newvertex: usize },
     TestEdge (usize),
@@ -66,8 +67,18 @@ fn visit_order_dfs(ptr: usize, node: usize, edges: &Vec<(usize, usize)>, visited
     visit_order_dfs(ptr + 1, bestnode, edges, visited, resorder, n);
 }
 
-fn plan_search(prob: &Problem) -> Vec<Plan> {
+fn plan_search(prob: &Problem, base_solution: &Option<Vec<(i64, i64)>>, search_vertices: &Option<Vec<usize>>) -> Vec<Plan> {
     let n = prob.figure.vertices.len();
+
+    let mut fixed_vertices: Vec<usize> = Vec::new();
+    match search_vertices {
+        Some(vs) => {
+            fixed_vertices = {0usize..n}.into_iter().collect();
+            fixed_vertices.retain(|i| !vs.contains(i))
+        },
+        None => ()
+    }
+    println!("Fixed {} vertices: {:?}", fixed_vertices.len(), fixed_vertices);
 
     // get degrees and its accompanying info
     let mut degrees = vec![0i64; n];
@@ -126,7 +137,10 @@ fn plan_search(prob: &Problem) -> Vec<Plan> {
             vertex_score[newvertex] += 1
         }
         let plan = {
-            if available_triangles.len() > 0 {
+            if fixed_vertices.len() > 0 {
+                let v = fixed_vertices.pop().unwrap();
+                Plan::FixSolutionVertex {vertex: v, point: base_solution.as_ref().unwrap()[v] }
+            } else if available_triangles.len() > 0 {
                 // FIXME find most well-connected triangle here
                 let mut best_connection_score = -1; 
                 let mut best_triangle = 0xfffffffff as usize;
@@ -190,6 +204,7 @@ fn plan_search(prob: &Problem) -> Vec<Plan> {
         // Fix and check connected edges
         let (newvertices, newedgescoveredbyfix) = {
             match plan {
+                Plan::FixSolutionVertex {vertex, ..} => (vec![vertex], vec![]),
                 Plan::FixTriangle {edgeids, vertices} =>
                     (vec![vertices.0, vertices.1, vertices.2], vec![edgeids.0, edgeids.1, edgeids.2]),
                 Plan::FixEdge {edgeid, basevertex, newvertex} =>
@@ -251,6 +266,7 @@ fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
     println!("eps: {}", prob.epsilon);
     resorder.iter().enumerate().map(|(iplan, plan)| 
         match plan {
+            Plan::FixSolutionVertex {..} => PrepInfo::PNone,
             Plan::FixTriangle {vertices: (xi, yi, zi), edgeids} => {
                 let delta_xy = get_all_delta_combination(prob, *xi, *yi);
                 let delta_xz = get_all_delta_combination(prob, *xi, *zi);
@@ -352,6 +368,10 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
     let current_plan = &solve_plan[ptr];
     let current_precompute = &precompute_info[ptr];
     match (current_plan, current_precompute) {
+        (Plan::FixSolutionVertex {vertex, point}, PrepInfo::PNone) => {
+            resfigure[*vertex] = *point;
+            do_brute(ptr + 1, solve_plan, precompute_info, prob, bestscore, resfigure, bestfigure);
+        },
         (Plan::FixTriangle {edgeids, vertices}, PrepInfo::PFixTriangle(threepts)) => {
             for pts in threepts.iter() {
                 resfigure[vertices.0] = pts[0];
@@ -393,9 +413,9 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
     };
 }
 
-pub fn brute(prob: &Problem) -> (f64, Solution) {
+pub fn brute(prob: &Problem, base_solution: &Option<Vec<(i64, i64)>>, search_vertices: &Option<Vec<usize>>) -> (f64, Solution) {
     let placeable = get_placeable_positions(prob);
-    let visit_order = plan_search(prob);
+    let visit_order = plan_search(prob, base_solution, search_vertices);
     println!("visit_order = {:?}", visit_order);
     let precomputed = precompute_plan(prob, &visit_order);
     let n = prob.figure.vertices.len();
