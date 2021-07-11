@@ -11,10 +11,17 @@ export interface Figure {
     vertices: Pose
 }
 
+export interface Bonus {
+    bonus: string
+    position: Point
+    problem: number
+}
+
 export interface Problem {
     hole: Hole
     figure: Figure
     epsilon: number
+    bonuses: Bonus[]
 }
 
 export interface Solution {

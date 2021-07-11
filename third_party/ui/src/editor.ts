@@ -38,7 +38,8 @@ export class Editor extends EventTarget {
     private problem: Problem = {
         hole: [],
         figure: {edges: [], vertices: []},
-        epsilon: 0
+        epsilon: 0,
+        bonuses: [],
     };
     private pose: Pose = [];
 
@@ -122,6 +123,7 @@ export class Editor extends EventTarget {
         ctx.fillStyle = 'rgb(222, 222, 222)';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.renderHole(ctx);
+        this.renderBonuses(ctx);
         this.renderPose(ctx);
         this.renderDistance(ctx);
         this.renderHints(ctx);
@@ -151,6 +153,19 @@ export class Editor extends EventTarget {
             ctx.beginPath();
             ctx.moveTo(...this.translator.modelToCanvas(hole[i]));
             ctx.lineTo(...this.translator.modelToCanvas(hole[(i + 1) % hole.length]));
+            ctx.stroke();
+        }
+    }
+
+    private renderBonuses(ctx: CanvasRenderingContext2D): void {
+        const radius = 3.0 * this.translator.zoom;
+        ctx.strokeStyle = 'rgba(255, 255, 0, 1)';
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+        for (const bonus of this.problem.bonuses) {
+            ctx.beginPath();
+            const pos = this.translator.modelToCanvas(bonus.position);
+            ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
+            ctx.fill();
             ctx.stroke();
         }
     }
