@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -25,26 +24,70 @@ var (
 	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
 	staticPath   = flag.String("static_path", "/tmp/static-data", "")
 	uiServer     = flag.String("ui_server", "", "")
-	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
 	enableScrape = flag.Bool("enable_scrape", true, "")
 )
 
-func main() {
-	flag.Parse()
-	mgr, err := solutionmgr.NewManager(*persistPath)
+func newManager() solutionmgr.Manager {
+	sqlite, err := solutionmgr.NewSQLiteManager(*persistPath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer mgr.Close()
+	defer sqlite.Close()
 
-	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
+	mysql, err := solutionmgr.NewMySQLManager()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	problems, err := sqlite.GetProblems()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, problem := range problems {
+		log.Printf("Adding a problem %d", problem.ProblemID)
+		if err := mysql.AddProblem(problem); err != nil {
+			log.Fatal(err)
+		}
+
+		solutions, err := sqlite.GetSolutionsForProblem(problem.ProblemID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for _, solution := range solutions {
+			log.Printf("Adding a solution %d", solution.SolutionID)
+			if _, err := mysql.AddSolution(solution); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+	ssolutions, err := sqlite.GetSubmittedSolutions()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, ssolution := range ssolutions {
+		log.Printf("Adding a submitted solution %s", ssolution.SubmittedSolutionID)
+		if err := mysql.AddSubmittedSolution(ssolution); err != nil {
+			log.Fatal(err)
+		}
+	}
+	if err := mysql.SetSolutionAutoIncrement(); err != nil {
+		log.Fatal(err)
+	}
+
+	return mysql
+}
+
+func main() {
+	flag.Parse()
+	mgr := newManager()
+	defer mgr.Close()
 
 	scraper, err := scrape.NewScraper()
 	if err != nil {
 		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
 	} else {
 		if *enableScrape {
-			go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
+			go scrape.ScrapeSubmittedSolutionsTask(scraper, mgr)
 			go scrape.ScrapeDislikeTask(scraper, mgr)
 		}
 	}
@@ -81,7 +124,7 @@ func main() {
 }
 
 type server struct {
-	mgr     *solutionmgr.Manager
+	mgr     solutionmgr.Manager
 	scraper *scrape.Scraper
 }
 
@@ -226,7 +269,12 @@ func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	problem, err := s.mgr.GetProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -282,7 +330,12 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := trimAndRemoveEmpty(strings.Split(r.Form.Get("tags"), ","))
-	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	problem, err := s.mgr.GetProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

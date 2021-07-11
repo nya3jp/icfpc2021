@@ -8,7 +8,7 @@ import (
 	"icfpc2021/dashboard/pkg/solutionmgr"
 )
 
-func ScrapeDislikeTask(scraper *Scraper, mgr *solutionmgr.Manager) {
+func ScrapeDislikeTask(scraper *Scraper, mgr solutionmgr.Manager) {
 	tick := time.NewTicker(5 * time.Minute)
 	defer tick.Stop()
 	for {
@@ -28,8 +28,8 @@ func ScrapeDislikeTask(scraper *Scraper, mgr *solutionmgr.Manager) {
 	}
 }
 
-func ScrapeSubmittedSolutionsTask(scorerPath string, scraper *Scraper, m *solutionmgr.Manager) {
-	if err := scrapeSubmittedSolutionsTaskOnce(scorerPath, scraper, m); err != nil {
+func ScrapeSubmittedSolutionsTask(scraper *Scraper, m solutionmgr.Manager) {
+	if err := scrapeSubmittedSolutionsTaskOnce(scraper, m); err != nil {
 		log.Printf("Failed to scrape the submitted solutions: %v", err)
 	}
 
@@ -38,14 +38,14 @@ func ScrapeSubmittedSolutionsTask(scorerPath string, scraper *Scraper, m *soluti
 	for {
 		select {
 		case <-tick.C:
-			if err := scrapeSubmittedSolutionsTaskOnce(scorerPath, scraper, m); err != nil {
+			if err := scrapeSubmittedSolutionsTaskOnce(scraper, m); err != nil {
 				log.Printf("Failed to scrape the submitted solutions: %v", err)
 			}
 		}
 	}
 }
 
-func scrapeSubmittedSolutionsTaskOnce(scorerPath string, scraper *Scraper, m *solutionmgr.Manager) error {
+func scrapeSubmittedSolutionsTaskOnce(scraper *Scraper, m solutionmgr.Manager) error {
 	solutions, err := m.GetSubmittedSolutions()
 	if err != nil {
 		return err
@@ -72,7 +72,7 @@ func scrapeSubmittedSolutionsTaskOnce(scorerPath string, scraper *Scraper, m *so
 			if err != nil {
 				return err
 			}
-			dislike, rejectReason, err := eval.EvalSolution(scorerPath, m, problem.ProblemID, data)
+			dislike, rejectReason, err := eval.EvalData(&problem.Data, data)
 			if err != nil {
 				return err
 			}

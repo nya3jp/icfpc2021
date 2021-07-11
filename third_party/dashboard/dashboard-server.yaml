@@ -25,6 +25,8 @@ spec:
           envFrom:
             - secretRef:
                 name: icfpc
+            - secretRef:
+                name: cloudsql-secret
           livenessProbe:
             httpGet:
               path: /healthz
@@ -54,7 +56,7 @@ spec:
           image: gcr.io/cloudsql-docker/gce-proxy:1.17
           command:
             - "/cloud_sql_proxy"
-            - "-instances=special-weekend-2021:asia-east1:flex=tcp:1433"
+            - "-instances=special-weekend-2021:asia-east1:flex=tcp:3306"
           securityContext:
             runAsNonRoot: true
           resources:
