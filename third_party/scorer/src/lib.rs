@@ -51,6 +51,7 @@ fn is_inside_hole_internal(
         return false;
     }
 
+    let mut outside_point: Option<usize> = None;
     // All points should be contained in the hole.
     if changed.is_none() {
         for i in 0..pose.vertices.len() {
@@ -59,10 +60,14 @@ fn is_inside_hole_internal(
                 if verbose {
                     eprintln!("Point {:?} is not contained in hole:", Point::from(*p));
                 }
-                return false;
+                if outside_point.is_some() || !pose.has_wallhack() {
+                    return false;
+                }
+                outside_point = Some(i)
             }
         }
     } else {
+        // TODO: Wallhack check for partial update?
         for i in changed.unwrap() {
             let p = &pose.vertices[*i];
             if !problem.hole.contains(p) {
@@ -78,6 +83,13 @@ fn is_inside_hole_internal(
     for edge in &problem.figure.edges {
         if !changed.is_none()
             && !(changed.unwrap().contains(&edge.v1) || changed.unwrap().contains(&edge.v2))
+        {
+            continue;
+        }
+
+        if outside_point.is_some() &&
+            (outside_point.unwrap() == edge.v1 || outside_point.unwrap() == edge.v2) &&
+            pose.has_wallhack()
         {
             continue;
         }
