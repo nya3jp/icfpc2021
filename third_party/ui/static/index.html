@@ -6,13 +6,23 @@
 </head>
 <body>
 
-Problem: <select id="problems"></select>
-Dislike: <div id="dislike" style="display:inline-block">inf</div>
-<input type="checkbox" id="show_distance"><label for="show_distance">Show distance</label><br>
-Zoom: <input id="zoom" type="range" min="1" max="10" step="0.1" value="5" style="width: 540px"><br>
+Problem: <select id="problems"></select><br>
+Options:
+<input type="checkbox" id="similar_edge_highlight"><label for="similar_edge_highlight">Highlight similar edges</label>
+<input type="checkbox" id="constraint_hint"><label for="constraint_hint">Show constraint hint</label>
+<button type="button" id="run_relayout">Relayout</button>
+<br>
+Zoom: <input id="zoom" type="range" min="0.5" max="20" step="0.1" value="5" style="width: 540px"><br>
 <canvas id="canvas" width="600" height="600" style="border: 3px solid black; user-select: none"></canvas><br>
 
-<textarea id="output" style="width: 600px; height: 200px"></textarea>
+Dislike: <div id="dislike" style="display:inline-block; font-weight: bold">inf</div><br>
+
+<textarea id="output" style="width: 600px; height: 200px"></textarea><br>
+
+Tips:
+<ul>
+  <li>Press SHIFT to snap to nearest vertices.</li>
+</ul>
 
 <script src="index.js"></script>
 </body>

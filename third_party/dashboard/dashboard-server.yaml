@@ -21,6 +21,9 @@ spec:
           args:
             - '--persist_path=/dashboard-data'
             - '--static_path=/build'
+          envFrom:
+            - secretRef:
+                name: icfpc
           livenessProbe:
             httpGet:
               path: /healthz

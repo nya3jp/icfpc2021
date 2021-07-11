@@ -8,7 +8,7 @@ class Client {
     private readonly baseURL: string;
 
     constructor() {
-        this.baseURL = (window.location.hostname === 'localhost' ? DEV_BASE_URL : PROD_BASE_URL);
+        this.baseURL = (window.location.hostname === 'localhost' ? PROD_BASE_URL : PROD_BASE_URL);
     }
 
     async getProblems(): Promise<Problem[]> {
@@ -29,6 +29,11 @@ class Client {
     async getSolutionsForProblem(id: number): Promise<Solution[]> {
         const res = await fetch(`${this.baseURL}/api/problems/${id}/solutions`);
         return await res.json();
+    }
+
+    async submitSolution(id: number): Promise<string> {
+        const res = await fetch(`${this.baseURL}/api/solutions/${id}/submit`, {method: 'POST'});
+        return await res.text();
     }
 }
 
@@ -67,5 +72,9 @@ export class Model {
     getSolutionsForProblem(id: number): Promise<Solution[]> {
         // Solutions for a problem change over time, do not cache.
         return this.client.getSolutionsForProblem(id);
+    }
+
+    submitSolution(id: number): Promise<string> {
+        return this.client.submitSolution(id);
     }
 }

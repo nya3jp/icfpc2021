@@ -152,7 +152,10 @@ impl Annealer for Problem {
             })
             .collect_vec();
 
-        let init_state = Pose { vertices: ret };
+        let init_state = Pose {
+            vertices: ret,
+            bonuses: None,
+        };
         if !is_inside_hole(&self.problem, &init_state) {
             eprintln!("Wrong Answer!!");
         }
@@ -625,6 +628,9 @@ fn solve(
 
         let resp = tanakh_solver::submit(problem_id, &solution)?;
         eprintln!("Response: {:?}", resp);
+
+        // Submit to the internal dashboard.
+        tanakh_solver::submit_dashboard(problem_id, &result_file_name)?;
     }
 
     Ok(())

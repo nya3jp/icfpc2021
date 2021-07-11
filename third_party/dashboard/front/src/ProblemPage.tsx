@@ -15,7 +15,7 @@ import {Viewer} from './editor/Viewer';
 function ProblemPane({ problem }: {problem: Problem}) {
     return (
         <div>
-            <Viewer problem={problem.data} />
+            <Viewer problem={problem} />
         </div>
     );
 }
@@ -38,9 +38,9 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                         const createdAt = new Date();
                         createdAt.setTime(solution.created_at * 1000);
                         return (
-                            <TableRow>
+                            <TableRow key={solution.solution_id}>
                                 <TableCell><Link to={link}>{solution.solution_id}</Link></TableCell>
-                                <TableCell><Link to={link}><Viewer problem={problem.data} solution={solution.data} size={100} /></Link></TableCell>
+                                <TableCell><Link to={link}><Viewer problem={problem} solution={solution} size={100} /></Link></TableCell>
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
                             </TableRow>
@@ -69,7 +69,17 @@ export const ProblemPage = (props: ProblemPageProps) => {
     }, []);
     useEffect(() => {
         (async () => {
-            setSolutions(await model.getSolutionsForProblem(+problemID));
+            let solutions = await model.getSolutionsForProblem(+problemID);
+            solutions = solutions.sort((s1: Solution, s2: Solution) => {
+                if (s1.dislike < s2.dislike) {
+                    return -1;
+                }
+                if (s1.created_at < s2.created_at) {
+                    return -1;
+                }
+                return 0;
+            });
+            setSolutions(solutions);
         })();
     }, []);
 

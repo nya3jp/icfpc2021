@@ -1,16 +1,45 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
 
 use super::point::Point;
-use super::polygon::Polygon;
+use super::polygon::{ContainsResult, Polygon};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(from = "Vec<(i64, i64)>", into = "Vec<(i64, i64)>")]
 pub struct Hole {
     pub polygon: Polygon,
+    minx: i64,
+    miny: i64,
+    maxx: i64,
+    maxy: i64,
+    contains_set: Vec<Vec<bool>>,
+}
+
+fn create_contains_set(
+    t: &Vec<(i64, i64)>,
+    polygon: &Polygon,
+) -> (i64, i64, i64, i64, Vec<Vec<bool>>) {
+    let mut ret = Vec::new();
+
+    let minx = t.iter().fold(1 << 20, |acc, x| std::cmp::min(acc, x.0)) * 2;
+    let maxx = t.iter().fold(-1 << 20, |acc, x| std::cmp::max(acc, x.0)) * 2;
+    let miny = t.iter().fold(1 << 20, |acc, x| std::cmp::min(acc, x.1)) * 2;
+    let maxy = t.iter().fold(-1 << 20, |acc, x| std::cmp::max(acc, x.1)) * 2;
+    for x in minx..=maxx {
+        let mut line = Vec::new();
+        for y in miny..=maxy {
+            match polygon.contains(&Point::new(x as f64 / 2., y as f64 / 2.)) {
+                ContainsResult::ON | ContainsResult::IN => line.push(true),
+                ContainsResult::OUT => line.push(false),
+            }
+        }
+        ret.push(line)
+    }
+    (minx, miny, maxx, maxy, ret)
 }
 
 impl Hole {
@@ -20,6 +49,16 @@ impl Hole {
 
     pub fn iter(&self) -> impl Iterator<Item = &Point> {
         self.polygon.vertices.iter()
+    }
+
+    // Point coord must be integers.
+    pub fn contains(&self, p: &Point) -> bool {
+        let x = (p.x * 2.) as i64;
+        let y = (p.y * 2.) as i64;
+        if x < self.minx || self.maxx < x || y < self.miny || self.maxy < y {
+            return false;
+        }
+        self.contains_set[(x - self.minx) as usize][(y - self.miny) as usize]
     }
 }
 
@@ -39,8 +78,15 @@ impl std::ops::IndexMut<usize> for Hole {
 
 impl From<Vec<(i64, i64)>> for Hole {
     fn from(t: Vec<(i64, i64)>) -> Self {
+        let polygon = Polygon::from(t.clone());
+        let (minx, miny, maxx, maxy, contains_set) = create_contains_set(&t, &polygon);
         Hole {
-            polygon: Polygon::from(t),
+            polygon,
+            minx,
+            miny,
+            maxx,
+            maxy,
+            contains_set,
         }
     }
 }
@@ -85,11 +131,52 @@ pub struct Figure {
     pub edges: Vec<Edge>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(from = "String", into = "String")]
+pub enum BonusType {
+    GLOBALIST,
+    BREAK_A_LEG,
+    WALLHACK,
+}
+
+impl From<String> for BonusType {
+    fn from(t: String) -> BonusType {
+        if t == "GLOBALIST" {
+            BonusType::GLOBALIST
+        } else if t == "BREAK_A_LEG" {
+            BonusType::BREAK_A_LEG
+        } else if t == "WALLHACK" {
+            BonusType::WALLHACK
+        } else {
+            panic!("Unknown Bonus Type")
+        }
+    }
+}
+
+impl From<BonusType> for String {
+    fn from(t: BonusType) -> String {
+        match t {
+            BonusType::GLOBALIST => "GLOBALIST".to_string(),
+            BonusType::BREAK_A_LEG => "BREAK_A_LEG".to_string(),
+            BonusType::WALLHACK => "WALLHACK".to_string(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Bonus {
+    pub position: Point,
+    pub bonus: BonusType,
+    pub problem: usize,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Problem {
     pub hole: Hole,
     pub figure: Figure,
     pub epsilon: i64,
+
+    pub bonuses: Vec<Bonus>,
 }
 
 pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>> {
@@ -99,8 +186,24 @@ pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UsedBonus {
+    pub bonus: BonusType,
+    pub problem: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pose {
     pub vertices: Vec<Point>,
+    pub bonuses: Option<Vec<UsedBonus>>,
+}
+
+impl Pose {
+    pub fn has_globalist(&self) -> bool {
+        match &self.bonuses {
+            None => false,
+            Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::GLOBALIST),
+        }
+    }
 }
 
 pub fn parse_pose<P: AsRef<Path>>(path: P) -> Result<Pose, Box<dyn Error>> {

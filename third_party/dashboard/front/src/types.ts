@@ -16,6 +16,7 @@ export interface ProblemData {
 export interface Problem {
     problem_id: number;
     created_at: number;
+    minimal_dislike: number;
     data: ProblemData;
 }
 
@@ -29,6 +30,7 @@ export interface Solution {
     created_at: number;
     tags: string[];
     dislike: number;
+    reject_reason: string;
     data: SolutionData;
 }
 

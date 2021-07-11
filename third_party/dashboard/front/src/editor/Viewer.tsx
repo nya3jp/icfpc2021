@@ -1,57 +1,44 @@
-import {Point, ProblemData, SolutionData} from '../types';
+import {Point, Problem, Solution} from '../types';
 import React, {useEffect, useRef} from 'react';
-
-function distance(p: Point, q: Point) {
-    const dx = p[0] - q[0];
-    const dy = p[1] - q[1];
-    return dx * dx + dy * dy;
-}
+import {boundingBox, distance2, midPoint, vadd, vdiv, vmul, vsub} from './geom';
 
 class Translator {
-    private center: Point = [0, 0];
-
-    constructor(public zoom: number = 5.0) {}
+    constructor(public zoom: number, public offset: Point = [0, 0]) {}
 
     static fitTo(points: Point[], canvasWidth: number, canvasHeight: number): Translator {
-        let maxX = 1.0, maxY = 1.0;
-        for (const p of points) {
-            maxX = Math.max(maxX, p[0]);
-            maxY = Math.max(maxY, p[1]);
-        }
-        const zoom = Math.min(canvasWidth / (maxX + 10), canvasHeight / (maxY + 10));
-        return new Translator(zoom);
+        const [bbMin, bbMax] = boundingBox(points);
+        const center = midPoint(bbMin, bbMax);
+        const zoom = Math.min(canvasWidth / (bbMax[0] - bbMin[0]), canvasHeight / (bbMax[1] - bbMin[1])) * 0.95;
+        const offset = vsub(vdiv([canvasWidth / 2, canvasHeight / 2], zoom), center);
+        return new Translator(zoom, offset);
     }
 
-    modelToCanvas(p: Point): Point {
-        return [(p[0] - this.center[0]) * this.zoom,
-            (p[1] - this.center[1]) * this.zoom];
+    public modelToCanvas(p: Point): Point {
+        return vmul(vadd(p, this.offset), this.zoom);
     }
 
-    canvasToModel(p: Point): Point {
-        return [p[0] / this.zoom + this.center[0],
-            p[1] / this.zoom + this.center[1]];
-    }
-
-    moveCenter(p: Point) {
-        this.center = [this.center[0] + p[0], this.center[1] + p[1]]
+    public canvasToModel(p: Point): Point {
+        return vsub(vdiv(p, this.zoom), this.offset);
     }
 }
 
-function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: SolutionData) {
+function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) {
     // TODO: Consider problem.hole and solution.vertices.
-    const translator = Translator.fitTo(problem.figure.vertices, canvas.width, canvas.height);
+    const points = problem.data.hole.concat(solution ? solution.data.vertices : problem.data.figure.vertices);
+    const translator = Translator.fitTo(points, canvas.width, canvas.height);
 
     const ctx = canvas.getContext('2d')!;
     ctx.fillStyle = 'rgb(222, 222, 222)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw hole.
-    if (problem.hole.length > 0) {
+    const hole = problem.data.hole;
+    if (hole.length > 0) {
         ctx.fillStyle = 'rgb(255, 255, 255)';
         ctx.strokeStyle = 'rgb(0, 0, 0)';
         ctx.beginPath();
-        ctx.moveTo(...translator.modelToCanvas(problem.hole[problem.hole.length - 1]));
-        for (const v of problem.hole) {
+        ctx.moveTo(...translator.modelToCanvas(hole[hole.length - 1]));
+        for (const v of hole) {
             ctx.lineTo(...translator.modelToCanvas(v));
         }
         ctx.fill();
@@ -61,12 +48,12 @@ function draw(canvas: HTMLCanvasElement, problem: ProblemData, solution?: Soluti
     // TODO: Consider drawing the original pose.
 
     // Draw pose.
-    const {edges, vertices} = problem.figure;
-    const pose = solution ? solution.vertices : vertices;
+    const {edges, vertices} = problem.data.figure;
+    const pose = solution ? solution.data.vertices : vertices;
 
     ctx.strokeStyle = 'rgb(255, 0, 0)';
     for (const edge of edges) {
-        ctx.strokeStyle = getLineColor(distance(pose[edge[0]], pose[edge[1]]), distance(vertices[edge[0]], vertices[edge[1]]), problem.epsilon);
+        ctx.strokeStyle = getLineColor(distance2(pose[edge[0]], pose[edge[1]]), distance2(vertices[edge[0]], vertices[edge[1]]), problem.data.epsilon);
         ctx.beginPath();
         ctx.moveTo(...translator.modelToCanvas(pose[edge[0]]));
         ctx.lineTo(...translator.modelToCanvas(pose[edge[1]]));
@@ -94,8 +81,8 @@ function getLineColor(current: number, original: number, epsilon: number): strin
 }
 
 interface ViewerProps {
-    problem: ProblemData;
-    solution?: SolutionData;
+    problem: Problem;
+    solution?: Solution;
     size?: number;
 }
 

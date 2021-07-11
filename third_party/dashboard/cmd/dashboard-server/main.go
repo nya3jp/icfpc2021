@@ -12,16 +12,18 @@ import (
 	"strings"
 
 	"icfpc2021/dashboard/pkg/eval"
+	"icfpc2021/dashboard/pkg/scrape"
 	"icfpc2021/dashboard/pkg/solutionmgr"
 
 	"github.com/gorilla/mux"
 )
 
 var (
-	port        = flag.Int("port", 8080, "")
-	persistPath = flag.String("persist_path", "/tmp/dashboard-data", "")
-	staticPath  = flag.String("static_path", "/tmp/static-data", "")
-	scorerPath  = flag.String("scorer_path", "/static/scorer", "")
+	port         = flag.Int("port", 8080, "")
+	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
+	staticPath   = flag.String("static_path", "/tmp/static-data", "")
+	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
+	enableScrape = flag.Bool("enable_scrape", true, "")
 )
 
 func main() {
@@ -32,17 +34,28 @@ func main() {
 	}
 	defer mgr.Close()
 
-	updateDislike := make(chan bool, 1)
-	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr, updateDislike)
+	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
 
-	s := &server{mgr, updateDislike}
+	scraper, err := scrape.NewScraper()
+	if err != nil {
+		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
+	} else {
+		if *enableScrape {
+			go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
+			go scrape.ScrapeDislikeTask(scraper, mgr)
+		}
+	}
+
+	s := &server{mgr, scraper}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}", s.handleProblemGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
+	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
@@ -53,8 +66,8 @@ func main() {
 }
 
 type server struct {
-	mgr           *solutionmgr.Manager
-	updateDislike chan<- bool
+	mgr     *solutionmgr.Manager
+	scraper *scrape.Scraper
 }
 
 func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +122,20 @@ func (s *server) handleProblemSolutionsGet(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+func (s *server) handleSubmittedSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutions, err := s.mgr.GetSubmittedSolutions()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solutions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func (s *server) handleSolutionGet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
@@ -145,14 +172,20 @@ func (s *server) handleProblemsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	problemJSON, err := io.ReadAll(file)
+	b, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	var data solutionmgr.ProblemData
+	if err := json.Unmarshal(b, &data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	problem := &solutionmgr.Problem{
-		ProblemID: problemID,
-		Data:      problemJSON,
+		ProblemID:      problemID,
+		MinimalDislike: eval.RejectDislike,
+		Data:           data,
 	}
 	if err := s.mgr.AddProblem(problem); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -178,24 +211,77 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	solutionJSON, err := io.ReadAll(file)
+	b, err := io.ReadAll(file)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	tags := strings.Split(r.Form.Get("tags"), ",")
-	solution := &solutionmgr.Solution{
-		ProblemID: problemID,
-		Tags:      tags,
-		Data:      solutionJSON,
-	}
-	if err := s.mgr.AddSolution(solution); err != nil {
+	var data solutionmgr.SolutionData
+	if err := json.Unmarshal(b, &data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	select {
-	case s.updateDislike <- true:
-	default:
+	tags := trimAndRemoveEmpty(strings.Split(r.Form.Get("tags"), ","))
+	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	io.WriteString(w, "ok")
+	solution := &solutionmgr.Solution{
+		ProblemID:    problemID,
+		Tags:         tags,
+		Dislike:      dislike,
+		RejectReason: rejectReason,
+		Data:         data,
+	}
+	solutionID, err := s.mgr.AddSolution(solution)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err = s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSolutionSubmit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if s.scraper == nil {
+		http.Error(w, "do not have an ICFPC credential", http.StatusInternalServerError)
+		return
+	}
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	submitID, err := s.scraper.SubmitSolution(solution.ProblemID, &solution.Data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	io.WriteString(w, submitID)
+}
+
+func trimAndRemoveEmpty(ss []string) []string {
+	var res []string
+	for _, s := range ss {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			res = append(res, s)
+		}
+	}
+	return res
 }
