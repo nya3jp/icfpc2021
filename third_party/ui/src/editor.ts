@@ -64,6 +64,7 @@ export class Editor extends EventTarget {
         private readonly canvas: HTMLCanvasElement,
         private similarEdgeHighlight: boolean = false,
         private constraintHint: boolean = false,
+        private nodeNumber: boolean = false,
         private readonly translator: Translator = new Translator(5.0)) {
         super();
     }
@@ -122,6 +123,11 @@ export class Editor extends EventTarget {
         this.render();
     }
 
+    public setNodeNumber(nodeNumber: boolean): void {
+        this.nodeNumber = nodeNumber;
+        this.render();
+    }
+
     public getPose(): Pose {
         return this.pose;
     }
@@ -164,6 +170,7 @@ export class Editor extends EventTarget {
         this.renderBonuses(ctx);
         this.renderPose(ctx);
         this.renderHints(ctx);
+        this.renderNodeNumber(ctx);
         this.dispatchEvent(new CustomEvent('refresh'));
     }
 
@@ -268,6 +275,17 @@ export class Editor extends EventTarget {
             return `rgb(${lo}, ${lo}, ${hi})`;
         }
         return `rgb(${lo}, ${hi}, ${lo})`
+    }
+
+    private renderNodeNumber(ctx: CanvasRenderingContext2D): void {
+        if (this.nodeNumber) {
+            let node_id = 0;
+                this.pose.forEach((vertex, index) => {
+                ctx.font = "20px serif";
+                const [x, y] = this.translator.modelToCanvas(vertex);
+                ctx.fillText(String(index), x, y);
+	    });
+	}
     }
 
     private renderHints(ctx: CanvasRenderingContext2D): void {
