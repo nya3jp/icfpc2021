@@ -578,6 +578,7 @@ fn solve(
     #[opt(long, default_value = "0.0")] penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
+    #[opt(long)] submit_on_better: bool,
 
     /// Bonus to use (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
     #[opt(long)]
@@ -801,19 +802,24 @@ fn solve(
 
     let problems = get_problem_states()?;
     let problem = problems.iter().find(|r| r.problem_id == problem_id);
+    let mut better = false;
 
     if let Some(problem) = problem {
         eprintln!(
             "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
             score as i64, problem.your_dislikes, problem.minimal_dislikes
         );
+        if (score as i64) < problem.your_dislikes {
+            better = true;
+        }
     } else {
         eprintln!("No submission for problem {} found.", problem_id);
     }
 
-    if dialoguer::Confirm::new()
-        .with_prompt("Submit?")
-        .interact()?
+    if (submit_on_better && better)
+        || dialoguer::Confirm::new()
+            .with_prompt("Submit?")
+            .interact()?
     {
         eprintln!("Submitting");
 
