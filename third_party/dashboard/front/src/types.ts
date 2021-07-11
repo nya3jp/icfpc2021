@@ -11,6 +11,7 @@ export interface ProblemData {
     hole: Hole;
     figure: Figure;
     epsilon: number;
+    bonuses: Bonus[];
 }
 
 export interface Problem {
@@ -34,3 +35,15 @@ export interface Solution {
     data: SolutionData;
 }
 
+export interface Bonus {
+    bonus: string;
+    position: Point;
+    problem: number;
+}
+
+export interface GotBonus {
+    from_problem_id: number;
+    kind: string;
+};
+
+export type BonusMap = {[key: number]: GotBonus[]};

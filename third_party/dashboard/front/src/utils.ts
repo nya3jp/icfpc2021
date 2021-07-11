@@ -1,4 +1,4 @@
-import {Problem, Solution} from './types';
+import {Problem, Solution, BonusMap} from './types';
 
 export function pointRatio(problem: Problem, solution: Solution): number {
     return Math.sqrt((problem.minimal_dislike + 1) / (solution.dislike + 1));
@@ -26,4 +26,20 @@ export function scoreInfo(problem: Problem, solution: Solution): ScoreInfo {
         score: score,
         ratio: ratio,
     };
-}
+};
+
+export function bonusMap(problems: Problem[]): BonusMap {
+    let m: BonusMap = {};
+    problems.forEach((problem) => {
+        problem.data.bonuses.forEach((bonus) => {
+            if (!m[bonus.problem]) {
+                m[bonus.problem] = [];
+            }
+            m[bonus.problem].push({
+                from_problem_id: problem.problem_id,
+                kind: bonus.bonus,
+            });
+        });
+    });
+    return m;
+};

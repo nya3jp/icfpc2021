@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Problem, Solution} from './types';
+import {Problem, Solution, GotBonus, BonusMap} from './types';
 import {Model} from './model';
 import {Link} from 'react-router-dom';
 
@@ -22,14 +22,13 @@ import TableRow from '@material-ui/core/TableRow';
 import Typography from '@material-ui/core/Typography';
 import {Viewer} from './editor/Viewer';
 import {green} from '@material-ui/core/colors';
-import {maxScore, scoreInfo} from './utils';
+import {maxScore, scoreInfo, bonusMap} from './utils';
 
 const useStyles = makeStyles((_) => ({
     spacer: {
         flexGrow: 1,
     },
 }));
-
 
 type SolutionsMap = {[key: number]: Solution[]};
 type BestSolutionMap = {[key: number]: Solution};
@@ -38,8 +37,11 @@ interface ProblemListProps {
     model: Model;
 }
 
-const ProblemCell = ({problem}: {problem: Problem}) => {
+const ProblemCell = ({problem, bonuses}: {problem: Problem, bonuses: GotBonus[]}) => {
     const problemLink = `/problems/${problem.problem_id}`;
+    if (!bonuses) {
+        bonuses = [];
+    }
     return (
         <Link to={problemLink} style={{ textDecoration: 'none' }}>
             <Grid container spacing={2}>
@@ -61,6 +63,14 @@ const ProblemCell = ({problem}: {problem: Problem}) => {
                             <TableRow>
                                 <TableCell>Max Score</TableCell>
                                 <TableCell>{maxScore(problem)}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>使用可ボーナス</TableCell>
+                                <TableCell>{
+                                    bonuses.map((bonus) => {
+                                        return <div>{bonus.from_problem_id}から{bonus.kind}</div>
+                                    })
+                                }</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
@@ -126,13 +136,17 @@ const ProblemList = (props: ProblemListProps) => {
         hideZeroScore: false,
     });
     const [problems, setProblems] = useState<Problem[]>([]);
+    const [bonuses, setBonuses] = useState<BonusMap>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
     const [order, setOrder] = useState<string>("ProblemID");
 
     useEffect(() => {
         // Every time the state is updated, this is called...
         if (problems.length === 0) {
-            model.getProblems().then((ps: Problem[]) => setProblems(ps));
+            model.getProblems().then((ps: Problem[]) => {
+                setBonuses(bonusMap(ps));
+                setProblems(ps);
+            });
         } else if (Object.keys(solutions).length === 0) {
             problems.forEach((problem: Problem) => {
                 model.getSolutionsForProblem(problem.problem_id)
@@ -261,7 +275,7 @@ const ProblemList = (props: ProblemListProps) => {
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
-                                    <TableCell><ProblemCell problem={problem} /></TableCell>
+                                    <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
                             );
@@ -279,7 +293,7 @@ const ProblemList = (props: ProblemListProps) => {
                         }
                         return (
                             <TableRow key={problem.problem_id} style={{background: color}}>
-                                <TableCell><ProblemCell problem={problem} /></TableCell>
+                                <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                 <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
                             </TableRow>
                         );
