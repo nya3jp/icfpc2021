@@ -5,11 +5,9 @@ mod sa;
 
 use std::cmp::{max, Reverse};
 use std::collections::BTreeMap;
-use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Result};
@@ -18,7 +16,7 @@ use easy_scraper::Pattern;
 use geom::{
     point::Point,
     // polygon::ContainsResult,
-    schema::{Edge, Pose, Problem as P},
+    schema::{BonusType, Edge, Pose, Problem as P, UsedBonus},
 };
 use itertools::Itertools;
 use rand::Rng;
@@ -28,41 +26,6 @@ use reqwest::header::HeaderValue;
 use sa::*;
 use scorer::{is_inside_hole, is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
-
-#[derive(Clone)]
-enum Bonus {
-    Globalist,
-    BreakALeg,
-    WallHack,
-}
-
-impl FromStr for Bonus {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use Bonus::*;
-
-        Ok(match s {
-            "globalist" => Globalist,
-            "break-a-leg" => BreakALeg,
-            "wallhack" => WallHack,
-            _ => Err(format!(
-                "invalid bonus: `{}`, must be one of `globalist`, `break-a-leg`, `wallhack`",
-                s
-            ))?,
-        })
-    }
-}
-
-impl Display for Bonus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Bonus::Globalist => write!(f, "globalist"),
-            Bonus::BreakALeg => write!(f, "break-a-leg"),
-            Bonus::WallHack => write!(f, "wallhack"),
-        }
-    }
-}
 
 // fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
 //     let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
@@ -152,7 +115,7 @@ fn filter_triangles(
 #[derive(Clone)]
 struct Problem {
     problem: P,
-    use_bonus: Option<Bonus>,
+    use_bonus: Option<UsedBonus>,
     penalty_ratio: f64,
     exact: bool,
     parallel: bool,
@@ -263,7 +226,7 @@ impl Annealer for Problem {
 
         let init_state = Pose {
             vertices: ret,
-            bonuses: Some(vec![]),
+            bonuses: self.use_bonus.as_ref().map(|b| vec![b.clone()]),
         };
         if !is_inside_hole(&self.problem, &init_state) {
             eprintln!("Wrong Answer!!");
@@ -363,20 +326,23 @@ impl Annealer for Problem {
 
         let dislike = state.dislike() as f64;
 
-        match &self.use_bonus {
-            Some(Bonus::Globalist) => {
-                let total_eps = eps * self.problem.figure.edges.len() as f64;
-                let is_valid = total_err <= total_eps;
-                let pena = (total_err - total_eps).max(0.0);
-                let score = dislike + pena * penalty_ratio;
-                (score, is_valid)
-            }
-            _ => {
-                // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
-                // let ret = score + pena * penalty_ratio;
-                let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
-                (score, exists_invalid_edge)
-            }
+        if matches!(
+            &self.use_bonus,
+            Some(UsedBonus {
+                bonus: geom::schema::BonusType::GLOBALIST,
+                ..
+            })
+        ) {
+            let total_eps = eps * self.problem.figure.edges.len() as f64;
+            let is_valid = total_err <= total_eps;
+            let pena = (total_err - total_eps).max(0.0);
+            let score = dislike + pena * penalty_ratio;
+            (score, is_valid)
+        } else {
+            // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
+            // let ret = score + pena * penalty_ratio;
+            let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
+            (score, exists_invalid_edge)
         }
     }
 
@@ -582,24 +548,78 @@ fn solve(
     #[opt(long)]
     bonus: Option<String>,
 
+    #[opt(long)] bonus_from: Option<i64>,
+
     /// search parallel moves
     #[opt(long)]
     parallel: bool,
 
     problem_id: i64,
 ) -> Result<()> {
-    let bonus: Option<Bonus> = bonus
+    let bonus: Option<BonusType> = bonus
         .map(|s| s.parse())
         .transpose()
         .map_err(|r| anyhow!("{}", r))?;
 
     match &bonus {
         None => (),
-        Some(Bonus::Globalist) => (),
+        Some(BonusType::GLOBALIST) => (),
         Some(r) => {
             bail!("Bonus {} is currently not supported", r);
         }
     }
+
+    let bonus: Option<UsedBonus> = bonus
+        .map(|b| -> Result<UsedBonus> {
+            let ps = get_problems()?;
+
+            let problem = if let Some(pid) = &bonus_from {
+                let p = ps.iter().find(|p| p.0 == *pid).ok_or_else(|| {
+                    anyhow!(
+                        "Problem {} does not provide bonus {} for problem {}",
+                        pid,
+                        b,
+                        problem_id
+                    )
+                })?;
+
+                p.0
+            } else {
+                let avails = ps
+                    .iter()
+                    .filter(|(_, p)| {
+                        p.bonuses
+                            .iter()
+                            .any(|bonus| bonus.bonus == b && bonus.problem as i64 == problem_id)
+                    })
+                    .collect_vec();
+
+                if avails.is_empty() {
+                    bail!("{} for problem {} is not available", b, problem_id);
+                }
+
+                eprintln!(
+                    "Problem {:?} provide {} for problem {}",
+                    avails
+                        .iter()
+                        .map(|r| r.0.to_string())
+                        .collect_vec()
+                        .join(", "),
+                    b,
+                    problem_id
+                );
+
+                eprintln!("Use bonus from Problem {}", avails[0].0);
+
+                avails[0].0
+            };
+
+            Ok(UsedBonus {
+                bonus: b,
+                problem: problem as _,
+            })
+        })
+        .transpose()?;
 
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
@@ -795,8 +815,6 @@ fn load_cookie_store(session_file: impl AsRef<Path>, endpoint: &str) -> Result<J
     let f = File::open(session_file);
 
     if f.is_err() {
-        // eprintln!("Session file not found. start new session.");
-        // return Ok(jar);
         bail!("session.txt not found. Please login first.");
     }
 
@@ -881,6 +899,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
     )
     .unwrap();
 
+    let ps = get_problems()?;
     let mut problems = vec![];
 
     for m in pat.matches(&resp) {
@@ -893,14 +912,12 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
         let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
 
-        let filename = format!("../problems/{}.problem", problem_id);
+        let problem = ps.iter().find(|r| r.0 == problem_id);
 
-        if !Path::new(&filename).exists() {
-            eprintln!("File {} not found", filename);
+        if problem.is_none() {
             continue;
         }
-
-        let problem: P = serde_json::from_reader(File::open(filename)?)?;
+        let problem = &problem.unwrap().1;
 
         let max_score = (1000.0
             * ((problem.figure.vertices.len()
@@ -924,6 +941,31 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
     }
 
     Ok(problems)
+}
+
+fn get_problems() -> Result<Vec<(i64, P)>> {
+    let mut ret = vec![];
+    for rd in fs::read_dir("../problems")? {
+        let rd = rd?;
+
+        let path = rd.path();
+        if !matches!(path.extension(), Some(ext) if ext == "problem") {
+            continue;
+        }
+
+        let problem: P = serde_json::from_reader(File::open(&path)?)?;
+        let problem_id = path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<i64>()
+            .map_err(|_| anyhow!("{} is not valid problem filename", path.display()))?;
+
+        ret.push((problem_id, problem));
+    }
+
+    Ok(ret)
 }
 
 #[argopt::subcmd]
@@ -973,6 +1015,11 @@ fn info(problem_id: i64) -> Result<()> {
         "  * epsilon:         {:.2}%",
         problem.epsilon as f64 / 1_000_000.0 * 100.0
     );
+    println!("  * bonuses:");
+
+    for bonus in problem.bonuses.iter() {
+        println!("    * {:?}", bonus);
+    }
 
     Ok(())
 }

@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::error::Error;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
+use std::str::FromStr;
 
 use super::point::Point;
 use super::polygon::{ContainsResult, Polygon};
@@ -131,6 +133,7 @@ pub struct Figure {
     pub edges: Vec<Edge>,
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(from = "String", into = "String")]
 pub enum BonusType {
@@ -139,27 +142,41 @@ pub enum BonusType {
     WALLHACK,
 }
 
-impl From<String> for BonusType {
-    fn from(t: String) -> BonusType {
-        if t == "GLOBALIST" {
+impl FromStr for BonusType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(if s == "GLOBALIST" {
             BonusType::GLOBALIST
-        } else if t == "BREAK_A_LEG" {
+        } else if s == "BREAK_A_LEG" {
             BonusType::BREAK_A_LEG
-        } else if t == "WALLHACK" {
+        } else if s == "WALLHACK" {
             BonusType::WALLHACK
         } else {
-            panic!("Unknown Bonus Type")
+            Err(format!("Unknown Bonus Type; {}", s))?
+        })
+    }
+}
+
+impl Display for BonusType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BonusType::GLOBALIST => write!(f, "GLOBALIST"),
+            BonusType::BREAK_A_LEG => write!(f, "BREAK_A_LEG"),
+            BonusType::WALLHACK => write!(f, "WALLHACK"),
         }
+    }
+}
+
+impl From<String> for BonusType {
+    fn from(t: String) -> BonusType {
+        t.parse().unwrap()
     }
 }
 
 impl From<BonusType> for String {
     fn from(t: BonusType) -> String {
-        match t {
-            BonusType::GLOBALIST => "GLOBALIST".to_string(),
-            BonusType::BREAK_A_LEG => "BREAK_A_LEG".to_string(),
-            BonusType::WALLHACK => "WALLHACK".to_string(),
-        }
+        t.to_string()
     }
 }
 
@@ -194,7 +211,7 @@ pub struct UsedBonus {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pose {
     pub vertices: Vec<Point>,
-    #[serde(skip_serializing_if="Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bonuses: Option<Vec<UsedBonus>>,
 }
 
