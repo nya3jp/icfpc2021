@@ -154,7 +154,7 @@ impl Annealer for Problem {
 
         let init_state = Pose {
             vertices: ret,
-            bonuses: vec![],
+            bonuses: None,
         };
         if !is_inside_hole(&self.problem, &init_state) {
             eprintln!("Wrong Answer!!");
