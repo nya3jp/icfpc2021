@@ -323,7 +323,7 @@ export class Editor extends EventTarget {
         ev.preventDefault();
         const mouse: Point = [ev.offsetX, ev.offsetY];
         const oldZoom = this.translator.zoom;
-        const newZoom = Math.min(20, Math.max(1, oldZoom + ev.deltaY / 200));
+        const newZoom = Math.min(20, Math.max(0.5, oldZoom + ev.deltaY / 200));
         const deltaZoom = newZoom - oldZoom;
         this.translator.offset = vsub(this.translator.offset, vmul(mouse, deltaZoom / (oldZoom * (oldZoom + deltaZoom))));
         this.translator.zoom = newZoom;
