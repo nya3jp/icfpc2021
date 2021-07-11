@@ -5,12 +5,14 @@ mod sa;
 
 use std::cmp::{max, Reverse};
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::{Datelike, Timelike};
 use easy_scraper::Pattern;
 use geom::{
@@ -26,6 +28,41 @@ use reqwest::header::HeaderValue;
 use sa::*;
 use scorer::{is_inside_hole, is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
+
+#[derive(Clone)]
+enum Bonus {
+    Globalist,
+    BreakALeg,
+    WallHack,
+}
+
+impl FromStr for Bonus {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use Bonus::*;
+
+        Ok(match s {
+            "globalist" => Globalist,
+            "break-a-leg" => BreakALeg,
+            "wallhack" => WallHack,
+            _ => Err(format!(
+                "invalid bonus: `{}`, must be one of `globalist`, `break-a-leg`, `wallhack`",
+                s
+            ))?,
+        })
+    }
+}
+
+impl Display for Bonus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Bonus::Globalist => write!(f, "globalist"),
+            Bonus::BreakALeg => write!(f, "break-a-leg"),
+            Bonus::WallHack => write!(f, "wallhack"),
+        }
+    }
+}
 
 // fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
 //     let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
@@ -115,6 +152,7 @@ fn filter_triangles(
 #[derive(Clone)]
 struct Problem {
     problem: P,
+    use_bonus: Option<Bonus>,
     penalty_ratio: f64,
     exact: bool,
     parallel: bool,
@@ -282,9 +320,9 @@ impl Annealer for Problem {
     }
 
     fn eval(&self, state: &Self::State, _best_score: f64, _valid_best_score: f64) -> (f64, bool) {
-        let mut score = 0.0;
         let mut pena = 0.0;
-        let mut is_valid = true;
+        let mut exists_invalid_edge = true;
+        let mut total_err = 0.0;
 
         // let penalty_ratio = if valid_best_score.is_finite() {
         //     valid_best_score / 2.0
@@ -307,11 +345,13 @@ impl Annealer for Problem {
             let d2 = (self.problem.figure.vertices[i] - self.problem.figure.vertices[j]).norm_sqr();
             let err = ((d1 as f64 / d2 as f64) - 1.0).abs();
 
+            total_err += err;
+
             if err <= eps {
                 continue;
             }
 
-            is_valid = false;
+            exists_invalid_edge = false;
 
             // score += 500.0 * (err / eps);
             // score += 1000.0 * (err / eps).powi(2);
@@ -321,13 +361,23 @@ impl Annealer for Problem {
             pena += (err / eps - 0.90).abs().powf(0.75);
         }
 
-        score += state.dislike() as f64;
+        let dislike = state.dislike() as f64;
 
-        // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
-        let ret = score * (1.0 + pena / 8.0) + pena * penalty_ratio;
-        // let ret = score + pena * penalty_ratio;
-
-        (ret, is_valid)
+        match &self.use_bonus {
+            Some(Bonus::Globalist) => {
+                let total_eps = eps * self.problem.figure.edges.len() as f64;
+                let is_valid = total_err <= total_eps;
+                let pena = (total_err - total_eps).max(0.0);
+                let score = dislike + pena * penalty_ratio;
+                (score, is_valid)
+            }
+            _ => {
+                // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
+                // let ret = score + pena * penalty_ratio;
+                let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
+                (score, exists_invalid_edge)
+            }
+        }
     }
 
     fn neighbour(
@@ -492,33 +542,28 @@ impl Annealer for Problem {
 #[argopt::subcmd]
 fn solve(
     /// time limit in seconds
-    //
     #[opt(long, default_value = "5.0")]
     time_limit: f64,
 
     /// number of threads
-    //
     #[opt(long, default_value = "1")]
     threads: usize,
 
     /// number of restart
-    //
     #[opt(long, default_value = "1")]
     restart: usize,
 
     /// seed
-    //
     #[opt(long)]
     seed: Option<u64>,
 
     /// search around optimal solution
-    //
     #[opt(long)]
     exact: bool,
 
-    // Find the hole->node mapping at the beginning.
-    //
-    #[opt(long)] use_hint: bool,
+    /// Find the hole->node mapping at the beginning.
+    #[opt(long)]
+    use_hint: bool,
 
     /// Use specified initial state
     #[opt(long)]
@@ -533,13 +578,29 @@ fn solve(
 
     #[opt(long)] no_submit: bool,
 
+    /// Options to use (one of "globalist", "break-a-leg", "wallhcak")
+    #[opt(long)]
+    bonus: Option<String>,
+
     /// search parallel moves
-    //
     #[opt(long)]
     parallel: bool,
 
     problem_id: i64,
 ) -> Result<()> {
+    let bonus: Option<Bonus> = bonus
+        .map(|s| s.parse())
+        .transpose()
+        .map_err(|r| anyhow!("{}", r))?;
+
+    match &bonus {
+        None => (),
+        Some(Bonus::Globalist) => (),
+        Some(r) => {
+            bail!("Bonus {} is currently not supported", r);
+        }
+    }
+
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
     let problem: P = get_problem(problem_id)?;
@@ -586,6 +647,7 @@ fn solve(
         let hint = hints[i].clone();
         let problem = Problem {
             problem: problem.clone(),
+            use_bonus: bonus.clone(),
             exact,
             parallel,
             penalty_ratio,
