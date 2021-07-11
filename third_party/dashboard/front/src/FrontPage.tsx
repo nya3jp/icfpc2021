@@ -67,6 +67,14 @@ const ProblemCell = ({problem, bonuses}: {problem: Problem, bonuses: GotBonus[]}
                                     })
                                 }</TableCell>
                             </TableRow>
+                            <TableRow>
+                                <TableCell>獲得可能ボーナス</TableCell>
+                                <TableCell>{
+                                    problem.data.bonuses.map((bonus) => {
+                                        return <div>{bonus.problem}へ{bonus.bonus}</div>
+                                    })
+                                }</TableCell>
+                            </TableRow>
                         </TableBody>
                     </Table>
                 </Grid>
