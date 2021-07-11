@@ -194,6 +194,7 @@ pub struct UsedBonus {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pose {
     pub vertices: Vec<Point>,
+    #[serde(skip_serializing_if="Option::is_none")]
     pub bonuses: Option<Vec<UsedBonus>>,
 }
 
