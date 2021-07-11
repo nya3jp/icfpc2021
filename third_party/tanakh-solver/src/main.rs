@@ -3,7 +3,7 @@ extern crate prettytable;
 
 mod sa;
 
-use std::cmp::{max, Reverse};
+use std::cmp::{max, min, Reverse};
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
@@ -215,61 +215,69 @@ impl Annealer for Problem {
             return State::new(init_state.clone(), &self.problem);
         }
 
-        let ix = rng.gen_range(0..self.problem.hole.len());
+        let bonuses = self.use_bonus.as_ref().map(|b| vec![b.clone()]);
 
-        let default_point = self.problem.hole[ix].clone();
+        let init_state = (|| {
+            for _ in 0..100 {
+                let mut minx = i64::MAX;
+                let mut maxx = i64::MIN;
+                let mut miny = i64::MAX;
+                let mut maxy = i64::MIN;
 
-        let ret = (0..self.problem.figure.vertices.len())
-            .map(|i| {
-                *self.fixed_points.get(&i).unwrap_or(&default_point.clone())
-                /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-            })
-            .collect_vec();
+                for p in self.problem.hole.iter() {
+                    minx = min(minx, p.x as i64);
+                    maxx = max(maxx, p.x as i64);
+                    miny = min(miny, p.y as i64);
+                    maxy = max(maxy, p.y as i64);
+                }
 
-        let init_state = Pose {
-            vertices: ret,
-            bonuses: self.use_bonus.as_ref().map(|b| vec![b.clone()]),
-        };
-        if !is_inside_hole(&self.problem, &init_state) {
-            eprintln!("Wrong Answer!!");
-        }
+                let ret = (0..self.problem.figure.vertices.len())
+                    .map(|_| loop {
+                        let x = rng.gen_range(minx..=maxx);
+                        let y = rng.gen_range(miny..=maxy);
+
+                        if self.problem.hole.contains(&Point::new(x as _, y as _)) {
+                            break Point::new(x as _, y as _);
+                        }
+                    })
+                    .collect_vec();
+
+                let ret = Pose {
+                    vertices: ret,
+                    bonuses: None,
+                };
+
+                if is_inside_hole(&self.problem, &ret) {
+                    return ret;
+                }
+            }
+
+            // fallback
+
+            let ix = rng.gen_range(0..self.problem.hole.len());
+
+            let default_point = self.problem.hole[ix].clone();
+
+            let ret = (0..self.problem.figure.vertices.len())
+                .map(|i| {
+                    *self.fixed_points.get(&i).unwrap_or(&default_point.clone())
+                    /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
+                })
+                .collect_vec();
+
+            let init_state = Pose {
+                vertices: ret,
+                bonuses,
+            };
+
+            if !is_inside_hole(&self.problem, &init_state) {
+                eprintln!("Wrong Answer!!");
+            }
+
+            init_state
+        })();
 
         State::new(init_state, &self.problem)
-
-        // loop {
-        //     let mut minx = i64::MAX;
-        //     let mut maxx = i64::MIN;
-        //     let mut miny = i64::MAX;
-        //     let mut maxy = i64::MIN;
-
-        //     for p in self.problem.hole.iter() {
-        //         minx = min(minx, p.x as i64);
-        //         maxx = max(maxx, p.x as i64);
-        //         miny = min(miny, p.y as i64);
-        //         maxy = max(maxy, p.y as i64);
-        //     }
-
-        //     let ret = (0..self.problem.figure.vertices.len())
-        //         .map(|_| loop {
-        //             let x = rng.gen_range(minx..=maxx);
-        //             let y = rng.gen_range(miny..=maxy);
-
-        //             if self
-        //                 .problem
-        //                 .contains(&Point::new(x as _, y as _))
-        //                 != ContainsResult::OUT
-        //             {
-        //                 break Point::new(x as _, y as _);
-        //             }
-        //         })
-        //         .collect_vec();
-
-        //     let ret = Pose { vertices: ret };
-
-        //     if is_inside_hole(&self.problem, &ret) {
-        //         break ret;
-        //     }
-        // }
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
@@ -277,7 +285,7 @@ impl Annealer for Problem {
         //     .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
 
         self.start_temp
-            .unwrap_or_else(|| (init_score / 100.0).clamp(100.0, 10000.0))
+            .unwrap_or_else(|| (init_score / 10.0).max(100.0))
     }
 
     fn is_done(&self, score: f64) -> bool {
