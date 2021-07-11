@@ -118,6 +118,7 @@ struct Problem {
     use_bonus: Option<UsedBonus>,
     get_bonuses: Vec<BonusType>,
     penalty_ratio: f64,
+    penalty_deflate: f64,
     exact: bool,
     parallel: bool,
     triangles: Vec<(usize, usize, usize)>,
@@ -276,7 +277,7 @@ impl Annealer for Problem {
         //     .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
 
         self.start_temp
-            .unwrap_or_else(|| (init_score / 100.0).max(100.0))
+            .unwrap_or_else(|| (init_score / 100.0).clamp(100.0, 10000.0))
     }
 
     fn is_done(&self, score: f64) -> bool {
@@ -320,9 +321,9 @@ impl Annealer for Problem {
             // score += 500.0 * (err / eps);
             // score += 1000.0 * (err / eps).powi(2);
 
-            // pena += err / eps;
+            pena += (err / eps - self.penalty_deflate).abs();
             // pena += (err / eps - 1.0).powi(2);
-            pena += (err / eps - 0.90).abs().powf(0.75);
+            // pena += (err / eps - 0.90).abs().powf(0.75);
         }
 
         let dislike = state.dislike() as f64;
@@ -367,11 +368,12 @@ impl Annealer for Problem {
         } else {
             let pena = pena + bonus_err as f64;
 
-            // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
-            // let ret = score + pena * penalty_ratio;
+            let score = dislike * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
+            // let score = dislike + pena * penalty_ratio;
+            // let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
 
-            let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
             is_valid = is_valid && exists_invalid_edge;
+
             (score, is_valid)
         }
     }
@@ -565,12 +567,11 @@ fn solve(
     #[opt(long)]
     init_state: Option<PathBuf>,
 
-    /// Use specified initial state
-    #[opt(long)]
-    start_temp: Option<f64>,
+    #[opt(long)] start_temp: Option<f64>,
+    #[opt(long, default_value = "0.25")] min_temp: f64,
 
     #[opt(long, default_value = "100.0")] penalty_ratio: f64,
-    #[opt(long, default_value = "0.25")] min_temp: f64,
+    #[opt(long, default_value = "0.0")] penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
 
@@ -706,6 +707,7 @@ fn solve(
             exact,
             parallel,
             penalty_ratio,
+            penalty_deflate,
             triangles: triangles.clone(),
             fixed_points: hint.clone(),
             init_state: init_state.clone(),
