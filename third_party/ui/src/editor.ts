@@ -194,11 +194,24 @@ export class Editor extends EventTarget {
         }
     }
 
+    private bonusColor(bonusType: string): string {
+	    switch (bonusType) {
+		    case 'GLOBALIST':
+			    return 'rgba(255, 255, 0,';
+		    case 'BREAK_A_LEG':
+			    return 'rgba(0, 0, 255,';
+		    case 'WALLHACK':
+			    return 'rgba(128, 128, 0,';
+		    default:
+			    return 'rgba(0, 0, 0,';
+	    }
+    }
+
     private renderBonuses(ctx: CanvasRenderingContext2D): void {
         const radius = 3.0 * this.translator.zoom;
-        ctx.strokeStyle = 'rgba(255, 255, 0, 1)';
-        ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
         for (const bonus of this.problem.bonuses) {
+            ctx.strokeStyle = this.bonusColor(bonus.bonus)+'1)';
+            ctx.fillStyle =  this.bonusColor(bonus.bonus)+'0.5)';
             ctx.beginPath();
             const pos = this.translator.modelToCanvas(bonus.position);
             ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);

@@ -43,15 +43,10 @@ const ProblemCell = ({problem, bonuses}: {problem: Problem, bonuses: GotBonus[]}
         bonuses = [];
     }
     return (
-        <Link to={problemLink} style={{ textDecoration: 'none' }}>
+        <Link to={problemLink} style={{textDecoration: 'none'}}>
             <Grid container spacing={2}>
                 <Grid item>
                     <Viewer problem={problem} size={100} />
-                </Grid>
-                <Grid item>
-                    <Typography variant="h2">
-                        {problem.problem_id}
-                    </Typography>
                 </Grid>
                 <Grid item>
                     <Table size="small">
@@ -94,7 +89,7 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
         scoreText = `${si.score} (MAX)`;
     }
     return (
-        <Link to={solutionLink} style={{ textDecoration: 'none' }}>
+        <Link to={solutionLink} style={{textDecoration: 'none'}}>
             <Grid container spacing={2}>
                 <Grid item>
                     <Viewer problem={problem} solution={solution} size={100} />
@@ -102,10 +97,6 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
                 <Grid item>
                     <Table size="small">
                         <TableBody>
-                            <TableRow>
-                                <TableCell>SolutionID</TableCell>
-                                <TableCell>{solution.solution_id}</TableCell>
-                            </TableRow>
                             <TableRow>
                                 <TableCell>Dislike</TableCell>
                                 <TableCell>{solution.dislike}{diff}</TableCell>
@@ -125,20 +116,28 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
 interface FormFilterState {
     hideTopTie: boolean;
     hideZeroScore: boolean;
+    order: string;
 };
 
 const ProblemList = (props: ProblemListProps) => {
     const {model} = props;
     const classes = useStyles();
+    const ssKey = "ProblemListFormFilterState";
 
-    const [formFilter, setFormFilter] = useState<FormFilterState>({
-        hideTopTie: false,
-        hideZeroScore: false,
+    const [formFilter, setFormFilter] = useState<FormFilterState>(() => {
+        const s = localStorage.getItem(ssKey);
+        if (s) {
+            return JSON.parse(s);
+        }
+        return {
+            hideTopTie: false,
+            hideZeroScore: false,
+            order: "ProblemID",
+        };
     });
     const [problems, setProblems] = useState<Problem[]>([]);
     const [bonuses, setBonuses] = useState<BonusMap>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
-    const [order, setOrder] = useState<string>("ProblemID");
 
     useEffect(() => {
         // Every time the state is updated, this is called...
@@ -163,14 +162,23 @@ const ProblemList = (props: ProblemListProps) => {
         }
     });
 
+    const formFilterSaveHook = (d: FormFilterState) => {
+        localStorage.setItem(ssKey, JSON.stringify(d));
+    };
     const switchHideTopTie = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setFormFilter({...formFilter, hideTopTie: event.target.checked});
+        const v = {...formFilter, hideTopTie: event.target.checked};
+        setFormFilter(v);
+        formFilterSaveHook(v);
     };
     const switchHideZeroScore = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setFormFilter({...formFilter, hideZeroScore: event.target.checked});
+        const v = {...formFilter, hideZeroScore: event.target.checked};
+        setFormFilter(v);
+        formFilterSaveHook(v);
     };
     const switchSortOrder = (event: React.ChangeEvent<{value: unknown}>) => {
-        setOrder(event.target.value as string);
+        const v = {...formFilter, order: event.target.value as string};
+        setFormFilter(v);
+        formFilterSaveHook(v);
     };
 
     if (problems.length === 0) return <p>No solutions</p>;
@@ -187,12 +195,12 @@ const ProblemList = (props: ProblemListProps) => {
         bestSolutions[problem.problem_id] = sol;
     });
     const ps = problems.sort((p1: Problem, p2: Problem) => {
-        if (order === "ProblemID") {
+        if (formFilter.order === "ProblemID") {
             return p1.problem_id - p2.problem_id;
         }
         let rem1 = 9999999;
         let rem2 = 9999999;
-        if (order === "HighRemainingScore") {
+        if (formFilter.order === "HighRemainingScore") {
             const sol1 = bestSolutions[p1.problem_id];
             const sol2 = bestSolutions[p2.problem_id];
             if (sol1) {
@@ -207,7 +215,7 @@ const ProblemList = (props: ProblemListProps) => {
             } else {
                 rem2 = maxScore(p2);
             }
-        } else if (order === "HighRemainingScoreRatio") {
+        } else if (formFilter.order === "HighRemainingScoreRatio") {
             const sol1 = bestSolutions[p1.problem_id];
             const sol2 = bestSolutions[p2.problem_id];
             if (sol1) {
@@ -223,7 +231,7 @@ const ProblemList = (props: ProblemListProps) => {
                 rem2 = maxScore(p2);
             }
         }
-        if (rem1 != rem2) {
+        if (rem1 !== rem2) {
             return rem2 - rem1;
         }
         return p1.problem_id - p2.problem_id;
@@ -232,30 +240,12 @@ const ProblemList = (props: ProblemListProps) => {
     return (
         <Container component={Paper}>
             <FormGroup row>
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={formFilter.hideTopTie}
-                            onChange={switchHideTopTie}
-                            color="primary"
-                        />
-                    }
-                    label="トップタイの問題を隠す"
-                />
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={formFilter.hideZeroScore}
-                            onChange={switchHideZeroScore}
-                            color="primary"
-                        />
-                    }
-                    label="0点の問題を隠す"
-                />
+                <FormControlLabel control={<Switch checked={formFilter.hideTopTie} onChange={switchHideTopTie} color="primary" />} label="トップタイの問題を隠す" />
+                <FormControlLabel control={<Switch checked={formFilter.hideZeroScore} onChange={switchHideZeroScore} color="primary" />} label="0点の問題を隠す" />
                 <div className={classes.spacer}></div>
                 <FormControl>
                     <InputLabel shrink id="sort-order-label">ソート順</InputLabel>
-                    <Select labelId="sort-order-label" id="sort-order" value={order} onChange={switchSortOrder}>
+                    <Select labelId="sort-order-label" id="sort-order" value={formFilter.order} onChange={switchSortOrder}>
                         <MenuItem value={"ProblemID"}>Problem ID</MenuItem>
                         <MenuItem value={"HighRemainingScore"}>スコア伸びしろ多い順</MenuItem>
                         <MenuItem value={"HighRemainingScoreRatio"}>スコア伸びしろ(比率)多い順</MenuItem>
@@ -265,6 +255,7 @@ const ProblemList = (props: ProblemListProps) => {
             <Table size="small">
                 <TableHead>
                     <TableRow>
+                        <TableCell>ID</TableCell>
                         <TableCell>Problem</TableCell>
                         <TableCell>Best Solution</TableCell>
                     </TableRow>
@@ -275,6 +266,7 @@ const ProblemList = (props: ProblemListProps) => {
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
+                                    <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                     <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
@@ -293,6 +285,7 @@ const ProblemList = (props: ProblemListProps) => {
                         }
                         return (
                             <TableRow key={problem.problem_id} style={{background: color}}>
+                                <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                 <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                 <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
                             </TableRow>

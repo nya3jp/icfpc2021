@@ -91,8 +91,14 @@ type Problem struct {
 	Data           ProblemData `json:"data"`
 }
 
+type UsedBonus struct {
+	Bonus   string `json:"bonus"`
+	Problem int64  `json:"problem"`
+}
+
 type SolutionData struct {
-	Vertices []Point `json:"vertices"`
+	Vertices []Point     `json:"vertices"`
+	Bonuses  []UsedBonus `json:"bonuses"`
 }
 
 func (s *SolutionData) Validate(problem *ProblemData) error {
