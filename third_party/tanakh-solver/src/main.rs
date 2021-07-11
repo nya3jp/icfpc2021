@@ -630,7 +630,7 @@ fn solve(
         eprintln!("Response: {:?}", resp);
 
         // Submit to the internal dashboard.
-        tanakh_solver::submit_dashboard(problem_id, &result_file_name)?;
+        tanakh_solver::submit_dashboard(problem_id, &solution_filename)?;
     }
 
     Ok(())
