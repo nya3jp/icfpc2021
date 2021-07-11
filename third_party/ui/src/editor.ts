@@ -200,7 +200,7 @@ export class Editor extends EventTarget {
             let highlight = false;
             if (target2 >= 0) {
                 const original2 = distance2(vertices[edge[0]], vertices[edge[1]]);
-                if (Math.abs(target2 / original2 - 1) < this.problem.epsilon / 1000000) {
+                if (Math.abs(target2 / original2 - 1) <= this.problem.epsilon / 1000000 + 1e-8) {
                     highlight = true;
                 }
             }
@@ -226,7 +226,7 @@ export class Editor extends EventTarget {
     private getLineColor(current: number, original: number, highlight: boolean): string {
         const hi = highlight ? 192 : 255;
         const lo = 0;
-        const margin = original * this.problem.epsilon / 1000000;
+        const margin = original * this.problem.epsilon / 1000000 + 1e-8;
         const min = original - margin;
         const max = original + margin;
         if (current < min) {
@@ -252,7 +252,7 @@ export class Editor extends EventTarget {
             ctx.fillStyle = 'rgba(0, 255, 0, 0.15)';
             for (const adjacent of adjacents) {
                 const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex]);
-                const margin2 = original2 * this.problem.epsilon / 1000000;
+                const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
                 const min = Math.sqrt(original2 - margin2);
                 const max = Math.sqrt(original2 + margin2);
                 const center = this.pose[adjacent];
@@ -360,7 +360,7 @@ export class Editor extends EventTarget {
                 for (const adjacent of adjacents) {
                     const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex!]);
                     const d2 = distance2(this.pose[adjacent], p);
-                    const margin2 = original2 * this.problem.epsilon / 1000000;
+                    const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
                     if (d2 < original2 - margin2 || d2 > original2 + margin2) {
                         ok = false;
                     }
