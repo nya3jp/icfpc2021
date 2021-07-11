@@ -172,6 +172,13 @@ export class RelayoutButton {
     }
 
     public start(): void {
-        this.element.addEventListener('click', () => this.editor.relayout());
+        this.element.addEventListener('click', () => this.onClick());
+    }
+
+    private onClick(): void {
+        if (!window.confirm('Do you really want to run relayout?')) {
+            return;
+        }
+        this.editor.relayout();
     }
 }
