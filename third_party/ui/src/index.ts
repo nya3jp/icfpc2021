@@ -6,6 +6,7 @@ import {
     OutputTextArea,
     ProblemSelector, RelayoutButton, SimilarEdgeHighlightToggle,
     StatusLabel,
+    ShowNodeNumberToggle,
     ZoomSlider
 } from './controls';
 import {ProblemSet} from './problems';
@@ -30,6 +31,7 @@ async function init() {
     const zoomSlider = new ZoomSlider(document.getElementById('zoom') as HTMLInputElement, editor);
     const similarEdgeHighlightToggle = new SimilarEdgeHighlightToggle(document.getElementById('similar_edge_highlight') as HTMLInputElement, editor);
     const constraintHintToggle = new ConstraintHintToggle(document.getElementById('constraint_hint') as HTMLInputElement, editor);
+    const showNodeNumberToggle = new ShowNodeNumberToggle(document.getElementById('node_number') as HTMLInputElement, editor);
     const statusLabel = new StatusLabel(document.getElementById('dislike')!, document.getElementById('globalist')!, editor);
     const relayoutButton = new RelayoutButton(document.getElementById('run_relayout') as HTMLButtonElement, editor);
 
@@ -42,6 +44,7 @@ async function init() {
     zoomSlider.start();
     similarEdgeHighlightToggle.start();
     constraintHintToggle.start();
+    showNodeNumberToggle.start();
     statusLabel.start();
     relayoutButton.start();
 

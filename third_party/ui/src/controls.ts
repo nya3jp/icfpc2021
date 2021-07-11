@@ -168,6 +168,22 @@ export class ConstraintHintToggle {
     }
 }
 
+export class ShowNodeNumberToggle {
+    constructor(
+        private readonly checkbox: HTMLInputElement,
+        private readonly editor: Editor) {
+    }
+
+    public start(): void {
+        this.checkbox.addEventListener('change', () => this.onChange());
+        this.onChange();
+    }
+
+    private onChange(): void {
+        this.editor.setNodeNumber(this.checkbox.checked);
+    }
+}
+
 export class ZoomSlider {
     constructor(
         private readonly slider: HTMLInputElement,
