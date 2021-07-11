@@ -1,5 +1,6 @@
 import {Point, Pose, Problem} from './types';
 import {
+    boundingBox,
     closest,
     distance2,
     midPoint,
@@ -8,7 +9,7 @@ import {
     vadd,
     vdiv,
     vdot,
-    vmul,
+    vmul, vneg,
     vsub,
     vunit
 } from './geom';
@@ -85,10 +86,20 @@ export class Editor extends EventTarget {
         this.render();
     }
 
+    public setZoomAutoFit(): void {
+        const [bbMin, bbMax] = boundingBox(this.problem.hole.concat(this.pose));
+        const center = midPoint(bbMin, bbMax);
+        const zoom = Math.min(this.canvas.width / (bbMax[0] - bbMin[0]), this.canvas.height / (bbMax[1] - bbMin[1])) * 0.95;
+        const offset = vsub(vdiv([this.canvas.width / 2, this.canvas.height / 2], zoom), center);
+        this.translator.zoom = zoom;
+        this.translator.offset = offset;
+        this.render();
+    }
+
     public setProblem(problem: Problem): void {
         this.problem = problem;
         this.pose = [...problem.figure.vertices];
-        this.render();
+        this.setZoomAutoFit();
     }
 
     public setSimilarEdgeHighlight(similarEdgeHighlight: boolean): void {
