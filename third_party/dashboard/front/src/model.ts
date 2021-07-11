@@ -8,7 +8,7 @@ class Client {
     private readonly baseURL: string;
 
     constructor() {
-        this.baseURL = (window.location.hostname === 'localhost' ? DEV_BASE_URL : PROD_BASE_URL);
+        this.baseURL = (window.location.hostname === 'localhost' ? PROD_BASE_URL : PROD_BASE_URL);
     }
 
     async getProblems(): Promise<Problem[]> {

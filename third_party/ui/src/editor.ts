@@ -17,10 +17,15 @@ import {forceLayout} from './layout';
 
 const deepEqual = require('deep-equal');
 
-export class Translator {
-    public offset: Point = [0, 0];
+class Translator {
+    constructor(public zoom: number, public offset: Point = [0, 0]) {}
 
-    constructor(public zoom: number) {
+    static fitTo(points: Point[], canvasWidth: number, canvasHeight: number): Translator {
+        const [bbMin, bbMax] = boundingBox(points);
+        const center = midPoint(bbMin, bbMax);
+        const zoom = Math.min(canvasWidth / (bbMax[0] - bbMin[0]), canvasHeight / (bbMax[1] - bbMin[1])) * 0.95;
+        const offset = vsub(vdiv([canvasWidth / 2, canvasHeight / 2], zoom), center);
+        return new Translator(zoom, offset);
     }
 
     public modelToCanvas(p: Point): Point {
