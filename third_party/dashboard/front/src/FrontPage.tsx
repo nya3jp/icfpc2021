@@ -19,6 +19,7 @@ import TableBody from '@material-ui/core/TableBody';
 import TableCell from '@material-ui/core/TableCell';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
+import Typography from '@material-ui/core/Typography';
 import {Viewer} from './editor/Viewer';
 import {green} from '@material-ui/core/colors';
 import {maxScore, scoreInfo} from './utils';
@@ -40,18 +41,19 @@ interface ProblemListProps {
 const ProblemCell = ({problem}: {problem: Problem}) => {
     const problemLink = `/problems/${problem.problem_id}`;
     return (
-        <Link to={problemLink}>
+        <Link to={problemLink} style={{ textDecoration: 'none' }}>
             <Grid container spacing={2}>
                 <Grid item>
                     <Viewer problem={problem} size={100} />
                 </Grid>
                 <Grid item>
+                    <Typography variant="h2">
+                        {problem.problem_id}
+                    </Typography>
+                </Grid>
+                <Grid item>
                     <Table size="small">
                         <TableBody>
-                            <TableRow>
-                                <TableCell>ProblemID</TableCell>
-                                <TableCell>{problem.problem_id}</TableCell>
-                            </TableRow>
                             <TableRow>
                                 <TableCell>Minimal Dislike</TableCell>
                                 <TableCell>{problem.minimal_dislike}</TableCell>
@@ -82,7 +84,7 @@ const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution
         scoreText = `${si.score} (MAX)`;
     }
     return (
-        <Link to={solutionLink}>
+        <Link to={solutionLink} style={{ textDecoration: 'none' }}>
             <Grid container spacing={2}>
                 <Grid item>
                     <Viewer problem={problem} solution={solution} size={100} />
