@@ -6,10 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -41,6 +39,7 @@ func main() {
 	if err != nil {
 		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
 	} else {
+		go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
 		go scrape.ScrapeDislikeTask(scraper, mgr)
 	}
 
@@ -52,6 +51,7 @@ func main() {
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
+	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
@@ -106,6 +106,20 @@ func (s *server) handleProblemSolutionsGet(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	solutions, err := s.mgr.GetSolutionsForProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solutions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSubmittedSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutions, err := s.mgr.GetSubmittedSolutions()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -203,18 +217,11 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := trimAndRemoveEmpty(strings.Split(r.Form.Get("tags"), ","))
-	tmp, err := ioutil.TempFile("", "scorer.")
+	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer tmp.Close()
-	defer os.Remove(tmp.Name())
-	if err := json.NewEncoder(tmp).Encode(data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	dislike, rejectReason := eval.Eval(*scorerPath, s.mgr.ProblemFilePath(problemID), tmp.Name())
 	solution := &solutionmgr.Solution{
 		ProblemID:    problemID,
 		Tags:         tags,

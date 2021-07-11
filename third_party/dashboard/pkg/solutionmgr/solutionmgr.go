@@ -106,6 +106,29 @@ type Solution struct {
 	fileHash     string
 }
 
+type SubmittedSolution struct {
+	ProblemID           int64  `json:"problem_id"`
+	SubmittedSolutionID string `json:"submitted_solution_id"`
+	CreatedAt           int64  `json:"created_at"`
+	SolutionID          int64  `json:"solution_id"`
+}
+
+func (s *SubmittedSolution) Validate() error {
+	if s.ProblemID == 0 {
+		return fmt.Errorf("empty problem ID: %d", s.ProblemID)
+	}
+	if s.SubmittedSolutionID == "" {
+		return fmt.Errorf("empty submitted solution ID: %s", s.SubmittedSolutionID)
+	}
+	if s.CreatedAt == 0 {
+		return fmt.Errorf("empty creation time: %d", s.CreatedAt)
+	}
+	if s.SolutionID == 0 {
+		return fmt.Errorf("empty solution ID: %d", s.SolutionID)
+	}
+	return nil
+}
+
 type Manager struct {
 	basePath string
 	db       *sql.DB
@@ -172,6 +195,20 @@ func runMigration(db *sql.DB) error {
 		`)
 		if err != nil {
 			return fmt.Errorf("cannot create tables: %v", err)
+		}
+		version = 3
+		fallthrough
+	case 3:
+		_, err = db.Exec(`
+			CREATE TABLE IF NOT EXISTS submittedsolutions (
+				submitted_solution_id TEXT PRIMARY KEY,
+				problem_id INTEGER NOT NULL,
+				created_at INTEGER NOT NULL,
+				solution_id INTEGER NOT NULL
+			);
+		`)
+		if err != nil {
+			return fmt.Errorf("cannot add submittedsolutions: %v", err)
 		}
 		version = 3
 		fallthrough
@@ -408,6 +445,59 @@ func (m *Manager) UpdateSolutionEvalResult(solutionID int64, rejectReason string
 	return nil
 }
 
+func (m *Manager) GetSubmittedSolutions() ([]*SubmittedSolution, error) {
+	rows, err := m.db.Query("SELECT submitted_solution_id, problem_id, created_at, solution_id FROM submittedsolutions")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	solutions := make([]*SubmittedSolution, 0) // must be non-nil
+	for rows.Next() {
+		var submittedSolutionID string
+		var problemID, createdAt, solutionID int64
+		if err := rows.Scan(&submittedSolutionID, &problemID, &createdAt, &solutionID); err != nil {
+			return nil, err
+		}
+
+		solutions = append(solutions, &SubmittedSolution{
+			ProblemID:           problemID,
+			SubmittedSolutionID: submittedSolutionID,
+			CreatedAt:           createdAt,
+			SolutionID:          solutionID,
+		})
+	}
+	return solutions, nil
+}
+
+func (m *Manager) AddSubmittedSolution(solution *SubmittedSolution) error {
+	if err := solution.Validate(); err != nil {
+		return err
+	}
+
+	tx, err := m.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(
+		"INSERT INTO submittedsolutions(submitted_solution_id, problem_id, created_at, solution_id) VALUES (?, ?, ?, ?)",
+		solution.SubmittedSolutionID,
+		solution.ProblemID,
+		solution.CreatedAt,
+		solution.SolutionID,
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *Manager) ProblemFilePath(problemID int64) string {
 	return filepath.Join(m.basePath, "problems", fmt.Sprintf("%d.json", problemID))
 }
@@ -469,6 +559,9 @@ func (m *Manager) deleteSolution(solutionID int64) error {
 
 func (m *Manager) AddSolution(solution *Solution) (int64, error) {
 	createdAt := time.Now().Unix()
+	if solution.CreatedAt != 0 {
+		createdAt = solution.CreatedAt
+	}
 
 	problem, err := m.GetProblem(solution.ProblemID)
 	if err != nil {

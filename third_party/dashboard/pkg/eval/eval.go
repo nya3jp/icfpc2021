@@ -3,7 +3,9 @@ package eval
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"time"
 
@@ -65,4 +67,18 @@ func Eval(scorerPath string, problemPath, solutionPath string) (int64, string) {
 		return RejectDislike, "rejected by scorer"
 	}
 	return output.Dislike, ""
+}
+
+func EvalSolution(scorerPath string, mgr *solutionmgr.Manager, problemID int64, data *solutionmgr.SolutionData) (int64, string, error) {
+	tmp, err := ioutil.TempFile("", "scorer.")
+	if err != nil {
+		return 0, "", err
+	}
+	defer tmp.Close()
+	defer os.Remove(tmp.Name())
+	if err := json.NewEncoder(tmp).Encode(data); err != nil {
+		return 0, "", err
+	}
+	dislike, rejectReason := Eval(scorerPath, mgr.ProblemFilePath(problemID), tmp.Name())
+	return dislike, rejectReason, nil
 }
