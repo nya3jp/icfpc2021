@@ -9,7 +9,7 @@ import {
     vadd,
     vdiv,
     vdot,
-    vmul, vneg,
+    vmul,
     vsub,
     vunit
 } from './geom';
@@ -194,24 +194,24 @@ export class Editor extends EventTarget {
         }
     }
 
-    private bonusColor(bonusType: string): string {
+    private bonusColor(bonusType: string, alpha: number): string {
 	    switch (bonusType) {
 		    case 'GLOBALIST':
-			    return 'rgba(255, 255, 0,';
+			    return `rgba(255, 255, 0, ${alpha})`;
 		    case 'BREAK_A_LEG':
-			    return 'rgba(0, 0, 255,';
+			    return `rgba(0, 0, 255, ${alpha})`;
 		    case 'WALLHACK':
-			    return 'rgba(128, 128, 0,';
+			    return `rgba(128, 128, 0, ${alpha})`;
 		    default:
-			    return 'rgba(0, 0, 0,';
+			    return `rgba(0, 0, 0, ${alpha})`;
 	    }
     }
 
     private renderBonuses(ctx: CanvasRenderingContext2D): void {
         const radius = 3.0 * this.translator.zoom;
         for (const bonus of this.problem.bonuses) {
-            ctx.strokeStyle = this.bonusColor(bonus.bonus)+'1)';
-            ctx.fillStyle =  this.bonusColor(bonus.bonus)+'0.5)';
+            ctx.strokeStyle = this.bonusColor(bonus.bonus, 1);
+            ctx.fillStyle = this.bonusColor(bonus.bonus, 0.5);
             ctx.beginPath();
             const pos = this.translator.modelToCanvas(bonus.position);
             ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);

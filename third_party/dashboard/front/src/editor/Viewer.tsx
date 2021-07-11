@@ -47,9 +47,9 @@ function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) 
 
     // Draw bonuses.
     const radius = 3.0 * translator.zoom;
-    ctx.strokeStyle = 'rgba(255, 255, 0, 1)';
-    ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
     for (const bonus of problem.data.bonuses) {
+        ctx.strokeStyle = bonusColor(bonus.bonus, 1);
+        ctx.fillStyle = bonusColor(bonus.bonus, 0.5);
         ctx.beginPath();
         const pos = translator.modelToCanvas(bonus.position);
         ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
@@ -75,6 +75,19 @@ function draw(canvas: HTMLCanvasElement, problem: Problem, solution?: Solution) 
         ctx.beginPath();
         ctx.arc(x, y, 2.0, 0, 2*Math.PI);
         ctx.fill();
+    }
+}
+
+function bonusColor(bonusType: string, alpha: number): string {
+    switch (bonusType) {
+        case 'GLOBALIST':
+            return `rgba(255, 255, 0, ${alpha})`;
+        case 'BREAK_A_LEG':
+            return `rgba(0, 0, 255, ${alpha})`;
+        case 'WALLHACK':
+            return `rgba(128, 128, 0, ${alpha})`;
+        default:
+            return `rgba(0, 0, 0, ${alpha})`;
     }
 }
 
