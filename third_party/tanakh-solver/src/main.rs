@@ -394,17 +394,23 @@ impl Annealer for Problem {
     ) -> Self::Move {
         let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
+        fn delta(rng: &mut impl rand::Rng, w: i64) -> (i64, i64) {
+            loop {
+                let dx = rng.gen_range(-w..=w);
+                let dy = rng.gen_range(-w..=w);
+                if (dx, dy) != (0, 0) {
+                    break (dx, dy);
+                }
+            }
+        }
+
         loop {
             match rng.gen_range(0..if self.exact { 22 } else { 21 }) {
                 0..=9 => {
                     let i = rng.gen_range(0..self.candidate_vertices.len());
                     let i = self.candidate_vertices[i];
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -418,7 +424,7 @@ impl Annealer for Problem {
                         return vec![(i, d)];
                     }
                 }
-                10..=16 => loop {
+                10..=16 => {
                     let i = rng.gen_range(0..self.candidate_edges.len());
                     let e = &self.problem.figure.edges[self.candidate_edges[i]];
                     let i = e.v1;
@@ -430,13 +436,7 @@ impl Annealer for Problem {
                     //     continue;
                     // }
 
-                    let (dx, dy) = loop {
-                        let dx = rng.gen_range(-w..=w);
-                        let dy = rng.gen_range(-w..=w);
-                        if (dx, dy) != (0, 0) {
-                            break (dx, dy);
-                        }
-                    };
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -451,7 +451,7 @@ impl Annealer for Problem {
                     if ok {
                         return vec![(i, d), (j, d)];
                     }
-                },
+                }
                 17..=19 => {
                     if self.candidate_triangles.is_empty() {
                         continue;
@@ -459,13 +459,7 @@ impl Annealer for Problem {
                     let i = rng.gen_range(0..self.candidate_triangles.len());
                     let (i, j, k) = self.triangles[self.candidate_triangles[i]];
 
-                    let (dx, dy) = loop {
-                        let dx = rng.gen_range(-w..=w);
-                        let dy = rng.gen_range(-w..=w);
-                        if (dx, dy) != (0, 0) {
-                            break (dx, dy);
-                        }
-                    };
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
