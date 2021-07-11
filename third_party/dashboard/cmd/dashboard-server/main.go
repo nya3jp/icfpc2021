@@ -52,7 +52,7 @@ func main() {
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}", s.handleProblemGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
-	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
