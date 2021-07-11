@@ -1,5 +1,6 @@
 import {Point, Pose, Problem} from './types';
 import {
+    closest,
     distance2,
     midPoint,
     roundPoint,
@@ -293,7 +294,7 @@ export class Editor extends EventTarget {
                 }
                 if (distance2(this.pose[nearest], pos) < 10 * 10) {
                     this.draggingVertex = nearest;
-                    this.onDragVertex(pos);
+                    this.onDragVertex(ev);
                 }
                 break;
             case 2: // Right click
@@ -320,8 +321,7 @@ export class Editor extends EventTarget {
     private onMouseMove(ev: MouseEvent): void {
         const mouse: Point = [ev.offsetX, ev.offsetY];
         if (this.draggingVertex !== null) {
-            const pos = this.translator.canvasToModel(mouse);
-            this.onDragVertex(pos);
+            this.onDragVertex(ev);
             this.render();
         }
         if (this.slideStartCanvas !== null) {
@@ -346,9 +346,19 @@ export class Editor extends EventTarget {
         this.setZoomAt(this.translator.zoom + ev.deltaY / 200, [ev.offsetX, ev.offsetY]);
     }
 
-    private onDragVertex(pos: Point): void {
-        this.pose[this.draggingVertex!] = roundPoint(pos);
+    private onDragVertex(ev: MouseEvent): void {
+        const cursor = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
+        this.pose[this.draggingVertex!] = roundPoint(ev.shiftKey ? this.snap(cursor) : cursor);
         this.render();
+    }
+
+    private snap(cursor: Point): Point {
+        const candidates = this.problem.bonuses.map(({position}) => position).concat(this.problem.hole);
+        const nearest = closest(candidates, cursor)[0];
+        if (vabs(vsub(cursor, nearest)) < 30 / this.translator.zoom) {
+            return nearest;
+        }
+        return cursor;
     }
 
     private nearHoleEdge(p: Point, threshold: number): number | undefined {

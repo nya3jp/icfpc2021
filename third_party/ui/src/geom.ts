@@ -43,3 +43,9 @@ export function vunit(p: Point): Point {
 export function vdot(p: Point, q: Point): number {
     return p[0] * q[0] + p[1] * q[1];
 }
+
+export function closest(points: Point[], origin: Point): [Point, number] {
+    return points
+        .map((p, i) => [vabs(vsub(origin, p)), p, i])
+        .reduce((a, b) => (a[0] < b[0] ? a : b)).slice(1) as [Point, number];
+}
