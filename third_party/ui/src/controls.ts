@@ -1,5 +1,6 @@
 import {Editor} from './editor';
 import {ProblemSet} from './problems';
+import {SolutionSet} from './solutions';
 
 export class ProblemSelector {
     constructor(
@@ -68,6 +69,45 @@ export class OutputTextArea {
             problem_id: this.problemSelector.getProblemId(),
             vertices: this.editor.getPose(),
         });
+    }
+}
+
+export class DashboardSaver {
+    private readonly uiBaseURL = "https://nya3jp.github.io/icfpc2021/fcc7938b3c545e6ff51b101ea86f548b/#";
+    private readonly dashBaseURL = "https://spweek.badalloc.com/#/solutions/";
+
+    constructor(
+        private readonly button: HTMLButtonElement,
+        private readonly uiURLInput: HTMLInputElement,
+        private readonly dashURLInput: HTMLInputElement,
+        private readonly message: HTMLSpanElement,
+        private readonly solutionSet: SolutionSet,
+        private readonly editor: Editor,
+        private readonly problemSelector: ProblemSelector) {
+    }
+
+    public start(): void {
+        this.button.addEventListener('click', () => this.onClick());
+        this.editor.addEventListener('refresh', () => this.onRefresh());
+    }
+
+    private onClick(): void {
+        (async () => {
+            const problemId = this.problemSelector.getProblemId()
+            const pose = this.editor.getPose();
+            let solutionId = await this.solutionSet.addSolution(problemId, pose);
+            this.uiURLInput.value = `${this.uiBaseURL}?problem_id=${problemId}&base_solution_id=${solutionId}`;
+            this.dashURLInput.value = `${this.dashBaseURL}${solutionId}`;
+            this.uiURLInput.select();
+            document.execCommand('copy');
+            this.message.innerText = "Clipboard Copied!";
+        })();
+    }
+
+    private onRefresh(): void {
+        this.uiURLInput.value = "";
+        this.dashURLInput.value = "";
+        this.message.innerText = "";
     }
 }
 

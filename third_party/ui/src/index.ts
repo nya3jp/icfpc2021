@@ -1,6 +1,7 @@
 import {Editor} from './editor';
 import {
     ConstraintHintToggle,
+    DashboardSaver,
     FragmentUpdater,
     OutputTextArea,
     ProblemSelector, RelayoutButton, SimilarEdgeHighlightToggle,
@@ -18,6 +19,12 @@ async function init() {
     const editor = new Editor(document.getElementById('canvas') as HTMLCanvasElement);
 
     const problemSelector = new ProblemSelector(document.getElementById("problems") as HTMLSelectElement, editor, problemSet);
+    const dashboardSaver = new DashboardSaver(
+        document.getElementById("save_dashboard") as HTMLButtonElement,
+        document.getElementById("save_dashboard_uiurl") as HTMLInputElement,
+        document.getElementById("save_dashboard_dashurl") as HTMLInputElement,
+        document.getElementById("save_dashboard_message") as HTMLSpanElement,
+        solutionSet, editor, problemSelector);
     const fragmentUpdater = new FragmentUpdater(editor, problemSelector);
     const outputTextArea = new OutputTextArea(document.getElementById('output') as HTMLTextAreaElement, editor, problemSelector);
     const zoomSlider = new ZoomSlider(document.getElementById('zoom') as HTMLInputElement, editor);
@@ -29,6 +36,7 @@ async function init() {
     editor.start();
 
     problemSelector.start();
+    dashboardSaver.start();
     fragmentUpdater.start();
     outputTextArea.start();
     zoomSlider.start();
