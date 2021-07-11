@@ -45,6 +45,10 @@ fn solve(
     #[opt(long, default_value = "1")]
     threads: usize,
 
+
+    #[opt(long)]
+    problem: Option<PathBuf>,
+
     #[opt(long)]
     search_vertices: Option<Vec<usize>>,
 
@@ -54,7 +58,17 @@ fn solve(
     #[opt(long)] submit: bool,
     problem_id: i64,
 ) -> Result<()> {
-    let problem = get_problem(problem_id)?;
+    let problem = match problem {
+        Some(probpath) => {
+            let prob: Problem =
+                serde_json::from_reader(
+                    File::open(&probpath).expect(&format!("{} is not found", probpath.display())),
+                )
+            .expect("invalid json file");
+            prob
+        },
+        None => get_problem(problem_id)?
+    };
 
     let init_state: Option<Vec<(i64, i64)>> = base_solution.map(|frompath| {
         let solution: Solution =
