@@ -171,6 +171,7 @@ fn do_annealing<A: Annealer>(
         }
 
         let mov = annealer.neighbour(&mut state, &mut rng, progress_ratio);
+
         let (new_score, new_score_valid) =
             annealer.apply_and_eval(&mut state, &mov, best_score, valid_best_score, cur_score);
 

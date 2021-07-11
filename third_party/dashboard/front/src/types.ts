@@ -23,6 +23,7 @@ export interface Problem {
 
 export interface SolutionData {
     vertices: Point[];
+    bonuses: UsedBonus[];
 }
 
 export interface Solution {
@@ -38,6 +39,11 @@ export interface Solution {
 export interface Bonus {
     bonus: string;
     position: Point;
+    problem: number;
+}
+
+export interface UsedBonus {
+    bonus: string;
     problem: number;
 }
 

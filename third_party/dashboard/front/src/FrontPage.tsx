@@ -127,10 +127,15 @@ interface FormFilterState {
     order: string;
 };
 
+interface SolutionFilterState {
+    useGlobalist: boolean;
+}
+
 const ProblemList = (props: ProblemListProps) => {
     const {model} = props;
     const classes = useStyles();
     const ssKey = "ProblemListFormFilterState";
+    const solFilterKey = "ProblemListSolutionFilterState";
 
     const [formFilter, setFormFilter] = useState<FormFilterState>(() => {
         const s = localStorage.getItem(ssKey);
@@ -146,6 +151,15 @@ const ProblemList = (props: ProblemListProps) => {
     const [problems, setProblems] = useState<Problem[]>([]);
     const [bonuses, setBonuses] = useState<BonusMap>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
+    const [solutionFilter, setSolutionFilter] = useState<SolutionFilterState>(() => {
+        const s = localStorage.getItem(solFilterKey);
+        if (s) {
+            return JSON.parse(s);
+        }
+        return {
+            useGlobalist: false,
+        };
+    });
 
     useEffect(() => {
         // Every time the state is updated, this is called...
@@ -173,6 +187,9 @@ const ProblemList = (props: ProblemListProps) => {
     const formFilterSaveHook = (d: FormFilterState) => {
         localStorage.setItem(ssKey, JSON.stringify(d));
     };
+    const solutionFilterSaveHook = (d: SolutionFilterState) => {
+        localStorage.setItem(solFilterKey, JSON.stringify(d));
+    }
     const switchHideTopTie = (event: React.ChangeEvent<HTMLInputElement>) => {
         const v = {...formFilter, hideTopTie: event.target.checked};
         setFormFilter(v);
@@ -188,20 +205,66 @@ const ProblemList = (props: ProblemListProps) => {
         setFormFilter(v);
         formFilterSaveHook(v);
     };
+    const filterBestSolution = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const v = {...solutionFilter, useGlobalist: event.target.checked};
+        setSolutionFilter(v);
+        solutionFilterSaveHook(v);
+    };
 
     if (problems.length === 0) return <p>No solutions</p>;
 
     let bestSolutions: BestSolutionMap = {};
     problems.forEach((problem) => {
-        const ss = solutions[problem.problem_id];
-        if (!ss || ss.length === 0) {
+        let ss = solutions[problem.problem_id];
+        if (!ss) {
             return;
         }
+
+        // TODO: Extend to other bonuses
+        if (solutionFilter.useGlobalist) {
+            ss = ss.filter((s) => {
+                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == 'GLOBALIST');
+            });
+        } else {
+            ss = ss.filter((s) => s.data.bonuses == null || s.data.bonuses.length === 0);
+        }
+
+        if (ss.length == 0) {
+            return;
+        }
+
         const sol = ss.reduce((prev, current) => {
             return prev.dislike < current.dislike ? prev : current;
         });
         bestSolutions[problem.problem_id] = sol;
     });
+
+    const filteredBestSolutionMap = (bonus: string) => {
+        let solutionMap: BestSolutionMap = {};
+        problems.forEach((problem) => {
+            let ss = solutions[problem.problem_id];
+            if (!ss) {
+                return;
+            }
+
+            ss = ss.filter((s) => {
+                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == bonus);
+            });
+
+            if (ss.length == 0) {
+                return;
+            }
+
+            const sol = ss.reduce((prev, current) => {
+                return prev.dislike < current.dislike ? prev : current;
+            });
+            solutionMap[problem.problem_id] = sol;
+        });
+        return solutionMap;
+    };
+    const bestSolutionsGlobalist: BestSolutionMap = filteredBestSolutionMap("GLOBALIST");
+    const bestSolutionsSuperflex: BestSolutionMap = filteredBestSolutionMap("SUPERFLEX");
+
     const ps = problems.sort((p1: Problem, p2: Problem) => {
         if (formFilter.order === "ProblemID") {
             return p1.problem_id - p2.problem_id;
@@ -250,6 +313,7 @@ const ProblemList = (props: ProblemListProps) => {
             <FormGroup row>
                 <FormControlLabel control={<Switch checked={formFilter.hideTopTie} onChange={switchHideTopTie} color="primary" />} label="トップタイの問題を隠す" />
                 <FormControlLabel control={<Switch checked={formFilter.hideZeroScore} onChange={switchHideZeroScore} color="primary" />} label="0点の問題を隠す" />
+                <FormControlLabel control={<Switch checked={solutionFilter.useGlobalist} onChange={filterBestSolution} color="primary" />} label="GLOBALIST" />
                 <div className={classes.spacer}></div>
                 <FormControl>
                     <InputLabel shrink id="sort-order-label">ソート順</InputLabel>
@@ -266,16 +330,22 @@ const ProblemList = (props: ProblemListProps) => {
                         <TableCell>ID</TableCell>
                         <TableCell>Problem</TableCell>
                         <TableCell>Best Solution</TableCell>
+                        <TableCell>Best (+GLOBALIST)</TableCell>
+                        <TableCell>Best (+SUPERFLEX)</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {ps.map((problem) => {
                         const sol = bestSolutions[problem.problem_id];
+                        const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
+                        const solSuperflex = bestSolutionsSuperflex[problem.problem_id];
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
                                     <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                     <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
+                                    <TableCell></TableCell>
+                                    <TableCell></TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
                             );
@@ -295,7 +365,9 @@ const ProblemList = (props: ProblemListProps) => {
                             <TableRow key={problem.problem_id} style={{background: color}}>
                                 <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                 <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
-                                <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
+                                <TableCell><SolutionCell problem={problem} solution={sol}/></TableCell>
+                                <TableCell>{solGlobalist && <SolutionCell problem={problem} solution={bestSolutionsGlobalist[problem.problem_id]}></SolutionCell>}</TableCell>
+                                <TableCell>{solSuperflex && <SolutionCell problem={problem} solution={bestSolutionsSuperflex[problem.problem_id]}></SolutionCell>}</TableCell>
                             </TableRow>
                         );
                     })}

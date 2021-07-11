@@ -30,6 +30,7 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                         <TableCell>Solution</TableCell>
                         <TableCell>Created at</TableCell>
                         <TableCell>Dislike</TableCell>
+                        <TableCell>使用ボーナス</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
@@ -43,6 +44,12 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                                 <TableCell><Link to={link}><Viewer problem={problem} solution={solution} size={100} /></Link></TableCell>
                                 <TableCell>{createdAt.toString()}</TableCell>
                                 <TableCell>{solution.dislike}</TableCell>
+                                <TableCell>{
+                                    solution.data.bonuses != null &&
+                                        solution.data.bonuses.map((bonus) => {
+                                            return <div>{bonus.bonus}</div>
+                                        })
+                                }</TableCell>
                             </TableRow>
                         );
                     })}
@@ -73,9 +80,13 @@ export const ProblemPage = (props: ProblemPageProps) => {
             solutions = solutions.sort((s1: Solution, s2: Solution) => {
                 if (s1.dislike < s2.dislike) {
                     return -1;
+                } else if (s2.dislike < s1.dislike) {
+                    return 1;
                 }
                 if (s1.created_at < s2.created_at) {
                     return -1;
+                } else if (s2.created_at < s1.created_at) {
+                    return 1;
                 }
                 return 0;
             });

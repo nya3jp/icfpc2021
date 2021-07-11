@@ -25,7 +25,10 @@ pub fn bonus(problem: &Problem, pose: &Pose) -> Vec<UsedBonus> {
     for b in &problem.bonuses {
         for v in &pose.vertices {
             if v == &b.position {
-                bonuses.push(UsedBonus{bonus: b.bonus, problem: b.problem});
+                bonuses.push(UsedBonus {
+                    bonus: b.bonus,
+                    problem: b.problem,
+                });
             }
             eprintln!("b, v: {:?}, {:?}", v, &b.position);
         }
@@ -87,9 +90,9 @@ fn is_inside_hole_internal(
             continue;
         }
 
-        if outside_point.is_some() &&
-            (outside_point.unwrap() == edge.v1 || outside_point.unwrap() == edge.v2) &&
-            pose.has_wallhack()
+        if outside_point.is_some()
+            && (outside_point.unwrap() == edge.v1 || outside_point.unwrap() == edge.v2)
+            && pose.has_wallhack()
         {
             continue;
         }
@@ -138,6 +141,7 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
 
     // TODO: Use integer?
     let mut error_sum: f64 = 0.0;
+    let mut error_count = 0;
 
     // All edges should satisfy the strech restriction.
     for edge in &problem.figure.edges {
@@ -164,9 +168,19 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
                 "Invalid stretch: {:?}/{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}",
                 d1, d2, p1, p2, q1, q2, lhs, rhs
             );
+
+            if pose.has_superflex() {
+                error_count += 1;
+                if error_count >= 2 {
+                    return false;
+                }
+                continue;
+            }
+
             if !pose.has_globalist() {
                 return false;
             }
+
             error_sum += ((d2 as f64) / (d1 as f64) - 1.0).abs();
         }
     }

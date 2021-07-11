@@ -3,7 +3,7 @@ extern crate prettytable;
 
 mod sa;
 
-use std::cmp::{max, Reverse};
+use std::cmp::{max, min, Reverse};
 use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
@@ -215,61 +215,69 @@ impl Annealer for Problem {
             return State::new(init_state.clone(), &self.problem);
         }
 
-        let ix = rng.gen_range(0..self.problem.hole.len());
+        let bonuses = self.use_bonus.as_ref().map(|b| vec![b.clone()]);
 
-        let default_point = self.problem.hole[ix].clone();
+        let init_state = (|| {
+            for _ in 0..100 {
+                let mut minx = i64::MAX;
+                let mut maxx = i64::MIN;
+                let mut miny = i64::MAX;
+                let mut maxy = i64::MIN;
 
-        let ret = (0..self.problem.figure.vertices.len())
-            .map(|i| {
-                *self.fixed_points.get(&i).unwrap_or(&default_point.clone())
-                /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
-            })
-            .collect_vec();
+                for p in self.problem.hole.iter() {
+                    minx = min(minx, p.x as i64);
+                    maxx = max(maxx, p.x as i64);
+                    miny = min(miny, p.y as i64);
+                    maxy = max(maxy, p.y as i64);
+                }
 
-        let init_state = Pose {
-            vertices: ret,
-            bonuses: self.use_bonus.as_ref().map(|b| vec![b.clone()]),
-        };
-        if !is_inside_hole(&self.problem, &init_state) {
-            eprintln!("Wrong Answer!!");
-        }
+                let ret = (0..self.problem.figure.vertices.len())
+                    .map(|_| loop {
+                        let x = rng.gen_range(minx..=maxx);
+                        let y = rng.gen_range(miny..=maxy);
+
+                        if self.problem.hole.contains(&Point::new(x as _, y as _)) {
+                            break Point::new(x as _, y as _);
+                        }
+                    })
+                    .collect_vec();
+
+                let ret = Pose {
+                    vertices: ret,
+                    bonuses: bonuses.clone(),
+                };
+
+                if is_inside_hole(&self.problem, &ret) {
+                    return ret;
+                }
+            }
+
+            // fallback
+
+            let ix = rng.gen_range(0..self.problem.hole.len());
+
+            let default_point = self.problem.hole[ix].clone();
+
+            let ret = (0..self.problem.figure.vertices.len())
+                .map(|i| {
+                    *self.fixed_points.get(&i).unwrap_or(&default_point.clone())
+                    /*self.hole[rng.gen_range(0..self.hole.len())].clone()*/
+                })
+                .collect_vec();
+
+            let init_state = Pose {
+                vertices: ret,
+                bonuses,
+            };
+
+            if !is_inside_hole(&self.problem, &init_state) {
+                eprintln!("Wrong Answer!!");
+            }
+
+            init_state
+        })();
 
         State::new(init_state, &self.problem)
-
-        // loop {
-        //     let mut minx = i64::MAX;
-        //     let mut maxx = i64::MIN;
-        //     let mut miny = i64::MAX;
-        //     let mut maxy = i64::MIN;
-
-        //     for p in self.problem.hole.iter() {
-        //         minx = min(minx, p.x as i64);
-        //         maxx = max(maxx, p.x as i64);
-        //         miny = min(miny, p.y as i64);
-        //         maxy = max(maxy, p.y as i64);
-        //     }
-
-        //     let ret = (0..self.problem.figure.vertices.len())
-        //         .map(|_| loop {
-        //             let x = rng.gen_range(minx..=maxx);
-        //             let y = rng.gen_range(miny..=maxy);
-
-        //             if self
-        //                 .problem
-        //                 .contains(&Point::new(x as _, y as _))
-        //                 != ContainsResult::OUT
-        //             {
-        //                 break Point::new(x as _, y as _);
-        //             }
-        //         })
-        //         .collect_vec();
-
-        //     let ret = Pose { vertices: ret };
-
-        //     if is_inside_hole(&self.problem, &ret) {
-        //         break ret;
-        //     }
-        // }
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
@@ -277,7 +285,7 @@ impl Annealer for Problem {
         //     .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
 
         self.start_temp
-            .unwrap_or_else(|| (init_score / 100.0).clamp(100.0, 10000.0))
+            .unwrap_or_else(|| (init_score / 10.0).max(100.0))
     }
 
     fn is_done(&self, score: f64) -> bool {
@@ -386,17 +394,23 @@ impl Annealer for Problem {
     ) -> Self::Move {
         let w = max(1, (4.0 * (1.0 - progress_ratio)).round() as i64);
 
+        fn delta(rng: &mut impl rand::Rng, w: i64) -> (i64, i64) {
+            loop {
+                let dx = rng.gen_range(-w..=w);
+                let dy = rng.gen_range(-w..=w);
+                if (dx, dy) != (0, 0) {
+                    break (dx, dy);
+                }
+            }
+        }
+
         loop {
             match rng.gen_range(0..if self.exact { 22 } else { 21 }) {
                 0..=9 => {
                     let i = rng.gen_range(0..self.candidate_vertices.len());
                     let i = self.candidate_vertices[i];
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -410,7 +424,7 @@ impl Annealer for Problem {
                         return vec![(i, d)];
                     }
                 }
-                10..=16 => loop {
+                10..=16 => {
                     let i = rng.gen_range(0..self.candidate_edges.len());
                     let e = &self.problem.figure.edges[self.candidate_edges[i]];
                     let i = e.v1;
@@ -422,11 +436,7 @@ impl Annealer for Problem {
                     //     continue;
                     // }
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -441,7 +451,7 @@ impl Annealer for Problem {
                     if ok {
                         return vec![(i, d), (j, d)];
                     }
-                },
+                }
                 17..=19 => {
                     if self.candidate_triangles.is_empty() {
                         continue;
@@ -449,11 +459,7 @@ impl Annealer for Problem {
                     let i = rng.gen_range(0..self.candidate_triangles.len());
                     let (i, j, k) = self.triangles[self.candidate_triangles[i]];
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = delta(rng, w);
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -570,10 +576,11 @@ fn solve(
     #[opt(long)] start_temp: Option<f64>,
     #[opt(long, default_value = "0.25")] min_temp: f64,
 
-    #[opt(long, default_value = "100.0")] penalty_ratio: f64,
-    #[opt(long, default_value = "0.0")] penalty_deflate: f64,
+    #[opt(long, default_value = "1000.0")] penalty_ratio: f64,
+    #[opt(long, default_value = "0.25")] penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
+    #[opt(long)] submit_on_better: bool,
 
     /// Bonus to use (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
     #[opt(long)]
@@ -599,10 +606,10 @@ fn solve(
         }
     }
 
+    let ps = get_problems()?;
+
     let use_bonus: Option<UsedBonus> = use_bonus
         .map(|b| -> Result<UsedBonus> {
-            let ps = get_problems()?;
-
             let problem = if let Some(pid) = &bonus_from {
                 let p = ps.iter().find(|p| p.0 == *pid).ok_or_else(|| {
                     anyhow!(
@@ -651,7 +658,12 @@ fn solve(
         })
         .transpose()?;
 
-    let problem: P = get_problem(problem_id)?;
+    // let problem: P = get_problem(problem_id)?;
+    let problem = &ps
+        .iter()
+        .find(|p| p.0 == problem_id)
+        .ok_or_else(|| anyhow!("Problem {} does not exist", problem_id))?
+        .1;
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
     for gb in get_bonuses.iter() {
@@ -787,33 +799,39 @@ fn solve(
 
     eprintln!("Wrote the solution to {}", solution_filename);
 
+    // Submit to the internal dashboard.
+    eprintln!("Submitting internal dashboard");
+    tanakh_solver::submit_dashboard(problem_id, &solution_filename)?;
+
     if no_submit {
         return Ok(());
     }
 
     let problems = get_problem_states()?;
     let problem = problems.iter().find(|r| r.problem_id == problem_id);
+    let mut better = false;
 
     if let Some(problem) = problem {
         eprintln!(
             "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
             score as i64, problem.your_dislikes, problem.minimal_dislikes
         );
+        if (score as i64) < problem.your_dislikes {
+            better = true;
+        }
     } else {
         eprintln!("No submission for problem {} found.", problem_id);
     }
 
-    if dialoguer::Confirm::new()
-        .with_prompt("Submit?")
-        .interact()?
+    if (submit_on_better && better)
+        || dialoguer::Confirm::new()
+            .with_prompt("Submit?")
+            .interact()?
     {
         eprintln!("Submitting");
 
         let resp = tanakh_solver::submit(problem_id, &solution)?;
         eprintln!("Response: {:?}", resp);
-
-        // Submit to the internal dashboard.
-        tanakh_solver::submit_dashboard(problem_id, &solution_filename)?;
     }
 
     Ok(())
@@ -982,7 +1000,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
 fn get_problems() -> Result<Vec<(i64, P)>> {
     let mut ret = vec![];
-    for rd in fs::read_dir("../problems")? {
+    for rd in fs::read_dir("./problems")? {
         let rd = rd?;
 
         let path = rd.path();
