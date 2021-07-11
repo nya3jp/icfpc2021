@@ -22,7 +22,7 @@ pub trait Annealer {
         false
     }
 
-    fn eval(&self, state: &Self::State) -> f64;
+    fn eval(&self, state: &Self::State, best_score: f64, valid_best_score: f64) -> (f64, bool);
 
     fn neighbour(
         &self,
@@ -34,9 +34,16 @@ pub trait Annealer {
     fn apply(&self, state: &mut Self::State, mov: &Self::Move);
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move);
 
-    fn apply_and_eval(&self, state: &mut Self::State, mov: &Self::Move, _prev_score: f64) -> f64 {
+    fn apply_and_eval(
+        &self,
+        state: &mut Self::State,
+        mov: &Self::Move,
+        best_score: f64,
+        valid_best_score: f64,
+        _prev_score: f64,
+    ) -> (f64, bool) {
         self.apply(state, mov);
-        self.eval(state)
+        self.eval(state, best_score, valid_best_score)
     }
 }
 
@@ -44,7 +51,7 @@ pub fn annealing<A: 'static + Annealer + Clone + Send>(
     annealer: &A,
     opt: &AnnealingOptions,
     seed: u64,
-) -> (f64, <A as Annealer>::State) {
+) -> Option<(f64, <A as Annealer>::State)> {
     assert!(opt.threads > 0);
 
     if opt.threads == 1 {
@@ -62,10 +69,25 @@ pub fn annealing<A: 'static + Annealer + Clone + Send>(
             }));
         }
 
-        ths.into_iter()
+        let res = ths
+            .into_iter()
             .map(|th| th.join().unwrap())
+            .collect::<Vec<_>>();
+
+        if !opt.silent {
+            eprintln!("===== results =====");
+            for (i, r) in res.iter().enumerate() {
+                eprintln!(
+                    "[{}]: score: {}",
+                    i,
+                    r.as_ref().map_or(f64::INFINITY, |r| r.0)
+                );
+            }
+        }
+
+        res.into_iter()
+            .filter_map(|th| th)
             .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap())
-            .unwrap()
     }
 }
 
@@ -74,13 +96,21 @@ fn do_annealing<A: Annealer>(
     annealer: &A,
     opt: &AnnealingOptions,
     seed: u64,
-) -> (f64, <A as Annealer>::State) {
+) -> Option<(f64, <A as Annealer>::State)> {
     let mut rng = SmallRng::seed_from_u64(seed);
 
     let mut state = annealer.init_state(&mut rng);
-    let mut cur_score = annealer.eval(&state);
+    let (mut cur_score, init_state_valid) = annealer.eval(&state, f64::INFINITY, f64::INFINITY);
+
     let mut best_score = cur_score;
-    let mut best_ans = state.clone();
+
+    let mut valid_best_score = f64::INFINITY;
+    let mut valid_best_ans = if init_state_valid {
+        valid_best_score = cur_score;
+        Some(state.clone())
+    } else {
+        None
+    };
 
     macro_rules! progress {
         ($($arg:expr),*) => {
@@ -115,7 +145,7 @@ fn do_annealing<A: Annealer>(
                 restart_cnt += 1;
                 if restart_cnt >= opt.restart {
                     progress!(
-                        "{} iteration processed, {} iter/s",
+                        "{} iteration processed, {:.2} iter/s",
                         i,
                         i as f64 / time_limit
                     );
@@ -130,8 +160,9 @@ fn do_annealing<A: Annealer>(
 
             if (timer.elapsed().unwrap() - prev_heart_beat).as_secs_f64() >= 10.0 {
                 progress!(
-                    "Best: score = {:15.3}, temp = {:12.3}, progress: {:6.2}% *",
+                    "best score = {:12.3}, valid best = {:12.3}, temp = {:12.3}, progress: {:6.2}% 🈚",
                     best_score,
+                    valid_best_score,
                     temp,
                     progress_ratio * 100.0
                 );
@@ -140,25 +171,46 @@ fn do_annealing<A: Annealer>(
         }
 
         let mov = annealer.neighbour(&mut state, &mut rng, progress_ratio);
-        let new_score = annealer.apply_and_eval(&mut state, &mov, cur_score);
+        let (new_score, new_score_valid) =
+            annealer.apply_and_eval(&mut state, &mov, best_score, valid_best_score, cur_score);
 
         if new_score <= cur_score
             || rng.gen::<f64>() <= ((cur_score - new_score) as f64 / temp).exp()
         {
             cur_score = new_score;
+
+            let mut best_updated = false;
+            let mut best_valid_updated = false;
+
             if cur_score < best_score {
                 if best_score - cur_score > 1e-6 {
-                    progress!(
-                        "Best: score = {:15.3}, temp = {:12.3}, progress: {:6.2}%",
-                        cur_score,
-                        temp,
-                        progress_ratio * 100.0
-                    );
-                    prev_heart_beat = timer.elapsed().unwrap();
+                    best_updated = true;
                 }
+
                 best_score = cur_score;
-                best_ans = state.clone();
             }
+
+            if new_score_valid && cur_score < valid_best_score {
+                if valid_best_score - cur_score > 1e-6 {
+                    best_valid_updated = true;
+                }
+
+                valid_best_score = cur_score;
+                valid_best_ans = Some(state.clone());
+            }
+
+            if best_updated || best_valid_updated {
+                progress!(
+                    "best score = {:12.3}, valid best = {:12.3}, temp = {:12.3}, progress: {:6.2}% {}",
+                    best_score,
+                    valid_best_score,
+                    temp,
+                    progress_ratio * 100.0,
+                    if best_valid_updated { "✅" } else { "🐴"}
+                );
+                prev_heart_beat = timer.elapsed().unwrap();
+            }
+
             if annealer.is_done(cur_score) {
                 break;
             }
@@ -166,5 +218,10 @@ fn do_annealing<A: Annealer>(
             annealer.unapply(&mut state, &mov);
         }
     }
-    (best_score, best_ans)
+
+    if valid_best_ans.is_some() {
+        Some((valid_best_score, valid_best_ans.unwrap()))
+    } else {
+        None
+    }
 }

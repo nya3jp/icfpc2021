@@ -27,14 +27,14 @@ use sa::*;
 use scorer::{is_inside_hole, is_inside_hole_partial, is_valid_solution};
 use tanakh_solver::{get_problem, ENDPOINT};
 
-fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
-    let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
-    let mut m = BTreeMap::new();
-    for (i1, i2) in &v {
-        m.insert(*i1, *i2);
-    }
-    Ok(m)
-}
+// fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
+//     let v: Vec<(usize, usize)> = serde_json::from_reader(File::open(path)?)?;
+//     let mut m = BTreeMap::new();
+//     for (i1, i2) in &v {
+//         m.insert(*i1, *i2);
+//     }
+//     Ok(m)
+// }
 
 fn check_hint(problem: &P, assignment: &BTreeMap<usize, Point>) -> bool {
     let eps = problem.epsilon as f64 / 1e6;
@@ -195,17 +195,30 @@ impl Annealer for Problem {
     }
 
     fn start_temp(&self, init_score: f64) -> f64 {
+        // self.start_temp
+        //     .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
+
         self.start_temp
-            .unwrap_or_else(|| (init_score / 100.0).max(self.penalty_ratio))
+            .unwrap_or_else(|| (init_score / 100.0).max(100.0))
     }
 
     fn is_done(&self, score: f64) -> bool {
         score < 1e-10
     }
 
-    fn eval(&self, state: &Self::State) -> f64 {
+    fn eval(&self, state: &Self::State, best_score: f64, valid_best_score: f64) -> (f64, bool) {
         let mut score = 0.0;
         let mut pena = 0.0;
+        let mut is_valid = true;
+
+        let penalty_ratio = if valid_best_score.is_finite() {
+            valid_best_score / 2.0
+        } else if best_score.is_finite() {
+            best_score / 2.0
+        } else {
+            self.penalty_ratio
+        }
+        .clamp(4.0, 10000.0);
 
         let eps = self.problem.epsilon as f64 / 1_000_000.0;
 
@@ -221,9 +234,14 @@ impl Annealer for Problem {
                 continue;
             }
 
+            is_valid = false;
+
             // score += 500.0 * (err / eps);
             // score += 1000.0 * (err / eps).powi(2);
-            pena += err / eps;
+
+            // pena += err / eps;
+            // pena += (err / eps - 1.0).powi(2);
+            pena += (err / eps - 0.90).abs().powf(1.0);
         }
 
         for h in self.problem.hole.iter() {
@@ -234,8 +252,11 @@ impl Annealer for Problem {
                 .fold(0.0 / 0.0, f64::min);
         }
 
-        score * (1.0 + pena / 10.0) + pena * self.penalty_ratio
-        // score
+        // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
+        let ret = score * (1.0 + pena / 8.0) + pena * penalty_ratio;
+        // let ret = score + pena * penalty_ratio;
+
+        (ret, is_valid)
     }
 
     fn neighbour(
@@ -359,7 +380,7 @@ impl Annealer for Problem {
                     }
 
                     if ok {
-                        return (0..state.vertices.len()).map(|v| { (v, pd) }).collect();
+                        return (0..state.vertices.len()).map(|v| (v, pd)).collect();
                     }
                 }
 
@@ -442,8 +463,8 @@ fn solve(
     #[opt(long)]
     start_temp: Option<f64>,
 
-    #[opt(long, default_value = "100.0")] penalty_ratio: f64,
-    #[opt(long, default_value = "1.0")] min_temp: f64,
+    #[opt(long, default_value = "10.0")] penalty_ratio: f64,
+    #[opt(long, default_value = "0.25")] min_temp: f64,
 
     #[opt(long)] no_submit: bool,
 
@@ -512,7 +533,7 @@ fn solve(
             candidate_triangles: filter_triangles(&triangles, &hint),
         };
 
-        let (score, solution) = annealing(
+        let res = annealing(
             &problem,
             &AnnealingOptions {
                 time_limit,
@@ -525,15 +546,12 @@ fn solve(
             seed,
         );
 
-        if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
-            eprintln!("Cannot find solution");
-            eprintln!(
-                "Wrong solution: score = {}, {}",
-                score,
-                serde_json::to_string(&solution)?
-            );
+        if res.is_none() {
+            eprintln!("Could not find solution");
             continue;
         }
+
+        let (score, solution) = res.unwrap();
 
         if !is_valid_solution(&problem.problem, &solution) {
             eprintln!("Validation failed");
@@ -553,6 +571,10 @@ fn solve(
         }
     }
 
+    if min_score.is_none() {
+        return Ok(());
+    }
+
     let score = min_score.unwrap();
     let solution = min_solution.unwrap();
 
@@ -565,18 +587,19 @@ fn solve(
     }
 
     let now = chrono::Local::now();
-    fs::write(
-        format!(
-            "results/{}-{}-{:02}{:02}{:02}{:02}.json",
-            problem_id,
-            score.round() as i64,
-            now.date().day(),
-            now.time().hour(),
-            now.time().minute(),
-            now.time().second(),
-        ),
-        serde_json::to_string(&solution)?,
-    )?;
+    let solution_filename = format!(
+        "results/{}-{}-{:02}{:02}{:02}{:02}.json",
+        problem_id,
+        score.round() as i64,
+        now.date().day(),
+        now.time().hour(),
+        now.time().minute(),
+        now.time().second(),
+    );
+
+    fs::write(&solution_filename, serde_json::to_string(&solution)?)?;
+
+    eprintln!("Wrote the solution to {}", solution_filename);
 
     if no_submit {
         return Ok(());
@@ -738,8 +761,14 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
         let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
 
-        let problem: P =
-            serde_json::from_reader(File::open(format!("../problems/{}.problem", problem_id))?)?;
+        let filename = format!("../problems/{}.problem", problem_id);
+
+        if !Path::new(&filename).exists() {
+            eprintln!("File {} not found", filename);
+            continue;
+        }
+
+        let problem: P = serde_json::from_reader(File::open(filename)?)?;
 
         let max_score = (1000.0
             * ((problem.figure.vertices.len()
