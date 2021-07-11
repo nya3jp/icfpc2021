@@ -33,7 +33,7 @@ func ScrapeSubmittedSolutionsTask(scorerPath string, scraper *Scraper, m *soluti
 		log.Printf("Failed to scrape the submitted solutions: %v", err)
 	}
 
-	tick := time.NewTicker(5 * time.Minute)
+	tick := time.NewTicker(10 * time.Minute)
 	defer tick.Stop()
 	for {
 		select {
