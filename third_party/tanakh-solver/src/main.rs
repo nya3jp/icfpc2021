@@ -583,7 +583,7 @@ fn solve(
     #[opt(long, default_value = "0.25")] min_temp: f64,
 
     #[opt(long, default_value = "1000.0")] penalty_ratio: f64,
-    #[opt(long, default_value = "0.0")] penalty_deflate: f64,
+    #[opt(long, default_value = "0.25")] penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
     #[opt(long)] submit_on_better: bool,
@@ -612,10 +612,10 @@ fn solve(
         }
     }
 
+    let ps = get_problems()?;
+
     let use_bonus: Option<UsedBonus> = use_bonus
         .map(|b| -> Result<UsedBonus> {
-            let ps = get_problems()?;
-
             let problem = if let Some(pid) = &bonus_from {
                 let p = ps.iter().find(|p| p.0 == *pid).ok_or_else(|| {
                     anyhow!(
@@ -664,7 +664,12 @@ fn solve(
         })
         .transpose()?;
 
-    let problem: P = get_problem(problem_id)?;
+    // let problem: P = get_problem(problem_id)?;
+    let problem = &ps
+        .iter()
+        .find(|p| p.0 == problem_id)
+        .ok_or_else(|| anyhow!("Problem {} does not exist", problem_id))?
+        .1;
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
     for gb in get_bonuses.iter() {
@@ -1001,7 +1006,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
 fn get_problems() -> Result<Vec<(i64, P)>> {
     let mut ret = vec![];
-    for rd in fs::read_dir("../problems")? {
+    for rd in fs::read_dir("./problems")? {
         let rd = rd?;
 
         let path = rd.path();
