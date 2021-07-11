@@ -74,7 +74,14 @@ export class Editor extends EventTarget {
     }
 
     public setZoom(zoom: number) {
-        this.translator.zoom = zoom;
+        this.setZoomAt(zoom, [this.canvas.width / 2, this.canvas.height / 2]);
+    }
+
+    public setZoomAt(newZoom: number, centerCanvas: Point): void {
+        newZoom = Math.min(20, Math.max(0.5, newZoom));
+        const oldZoom = this.translator.zoom;
+        this.translator.offset = vsub(this.translator.offset, vmul(centerCanvas, (newZoom - oldZoom) / (oldZoom * newZoom)));
+        this.translator.zoom = newZoom;
         this.render();
     }
 
@@ -336,13 +343,7 @@ export class Editor extends EventTarget {
 
     private onMouseWheel(ev: WheelEvent): void {
         ev.preventDefault();
-        const mouse: Point = [ev.offsetX, ev.offsetY];
-        const oldZoom = this.translator.zoom;
-        const newZoom = Math.min(20, Math.max(0.5, oldZoom + ev.deltaY / 200));
-        const deltaZoom = newZoom - oldZoom;
-        this.translator.offset = vsub(this.translator.offset, vmul(mouse, deltaZoom / (oldZoom * (oldZoom + deltaZoom))));
-        this.translator.zoom = newZoom;
-        this.render();
+        this.setZoomAt(this.translator.zoom + ev.deltaY / 200, [ev.offsetX, ev.offsetY]);
     }
 
     private onDragVertex(pos: Point): void {
