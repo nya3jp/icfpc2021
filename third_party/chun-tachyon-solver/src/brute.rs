@@ -116,6 +116,7 @@ fn plan_search(prob: &Problem, base_solution: &Option<Vec<(i64, i64)>>, search_v
         }
     }
     println!("Found triangles: (denoted by edge id) {:?}", triangles);
+    if fixed_vertices.len() > 0 { triangles = Vec::new() } // delete triangles if using fixed vertices
 
     // Generate plans
     let mut resorder : Vec<Plan> = Vec::new();
