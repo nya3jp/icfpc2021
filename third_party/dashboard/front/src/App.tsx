@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {BrowserRouter as Router, Link, Route, Switch} from 'react-router-dom';
+import {HashRouter as Router, Link, Route, Switch} from 'react-router-dom';
 import {FrontPage} from './FrontPage';
 import {SolutionPage} from './SolutionPage';
 
