@@ -140,6 +140,7 @@ pub enum BonusType {
     GLOBALIST,
     BREAK_A_LEG,
     WALLHACK,
+    SUPERFLEX,
 }
 
 impl FromStr for BonusType {
@@ -152,6 +153,8 @@ impl FromStr for BonusType {
             BonusType::BREAK_A_LEG
         } else if s == "WALLHACK" {
             BonusType::WALLHACK
+        } else if s == "SUPERFLEX" {
+            BonusType::SUPERFLEX
         } else {
             Err(format!("Unknown Bonus Type; {}", s))?
         })
@@ -164,6 +167,7 @@ impl Display for BonusType {
             BonusType::GLOBALIST => write!(f, "GLOBALIST"),
             BonusType::BREAK_A_LEG => write!(f, "BREAK_A_LEG"),
             BonusType::WALLHACK => write!(f, "WALLHACK"),
+            BonusType::SUPERFLEX => write!(f, "SUPERFLEX"),
         }
     }
 }
