@@ -116,6 +116,7 @@ fn filter_triangles(
 struct Problem {
     problem: P,
     use_bonus: Option<UsedBonus>,
+    get_bonuses: Vec<BonusType>,
     penalty_ratio: f64,
     exact: bool,
     parallel: bool,
@@ -326,23 +327,52 @@ impl Annealer for Problem {
 
         let dislike = state.dislike() as f64;
 
-        if matches!(
+        let mut bonus_err: i64 = 0;
+
+        for bonus in self.get_bonuses.iter() {
+            let bonus_pos = self
+                .problem
+                .bonuses
+                .iter()
+                .find(|b| b.bonus == *bonus)
+                .unwrap()
+                .position;
+
+            let min_dist = state
+                .pose
+                .vertices
+                .iter()
+                .map(|p| (p - &bonus_pos).norm_sqr().round() as i64)
+                .min()
+                .unwrap();
+
+            bonus_err += min_dist;
+        }
+        let mut is_valid = bonus_err == 0;
+
+        let globalist = matches!(
             &self.use_bonus,
             Some(UsedBonus {
                 bonus: geom::schema::BonusType::GLOBALIST,
                 ..
             })
-        ) {
+        );
+
+        if globalist {
             let total_eps = eps * self.problem.figure.edges.len() as f64;
-            let is_valid = total_err <= total_eps;
-            let pena = (total_err - total_eps).max(0.0);
+            is_valid = is_valid && total_err <= total_eps;
+            let pena = (total_err - total_eps).max(0.0) + bonus_err as f64;
             let score = dislike + pena * penalty_ratio;
             (score, is_valid)
         } else {
+            let pena = pena + bonus_err as f64;
+
             // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
             // let ret = score + pena * penalty_ratio;
+
             let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
-            (score, exists_invalid_edge)
+            is_valid = is_valid && exists_invalid_edge;
+            (score, is_valid)
         }
     }
 
@@ -544,11 +574,15 @@ fn solve(
 
     #[opt(long)] no_submit: bool,
 
-    /// Options to use (one of "globalist", "break-a-leg", "wallhcak")
+    /// Bonus to use (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
     #[opt(long)]
-    bonus: Option<String>,
+    use_bonus: Option<BonusType>,
 
     #[opt(long)] bonus_from: Option<i64>,
+
+    /// Bonuses to get (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
+    #[opt(long)]
+    get_bonuses: Vec<BonusType>,
 
     /// search parallel moves
     #[opt(long)]
@@ -556,12 +590,7 @@ fn solve(
 
     problem_id: i64,
 ) -> Result<()> {
-    let bonus: Option<BonusType> = bonus
-        .map(|s| s.parse())
-        .transpose()
-        .map_err(|r| anyhow!("{}", r))?;
-
-    match &bonus {
+    match &use_bonus {
         None => (),
         Some(BonusType::GLOBALIST) => (),
         Some(r) => {
@@ -569,7 +598,7 @@ fn solve(
         }
     }
 
-    let bonus: Option<UsedBonus> = bonus
+    let use_bonus: Option<UsedBonus> = use_bonus
         .map(|b| -> Result<UsedBonus> {
             let ps = get_problems()?;
 
@@ -621,9 +650,14 @@ fn solve(
         })
         .transpose()?;
 
+    let problem: P = get_problem(problem_id)?;
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
-    let problem: P = get_problem(problem_id)?;
+    for gb in get_bonuses.iter() {
+        if !problem.bonuses.iter().any(|b| b.bonus == *gb) {
+            bail!("Problem {} does not provide bonus {}", problem_id, gb);
+        }
+    }
 
     let mut triangles = vec![];
 
@@ -667,7 +701,8 @@ fn solve(
         let hint = hints[i].clone();
         let problem = Problem {
             problem: problem.clone(),
-            use_bonus: bonus.clone(),
+            use_bonus: use_bonus.clone(),
+            get_bonuses: get_bonuses.clone(),
             exact,
             parallel,
             penalty_ratio,
