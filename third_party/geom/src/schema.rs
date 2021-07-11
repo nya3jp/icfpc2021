@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::File;
@@ -231,6 +230,13 @@ impl Pose {
         match &self.bonuses {
             None => false,
             Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::WALLHACK),
+        }
+    }
+
+    pub fn has_superflex(&self) -> bool {
+        match &self.bonuses {
+            None => false,
+            Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::SUPERFLEX),
         }
     }
 }

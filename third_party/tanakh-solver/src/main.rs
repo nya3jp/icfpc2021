@@ -244,7 +244,7 @@ impl Annealer for Problem {
 
                 let ret = Pose {
                     vertices: ret,
-                    bonuses: None,
+                    bonuses: bonuses.clone(),
                 };
 
                 if is_inside_hole(&self.problem, &ret) {
