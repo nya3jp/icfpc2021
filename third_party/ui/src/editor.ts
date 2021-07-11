@@ -384,46 +384,53 @@ export class Editor extends EventTarget {
 
     private onDragVertex(ev: MouseEvent): void {
         const cursor = this.translator.canvasToModel([ev.offsetX, ev.offsetY]);
-        this.pose[this.draggingVertex!] = roundPoint(ev.shiftKey ? this.snap(cursor) : cursor);
+        this.pose[this.draggingVertex!] = roundPoint(this.snap(cursor, ev.shiftKey, ev.altKey));
         this.render();
     }
 
-    private snap(cursor: Point): Point {
-        const candidates = this.problem.bonuses.map(({position}) => position).concat(this.problem.hole);
-        const {edges, vertices} = this.problem.figure;
-        const adjacents = [];
-        for (const edge of edges) {
-            if (edge[0] === this.draggingVertex) {
-                adjacents.push(edge[1]);
-            }
-            if (edge[1] === this.draggingVertex) {
-                adjacents.push(edge[0]);
-            }
+    private snap(cursor: Point, toCorner: boolean, toFeasible: boolean): Point {
+        const candidates = [];
+        if (toCorner) {
+            candidates.push(...this.problem.bonuses.map(({position}) => position).concat(this.problem.hole));
         }
-        for (let dy = -5; dy <= 5; dy++) {
-            for (let dx = -5; dx <= 5; dx++) {
-                const d: Point = [dx, dy];
-                if (vabs(d) > 5) {
-                    continue;
+        if (toFeasible) {
+            const {edges, vertices} = this.problem.figure;
+            const adjacents = [];
+            for (const edge of edges) {
+                if (edge[0] === this.draggingVertex) {
+                    adjacents.push(edge[1]);
                 }
-                const p = roundPoint(vadd(cursor, d));
-                let ok = true;
-                for (const adjacent of adjacents) {
-                    const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex!]);
-                    const d2 = distance2(this.pose[adjacent], p);
-                    const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
-                    if (d2 < original2 - margin2 || d2 > original2 + margin2) {
-                        ok = false;
+                if (edge[1] === this.draggingVertex) {
+                    adjacents.push(edge[0]);
+                }
+            }
+            for (let dy = -5; dy <= 5; dy++) {
+                for (let dx = -5; dx <= 5; dx++) {
+                    const d: Point = [dx, dy];
+                    if (vabs(d) > 5) {
+                        continue;
+                    }
+                    const p = roundPoint(vadd(cursor, d));
+                    let ok = true;
+                    for (const adjacent of adjacents) {
+                        const original2 = distance2(vertices[adjacent], vertices[this.draggingVertex!]);
+                        const d2 = distance2(this.pose[adjacent], p);
+                        const margin2 = original2 * this.problem.epsilon / 1000000 + 1e-8;
+                        if (d2 < original2 - margin2 || d2 > original2 + margin2) {
+                            ok = false;
+                        }
+                    }
+                    if (ok) {
+                        candidates.push(p);
                     }
                 }
-                if (ok) {
-                    candidates.push(p);
-                }
             }
         }
-        const nearest = closest(candidates, cursor)[0];
-        if (vabs(vsub(cursor, nearest)) < 30 / this.translator.zoom) {
-            return nearest;
+        if (candidates.length > 0) {
+            const nearest = closest(candidates, cursor)[0];
+            if (vabs(vsub(cursor, nearest)) < 30 / this.translator.zoom) {
+                return nearest;
+            }
         }
         return cursor;
     }
