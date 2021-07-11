@@ -186,8 +186,24 @@ pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UsedBonus {
+    pub bonus: BonusType,
+    pub problem: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Pose {
     pub vertices: Vec<Point>,
+    pub bonuses: Option<Vec<UsedBonus>>,
+}
+
+impl Pose {
+    pub fn has_globalist(&self) -> bool {
+        match &self.bonuses {
+            None => false,
+            Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::GLOBALIST),
+        }
+    }
 }
 
 pub fn parse_pose<P: AsRef<Path>>(path: P) -> Result<Pose, Box<dyn Error>> {

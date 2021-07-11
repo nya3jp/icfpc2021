@@ -63,7 +63,9 @@ fn is_inside_hole_internal(
 
     // All segments should not cross each other.
     for edge in &problem.figure.edges {
-        if !changed.is_none() && !(changed.unwrap().contains(&edge.v1) || changed.unwrap().contains(&edge.v2)) {
+        if !changed.is_none()
+            && !(changed.unwrap().contains(&edge.v1) || changed.unwrap().contains(&edge.v2))
+        {
             continue;
         }
 
@@ -109,6 +111,9 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
         return false;
     }
 
+    // TODO: Use integer?
+    let mut error_sum: f64 = 0.0;
+
     // All edges should satisfy the strech restriction.
     for edge in &problem.figure.edges {
         let p1 = problem.figure.vertices[edge.v1];
@@ -134,9 +139,12 @@ pub fn is_valid_solution(problem: &Problem, pose: &Pose) -> bool {
                 "Invalid stretch: {:?}/{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?}",
                 d1, d2, p1, p2, q1, q2, lhs, rhs
             );
-            return false;
+            if !pose.has_globalist() {
+                return false;
+            }
+            error_sum += ((d2 as f64) / (d1 as f64) - 1.0).abs();
         }
     }
 
-    true
+    1000000.0 * error_sum <= (problem.figure.edges.len() * problem.epsilon as usize) as f64
 }

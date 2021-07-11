@@ -152,7 +152,10 @@ impl Annealer for Problem {
             })
             .collect_vec();
 
-        let init_state = Pose { vertices: ret };
+        let init_state = Pose {
+            vertices: ret,
+            bonuses: vec![],
+        };
         if !is_inside_hole(&self.problem, &init_state) {
             eprintln!("Wrong Answer!!");
         }
@@ -359,7 +362,7 @@ impl Annealer for Problem {
                     }
 
                     if ok {
-                        return (0..state.vertices.len()).map(|v| { (v, pd) }).collect();
+                        return (0..state.vertices.len()).map(|v| (v, pd)).collect();
                     }
                 }
 
@@ -565,20 +568,16 @@ fn solve(
     }
 
     let now = chrono::Local::now();
-    let result_file_name =
-        format!(
-            "results/{}-{}-{:02}{:02}{:02}{:02}.json",
-            problem_id,
-            score.round() as i64,
-            now.date().day(),
-            now.time().hour(),
-            now.time().minute(),
-            now.time().second(),
-        );
-    fs::write(
-        &result_file_name,
-        serde_json::to_string(&solution)?,
-    )?;
+    let result_file_name = format!(
+        "results/{}-{}-{:02}{:02}{:02}{:02}.json",
+        problem_id,
+        score.round() as i64,
+        now.date().day(),
+        now.time().hour(),
+        now.time().minute(),
+        now.time().second(),
+    );
+    fs::write(&result_file_name, serde_json::to_string(&solution)?)?;
 
     if no_submit {
         return Ok(());
