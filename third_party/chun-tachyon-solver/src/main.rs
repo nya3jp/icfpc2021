@@ -56,12 +56,14 @@ fn solve(
 ) -> Result<()> {
     let problem = get_problem(problem_id)?;
 
-    let init_state: Option<Vec<(i64, i64)>> = base_solution.map(|frompath| 
-        serde_json::from_reader(
-            File::open(&frompath).expect(&format!("{} is not found", frompath.display())),
-        )
-        .expect("invalid json file")
-    );
+    let init_state: Option<Vec<(i64, i64)>> = base_solution.map(|frompath| {
+        let solution: Solution =
+            serde_json::from_reader(
+                File::open(&frompath).expect(&format!("{} is not found", frompath.display())),
+            )
+            .expect("invalid json file");
+        solution.vertices
+    });
     let (score, solution) = brute(
         &problem, &init_state, &search_vertices
     );
