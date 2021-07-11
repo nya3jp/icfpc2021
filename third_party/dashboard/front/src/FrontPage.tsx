@@ -238,6 +238,26 @@ const ProblemList = (props: ProblemListProps) => {
         });
         bestSolutions[problem.problem_id] = sol;
     });
+    let bestSolutionsGlobalist: BestSolutionMap = {};
+    problems.forEach((problem) => {
+        let ss = solutions[problem.problem_id];
+        if (!ss) {
+            return;
+        }
+
+        ss = ss.filter((s) => {
+            return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == 'GLOBALIST');
+        });
+
+        if (ss.length == 0) {
+            return;
+        }
+
+        const sol = ss.reduce((prev, current) => {
+            return prev.dislike < current.dislike ? prev : current;
+        });
+        bestSolutionsGlobalist[problem.problem_id] = sol;
+    });
     const ps = problems.sort((p1: Problem, p2: Problem) => {
         if (formFilter.order === "ProblemID") {
             return p1.problem_id - p2.problem_id;
@@ -303,16 +323,19 @@ const ProblemList = (props: ProblemListProps) => {
                         <TableCell>ID</TableCell>
                         <TableCell>Problem</TableCell>
                         <TableCell>Best Solution</TableCell>
+                        <TableCell>Best (+GLOBALIST)</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {ps.map((problem) => {
                         const sol = bestSolutions[problem.problem_id];
+                        const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
                                     <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                     <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
+                                    <TableCell></TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
                             );
@@ -333,6 +356,7 @@ const ProblemList = (props: ProblemListProps) => {
                                 <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                 <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                 <TableCell><SolutionCell problem={problem} solution={sol}/></TableCell>
+                                <TableCell>{solGlobalist && <SolutionCell problem={problem} solution={bestSolutionsGlobalist[problem.problem_id]}></SolutionCell>}</TableCell>
                             </TableRow>
                         );
                     })}
