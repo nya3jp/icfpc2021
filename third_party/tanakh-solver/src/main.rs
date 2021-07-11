@@ -127,8 +127,79 @@ struct Problem {
     candidate_triangles: Vec<usize>,
 }
 
+#[derive(Clone)]
+struct State {
+    pose: Pose,
+    dislikes: Vec<i64>,
+}
+
+impl State {
+    fn new(pose: Pose, problem: &P) -> Self {
+        let dislikes = problem
+            .hole
+            .iter()
+            .map(|h| {
+                pose.vertices
+                    .iter()
+                    .map(|v| (v - h).norm_sqr().round() as i64)
+                    .min()
+                    .unwrap()
+            })
+            .collect_vec();
+
+        Self {
+            pose: pose,
+            dislikes,
+        }
+    }
+
+    fn dislike(&self) -> i64 {
+        self.dislikes.iter().sum()
+    }
+
+    fn move_vertex(&mut self, i: usize, v: &Point) {
+        self.pose.vertices[i] += v;
+    }
+
+    fn move_vertex_and_update_dislike(&mut self, i: usize, v: &Point, problem: &P) {
+        let old_pos = self.pose.vertices[i];
+
+        self.move_vertex(i, v);
+
+        for (j, h) in problem.hole.iter().enumerate() {
+            let prev_dislike = self.dislikes[j];
+            let new_dislike = (&self.pose.vertices[i] - h).norm_sqr().round() as i64;
+            let old_dislike = (&old_pos - h).norm_sqr().round() as i64;
+
+            if new_dislike <= prev_dislike {
+                self.dislikes[j] = new_dislike;
+            } else if prev_dislike == old_dislike {
+                self.dislikes[j] = self
+                    .pose
+                    .vertices
+                    .iter()
+                    .map(|v| (v - h).norm_sqr().round() as i64)
+                    .min()
+                    .unwrap();
+            }
+        }
+    }
+}
+
+// fn calc_dislike(problem: &P, pose: &Pose) -> i64 {
+//     let mut ret = 0.0;
+//     for h in problem.hole.iter() {
+//         ret += pose
+//             .vertices
+//             .iter()
+//             .map(|v| (*v - *h).norm_sqr())
+//             .fold(0.0 / 0.0, f64::min);
+//     }
+//     ret.round() as i64
+// }
+
 impl Annealer for Problem {
-    type State = Pose;
+    type State = State;
 
     type Move = Vec<(usize, Point)>;
 
@@ -138,7 +209,7 @@ impl Annealer for Problem {
                 panic!("init state is not inside the hole");
             }
 
-            return init_state.clone();
+            return State::new(init_state.clone(), &self.problem);
         }
 
         let ix = rng.gen_range(0..self.problem.hole.len());
@@ -159,7 +230,8 @@ impl Annealer for Problem {
         if !is_inside_hole(&self.problem, &init_state) {
             eprintln!("Wrong Answer!!");
         }
-        init_state
+
+        State::new(init_state, &self.problem)
 
         // loop {
         //     let mut minx = i64::MAX;
@@ -209,19 +281,21 @@ impl Annealer for Problem {
         score < 1e-10
     }
 
-    fn eval(&self, state: &Self::State, best_score: f64, valid_best_score: f64) -> (f64, bool) {
+    fn eval(&self, state: &Self::State, _best_score: f64, _valid_best_score: f64) -> (f64, bool) {
         let mut score = 0.0;
         let mut pena = 0.0;
         let mut is_valid = true;
 
-        let penalty_ratio = if valid_best_score.is_finite() {
-            valid_best_score / 2.0
-        } else if best_score.is_finite() {
-            best_score / 2.0
-        } else {
-            self.penalty_ratio
-        }
-        .clamp(4.0, 10000.0);
+        // let penalty_ratio = if valid_best_score.is_finite() {
+        //     valid_best_score / 2.0
+        // } else if best_score.is_finite() {
+        //     best_score / 2.0
+        // } else {
+        //     self.penalty_ratio
+        // }
+        // .clamp(4.0, 10000.0);
+
+        let penalty_ratio = self.penalty_ratio;
 
         let eps = self.problem.epsilon as f64 / 1_000_000.0;
 
@@ -229,7 +303,7 @@ impl Annealer for Problem {
             let i = edge.v1;
             let j = edge.v2;
 
-            let d1 = (state.vertices[i] - state.vertices[j]).norm_sqr();
+            let d1 = (state.pose.vertices[i] - state.pose.vertices[j]).norm_sqr();
             let d2 = (self.problem.figure.vertices[i] - self.problem.figure.vertices[j]).norm_sqr();
             let err = ((d1 as f64 / d2 as f64) - 1.0).abs();
 
@@ -244,16 +318,10 @@ impl Annealer for Problem {
 
             // pena += err / eps;
             // pena += (err / eps - 1.0).powi(2);
-            pena += (err / eps - 0.90).abs().powf(1.0);
+            pena += (err / eps - 0.90).abs().powf(0.75);
         }
 
-        for h in self.problem.hole.iter() {
-            score += state
-                .vertices
-                .iter()
-                .map(|v| (*v - *h).norm_sqr())
-                .fold(0.0 / 0.0, f64::min);
-        }
+        score += state.dislike() as f64;
 
         // let ret = score * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
         let ret = score * (1.0 + pena / 8.0) + pena * penalty_ratio;
@@ -284,11 +352,11 @@ impl Annealer for Problem {
 
                     let d = Point::new(dx as _, dy as _);
 
-                    state.vertices[i] += d;
+                    state.move_vertex(i, &d);
 
-                    let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
+                    let ok = is_inside_hole_partial(&self.problem, &state.pose, &[i]);
 
-                    state.vertices[i] -= d;
+                    state.move_vertex(i, &-d);
 
                     if ok {
                         return vec![(i, d)];
@@ -312,19 +380,18 @@ impl Annealer for Problem {
                         continue;
                     }
 
-                    let d1 = Point::new(dx as _, dy as _);
-                    let d2 = d1;
+                    let d = Point::new(dx as _, dy as _);
 
-                    state.vertices[i] += d1;
-                    state.vertices[j] += d2;
+                    state.move_vertex(i, &d);
+                    state.move_vertex(j, &d);
 
-                    let ok = is_inside_hole_partial(&self.problem, &state, &[i, j]);
+                    let ok = is_inside_hole_partial(&self.problem, &state.pose, &[i, j]);
 
-                    state.vertices[i] -= d1;
-                    state.vertices[j] -= d2;
+                    state.move_vertex(i, &-d);
+                    state.move_vertex(j, &-d);
 
                     if ok {
-                        return vec![(i, d1), (j, d2)];
+                        return vec![(i, d), (j, d)];
                     }
                 },
                 17..=19 => {
@@ -340,22 +407,20 @@ impl Annealer for Problem {
                         continue;
                     }
 
-                    let d1 = Point::new(dx as _, dy as _);
-                    let d2 = d1;
-                    let d3 = d1;
+                    let d = Point::new(dx as _, dy as _);
 
-                    state.vertices[i] += d1;
-                    state.vertices[j] += d2;
-                    state.vertices[k] += d3;
+                    state.move_vertex(i, &d);
+                    state.move_vertex(j, &d);
+                    state.move_vertex(k, &d);
 
-                    let ok = is_inside_hole_partial(&self.problem, &state, &[i, j, k]);
+                    let ok = is_inside_hole_partial(&self.problem, &state.pose, &[i, j, k]);
 
-                    state.vertices[i] -= d1;
-                    state.vertices[j] -= d2;
-                    state.vertices[k] -= d3;
+                    state.move_vertex(i, &-d);
+                    state.move_vertex(j, &-d);
+                    state.move_vertex(k, &-d);
 
                     if ok {
-                        return vec![(i, d1), (j, d2), (k, d3)];
+                        return vec![(i, d), (j, d), (k, d)];
                     }
                 }
 
@@ -372,18 +437,18 @@ impl Annealer for Problem {
 
                     let pd = Point::new(d as _, d as _);
 
-                    for i in 0..state.vertices.len() {
-                        state.vertices[i] += pd;
+                    for i in 0..state.pose.vertices.len() {
+                        state.move_vertex(i, &pd);
                     }
 
-                    let ok = is_inside_hole(&self.problem, &state);
+                    let ok = is_inside_hole(&self.problem, &state.pose);
 
-                    for i in 0..state.vertices.len() {
-                        state.vertices[i] -= pd;
+                    for i in 0..state.pose.vertices.len() {
+                        state.move_vertex(i, &-pd);
                     }
 
                     if ok {
-                        return (0..state.vertices.len()).map(|v| (v, pd)).collect();
+                        return (0..state.pose.vertices.len()).map(|v| (v, pd)).collect();
                     }
                 }
 
@@ -393,20 +458,17 @@ impl Annealer for Problem {
                         let i = self.candidate_vertices[i];
 
                         let j = rng.gen_range(0..self.problem.hole.polygon.vertices.len());
-                        if state.vertices[i] == self.problem.hole.polygon.vertices[j] {
+                        if state.pose.vertices[i] == self.problem.hole.polygon.vertices[j] {
                             continue;
                         }
 
-                        let t = state.vertices[i];
-                        state.vertices[i] = self.problem.hole.polygon.vertices[j];
-                        let ok = is_inside_hole_partial(&self.problem, &state, &[i]);
-                        state.vertices[i] = t;
+                        let d = self.problem.hole.polygon.vertices[j] - state.pose.vertices[i];
+                        state.move_vertex(i, &d);
+                        let ok = is_inside_hole_partial(&self.problem, &state.pose, &[i]);
+                        state.move_vertex(i, &d);
 
                         if ok {
-                            return vec![(
-                                i,
-                                self.problem.hole.polygon.vertices[j] - state.vertices[i],
-                            )];
+                            return vec![(i, d)];
                         }
                     }
                 }
@@ -416,13 +478,13 @@ impl Annealer for Problem {
 
     fn apply(&self, state: &mut Self::State, mov: &Self::Move) {
         for (i, v) in mov.iter() {
-            state.vertices[*i] += *v;
+            state.move_vertex_and_update_dislike(*i, v, &self.problem);
         }
     }
 
     fn unapply(&self, state: &mut Self::State, mov: &Self::Move) {
         for (i, v) in mov.iter() {
-            state.vertices[*i] -= *v;
+            state.move_vertex_and_update_dislike(*i, &-*v, &self.problem);
         }
     }
 }
@@ -466,7 +528,7 @@ fn solve(
     #[opt(long)]
     start_temp: Option<f64>,
 
-    #[opt(long, default_value = "10.0")] penalty_ratio: f64,
+    #[opt(long, default_value = "100.0")] penalty_ratio: f64,
     #[opt(long, default_value = "0.25")] min_temp: f64,
 
     #[opt(long)] no_submit: bool,
@@ -555,6 +617,8 @@ fn solve(
         }
 
         let (score, solution) = res.unwrap();
+
+        let solution = solution.pose;
 
         if !is_valid_solution(&problem.problem, &solution) {
             eprintln!("Validation failed");

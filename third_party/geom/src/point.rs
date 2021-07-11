@@ -48,8 +48,22 @@ impl ops::Add<Point> for Point {
     }
 }
 
+impl ops::Add<&Point> for &Point {
+    type Output = Point;
+    fn add(self, other: &Point) -> Self::Output {
+        Self::Output::new(self.x + other.x, self.y + other.y)
+    }
+}
+
 impl ops::AddAssign for Point {
     fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
+    }
+}
+
+impl ops::AddAssign<&Point> for Point {
+    fn add_assign(&mut self, rhs: &Point) {
         self.x += rhs.x;
         self.y += rhs.y;
     }
@@ -62,8 +76,22 @@ impl ops::Sub<Point> for Point {
     }
 }
 
+impl ops::Sub<&Point> for &Point {
+    type Output = Point;
+    fn sub(self, other: &Point) -> Self::Output {
+        Self::Output::new(self.x - other.x, self.y - other.y)
+    }
+}
+
 impl ops::SubAssign for Point {
     fn sub_assign(&mut self, rhs: Self) {
+        self.x -= rhs.x;
+        self.y -= rhs.y;
+    }
+}
+
+impl ops::SubAssign<&Point> for Point {
+    fn sub_assign(&mut self, rhs: &Point) {
         self.x -= rhs.x;
         self.y -= rhs.y;
     }
@@ -87,5 +115,13 @@ impl ops::Div<f64> for Point {
     type Output = Point;
     fn div(self, rhs: f64) -> Self::Output {
         Self::Output::new(self.x / rhs, self.y / rhs)
+    }
+}
+
+impl ops::Neg for Point {
+    type Output = Point;
+
+    fn neg(self) -> Self::Output {
+        Point::new(-self.x, -self.y)
     }
 }

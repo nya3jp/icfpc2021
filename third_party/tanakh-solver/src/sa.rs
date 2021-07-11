@@ -206,7 +206,7 @@ fn do_annealing<A: Annealer>(
                     valid_best_score,
                     temp,
                     progress_ratio * 100.0,
-                    if best_valid_updated { "✅" } else { "🐴"}
+                    if best_valid_updated { "✅" } else { "🐴" }
                 );
                 prev_heart_beat = timer.elapsed().unwrap();
             }
