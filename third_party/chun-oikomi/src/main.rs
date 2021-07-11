@@ -275,8 +275,7 @@ fn do_brute(ptr: usize, visit_order: &Vec<usize>, budget: i64, prob: &Problem, o
     }
 }
 
-fn oikomi(prob: &Problem, oikomi_options: &OikomiOptions) -> (f64, Pose) {
-    let mut timer = SystemTime::now();
+fn oikomi(prob: &Problem, timer: &SystemTime, oikomi_options: &OikomiOptions) -> (f64, Pose) {
     let visit_order = get_visit_order(prob);
     println!("visit_order = {:?}", visit_order);
     let n = prob.problem.figure.vertices.len();
@@ -301,10 +300,6 @@ fn solve(
     #[opt(long)]
     init_state: Option<PathBuf>,
 
-    /// Neighbor distance to search
-    #[opt(long)]
-    neighbor: i64,
-
     #[opt(long)] no_submit: bool,
 
     problem_id: i64,
@@ -328,8 +323,6 @@ fn solve(
     }
     */
 
-    eprintln!("Oikomi: searching up to {} pixel difference solutions from the current one", neighbor);
-
     let init_state: Pose = match init_state {
         Some (frompath) =>
             serde_json::from_reader(
@@ -339,22 +332,49 @@ fn solve(
         None =>
             get_problem_latest_solution(problem_id).unwrap()
     };
-    let mut min_score = None;
-    let mut min_solution = None;
-    let problem = Problem {
+    let mut cur_state = init_state.clone();
+    let timer = SystemTime::now();
+    let mut searchwidth = 1;
+    let mut problem_st = Problem {
         problem: problem.clone(),
-        init_state: init_state.clone(),
+        init_state: cur_state.clone(),
     };
-
-    let (score, solution) = oikomi(
-        &problem,
-        &OikomiOptions {
-            time_limit,
-            silent: false,
-            neighbor,
-            header: format!("Problem {}: ", problem_id),
+    loop {
+        if timer.elapsed().unwrap().as_secs_f64() > time_limit {
+            break;
         }
-    );
+        problem_st = Problem {
+            problem: problem.clone(),
+            init_state: cur_state.clone(),
+        };
+        let neighbor = searchwidth;
+        eprintln!("Oikomi: searching up to {} pixel difference solutions from the current one", searchwidth);
+
+        let (score, solution) = oikomi(
+            &problem_st,
+            &timer,
+            &OikomiOptions {
+                time_limit,
+                silent: false,
+                neighbor,
+                header: format!("Problem {}: ", problem_id),
+            }
+        );
+        if score < eval_score(&problem_st, &cur_state.vertices) {
+            searchwidth = 1; // reset to this value
+            eprintln!("Oikomi: improved solution (new score {}), resetting state with search distance 1", score);
+            cur_state = solution
+        }
+        else
+        {
+            // failed with current search width
+            eprintln!("Oikomi: increasing search distance to {}", searchwidth);
+            searchwidth += 1;
+        }
+    }
+
+    let score = eval_score(&problem_st, &cur_state.vertices);
+    let solution = cur_state;
 
     if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
         eprintln!("Cannot find solution");
@@ -366,7 +386,7 @@ fn solve(
         return Ok(());
     }
 
-    if !is_valid_solution(&problem.problem, &solution) {
+    if !is_valid_solution(&problem, &solution) {
         eprintln!("Validation failed");
         eprintln!(
             "Wrong solution: score = {}, {}",
@@ -374,14 +394,6 @@ fn solve(
             serde_json::to_string(&solution)?
         );
     }
-
-    if min_score.is_none() || min_score.unwrap() > score {
-        min_score = Some(score);
-        min_solution = Some(solution);
-    }
-
-    let score = min_score.unwrap();
-    let solution = min_solution.unwrap();
 
     eprintln!("Score for problem {}: {}", problem_id, score);
 
