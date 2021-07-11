@@ -1,0 +1,20 @@
+#cloud-config
+
+write_files:
+- path: /etc/systemd/system/flexlet.service
+  permissions: 0644
+  owner: root
+  content: |
+    [Unit]
+    Description=Start the flexlet service
+    Wants=gcr-online.target
+    After=gcr-online.target
+
+    [Service]
+    Environment="HOME=/home/docker"
+    ExecStart=sh -c 'docker run --rm --name=flexlet ghcr.io/nya3jp/flexlet -name=$(hostname) -hub=10.140.0.2:7111'
+    ExecStop=docker stop flexlet
+
+runcmd:
+- systemctl daemon-reload
+- systemctl start flexlet.service
