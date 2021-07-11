@@ -21,65 +21,16 @@ import (
 
 var (
 	port         = flag.Int("port", 8080, "")
-	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
-	staticPath   = flag.String("static_path", "/tmp/static-data", "")
 	uiServer     = flag.String("ui_server", "", "")
 	enableScrape = flag.Bool("enable_scrape", true, "")
 )
 
-func newManager() solutionmgr.Manager {
-	sqlite, err := solutionmgr.NewSQLiteManager(*persistPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer sqlite.Close()
-
-	mysql, err := solutionmgr.NewMySQLManager()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	problems, err := sqlite.GetProblems()
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, problem := range problems {
-		log.Printf("Adding a problem %d", problem.ProblemID)
-		if err := mysql.AddProblem(problem); err != nil {
-			log.Fatal(err)
-		}
-
-		solutions, err := sqlite.GetSolutionsForProblem(problem.ProblemID)
-		if err != nil {
-			log.Fatal(err)
-		}
-		for _, solution := range solutions {
-			log.Printf("Adding a solution %d", solution.SolutionID)
-			if _, err := mysql.AddSolution(solution); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-	ssolutions, err := sqlite.GetSubmittedSolutions()
-	if err != nil {
-		log.Fatal(err)
-	}
-	for _, ssolution := range ssolutions {
-		log.Printf("Adding a submitted solution %s", ssolution.SubmittedSolutionID)
-		if err := mysql.AddSubmittedSolution(ssolution); err != nil {
-			log.Fatal(err)
-		}
-	}
-	if err := mysql.SetSolutionAutoIncrement(); err != nil {
-		log.Fatal(err)
-	}
-
-	return mysql
-}
-
 func main() {
 	flag.Parse()
-	mgr := newManager()
+	mgr, err := solutionmgr.NewMySQLManager()
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer mgr.Close()
 
 	scraper, err := scrape.NewScraper()
@@ -92,16 +43,11 @@ func main() {
 		}
 	}
 
-	var fallbackHandler http.Handler
-	if *uiServer != "" {
-		u, err := url.Parse(*uiServer)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fallbackHandler = httputil.NewSingleHostReverseProxy(u)
-	} else {
-		fallbackHandler = http.FileServer(http.Dir(*staticPath))
+	u, err := url.Parse(*uiServer)
+	if err != nil {
+		log.Fatal(err)
 	}
+	uiHandler := httputil.NewSingleHostReverseProxy(u)
 
 	s := &server{mgr, scraper}
 	r := mux.NewRouter()
@@ -117,7 +63,7 @@ func main() {
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
-	r.PathPrefix("/").Handler(fallbackHandler)
+	r.PathPrefix("/").Handler(uiHandler)
 
 	log.Print("Starting...")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), r))

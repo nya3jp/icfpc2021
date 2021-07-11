@@ -6,9 +6,7 @@ spec:
   selector:
     matchLabels:
       app: dashboard-server
-  strategy:
-    type: Recreate
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
@@ -20,8 +18,7 @@ spec:
           image: gcr.io/special-weekend-2021/dashboard-server:latest
           imagePullPolicy: Always
           args:
-            - '--persist_path=/dashboard-data'
-            - '--static_path=/build'
+            - '--ui_server=http://ui-server.default.svc.cluster.local'
           envFrom:
             - secretRef:
                 name: icfpc
@@ -49,9 +46,6 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-          volumeMounts:
-            - name: dashboard-data
-              mountPath: '/dashboard-data'
         - name: cloud-sql-proxy
           image: gcr.io/cloudsql-docker/gce-proxy:1.17
           command:
@@ -63,7 +57,3 @@ spec:
             requests:
               memory: "2Gi"
               cpu:    "1"
-      volumes:
-        - name: dashboard-data
-          persistentVolumeClaim:
-            claimName: dashboard-data
