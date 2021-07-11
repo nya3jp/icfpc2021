@@ -422,11 +422,13 @@ impl Annealer for Problem {
                     //     continue;
                     // }
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = loop {
+                        let dx = rng.gen_range(-w..=w);
+                        let dy = rng.gen_range(-w..=w);
+                        if (dx, dy) != (0, 0) {
+                            break (dx, dy);
+                        }
+                    };
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -449,11 +451,13 @@ impl Annealer for Problem {
                     let i = rng.gen_range(0..self.candidate_triangles.len());
                     let (i, j, k) = self.triangles[self.candidate_triangles[i]];
 
-                    let dx = rng.gen_range(-w..=w);
-                    let dy = rng.gen_range(-w..=w);
-                    if (dx, dy) == (0, 0) {
-                        continue;
-                    }
+                    let (dx, dy) = loop {
+                        let dx = rng.gen_range(-w..=w);
+                        let dy = rng.gen_range(-w..=w);
+                        if (dx, dy) != (0, 0) {
+                            break (dx, dy);
+                        }
+                    };
 
                     let d = Point::new(dx as _, dy as _);
 
@@ -570,7 +574,7 @@ fn solve(
     #[opt(long)] start_temp: Option<f64>,
     #[opt(long, default_value = "0.25")] min_temp: f64,
 
-    #[opt(long, default_value = "100.0")] penalty_ratio: f64,
+    #[opt(long, default_value = "1000.0")] penalty_ratio: f64,
     #[opt(long, default_value = "0.0")] penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
@@ -787,6 +791,10 @@ fn solve(
 
     eprintln!("Wrote the solution to {}", solution_filename);
 
+    // Submit to the internal dashboard.
+    eprintln!("Submitting internal dashboard");
+    tanakh_solver::submit_dashboard(problem_id, &solution_filename)?;
+
     if no_submit {
         return Ok(());
     }
@@ -811,9 +819,6 @@ fn solve(
 
         let resp = tanakh_solver::submit(problem_id, &solution)?;
         eprintln!("Response: {:?}", resp);
-
-        // Submit to the internal dashboard.
-        tanakh_solver::submit_dashboard(problem_id, &solution_filename)?;
     }
 
     Ok(())
