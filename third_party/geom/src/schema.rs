@@ -6,7 +6,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use super::point::Point;
-use super::polygon::{Polygon, ContainsResult};
+use super::polygon::{ContainsResult, Polygon};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(from = "Vec<(i64, i64)>", into = "Vec<(i64, i64)>")]
@@ -19,7 +19,10 @@ pub struct Hole {
     contains_set: Vec<Vec<bool>>,
 }
 
-fn create_contains_set(t: &Vec<(i64, i64)>, polygon: &Polygon) -> (i64, i64, i64, i64, Vec<Vec<bool>>) {
+fn create_contains_set(
+    t: &Vec<(i64, i64)>,
+    polygon: &Polygon,
+) -> (i64, i64, i64, i64, Vec<Vec<bool>>) {
     let mut ret = Vec::new();
 
     let minx = t.iter().fold(1 << 20, |acc, x| std::cmp::min(acc, x.0)) * 2;
@@ -35,7 +38,7 @@ fn create_contains_set(t: &Vec<(i64, i64)>, polygon: &Polygon) -> (i64, i64, i64
             }
         }
         ret.push(line)
-    };
+    }
     (minx, miny, maxx, maxy, ret)
 }
 
@@ -133,6 +136,7 @@ pub struct Figure {
 pub enum BonusType {
     GLOBALIST,
     BREAK_A_LEG,
+    WALLHACK,
 }
 
 impl From<String> for BonusType {
@@ -141,6 +145,8 @@ impl From<String> for BonusType {
             BonusType::GLOBALIST
         } else if t == "BREAK_A_LEG" {
             BonusType::BREAK_A_LEG
+        } else if t == "WALLHACK" {
+            BonusType::WALLHACK
         } else {
             panic!("Unknown Bonus Type")
         }
@@ -152,6 +158,7 @@ impl From<BonusType> for String {
         match t {
             BonusType::GLOBALIST => "GLOBALIST".to_string(),
             BonusType::BREAK_A_LEG => "BREAK_A_LEG".to_string(),
+            BonusType::WALLHACK => "WALLHACK".to_string(),
         }
     }
 }
