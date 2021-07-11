@@ -226,6 +226,13 @@ impl Pose {
             Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::GLOBALIST),
         }
     }
+
+    pub fn has_wallhack(&self) -> bool {
+        match &self.bonuses {
+            None => false,
+            Some(bonuses) => bonuses.iter().any(|b| b.bonus == BonusType::WALLHACK),
+        }
+    }
 }
 
 pub fn parse_pose<P: AsRef<Path>>(path: P) -> Result<Pose, Box<dyn Error>> {
