@@ -51,7 +51,6 @@ export class Editor extends EventTarget {
 
     constructor(
         private readonly canvas: HTMLCanvasElement,
-        private drawDistance: boolean = false,
         private similarEdgeHighlight: boolean = false,
         private constraintHint: boolean = false,
         private readonly translator: Translator = new Translator(5.0)) {
@@ -92,11 +91,6 @@ export class Editor extends EventTarget {
         this.render();
     }
 
-    public setDrawDistance(drawDistance: boolean): void {
-        this.drawDistance = drawDistance;
-        this.render();
-    }
-
     public setSimilarEdgeHighlight(similarEdgeHighlight: boolean): void {
         this.similarEdgeHighlight = similarEdgeHighlight;
         this.render();
@@ -133,7 +127,6 @@ export class Editor extends EventTarget {
         this.renderHole(ctx);
         this.renderBonuses(ctx);
         this.renderPose(ctx);
-        this.renderDistance(ctx);
         this.renderHints(ctx);
         this.dispatchEvent(new CustomEvent('refresh'));
     }
@@ -226,30 +219,6 @@ export class Editor extends EventTarget {
             return `rgb(${lo}, ${lo}, ${hi})`;
         }
         return `rgb(${lo}, ${hi}, ${lo})`
-    }
-
-    private renderDistance(ctx: CanvasRenderingContext2D): void {
-        if (!this.drawDistance) {
-            return;
-        }
-
-        ctx.font = "11px serif";
-        ctx.strokeStyle = 'rgb(10, 10, 10)';
-        ctx.lineWidth = 1;
-
-        const {edges, vertices} = this.problem.figure;
-        const pose = this.pose;
-        for (const edge of edges) {
-            const dist = distance2(pose[edge[0]], pose[edge[1]]);
-            const original = distance2(vertices[edge[0]], vertices[edge[1]]);
-            const margin = original * this.problem.epsilon / 1000000;
-            const mid = this.translator.modelToCanvas(midPoint(pose[edge[0]], pose[edge[1]]));
-            const text = dist.toString() + "∈ [" + Math.ceil(original - margin).toString()
-                + "," + Math.floor(original + margin).toString() + "]";
-            ctx.strokeText(text, mid[0], mid[1]);
-            ctx.fillStyle = this.getLineColor(dist, original, false);
-            ctx.fillText(text, mid[0], mid[1]);
-        }
     }
 
     private renderHints(ctx: CanvasRenderingContext2D): void {

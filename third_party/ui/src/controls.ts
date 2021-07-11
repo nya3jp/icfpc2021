@@ -96,22 +96,6 @@ export class FragmentUpdater {
     }
 }
 
-export class DistanceToggle {
-    constructor(
-        private readonly checkbox: HTMLInputElement,
-        private readonly editor: Editor) {
-    }
-
-    public start(): void {
-        this.checkbox.addEventListener('change', () => this.onChange());
-        this.onChange();
-    }
-
-    private onChange(): void {
-        this.editor.setDrawDistance(this.checkbox.checked);
-    }
-}
-
 export class SimilarEdgeHighlightToggle {
     constructor(
         private readonly checkbox: HTMLInputElement,
