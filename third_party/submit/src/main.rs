@@ -1,11 +1,17 @@
 use anyhow::Result;
 use log::debug;
+use reqwest::blocking::{multipart, Client};
 use std::fs::File;
-use std::io::Read;
+use once_cell::sync::Lazy;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use structopt::{clap, StructOpt};
+use tempfile::NamedTempFile;
 
 const BASE_SUBMISSION_URL: &str = "https://poses.live/api/problems";
+const DASHBOARD_ENDPOINT: &str = "http://spweek.badalloc.com/api/solutions";
+
+pub static CLIENT: Lazy<Client> = Lazy::new(|| Client::new());
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "submit")]
@@ -19,15 +25,14 @@ pub struct Opt {
     pub solution_file: Option<PathBuf>,
 
     #[structopt(short, long)]
-    dryrun: bool,
+    pub dryrun: bool,
 }
 
 fn get_submission_url(problem_id: u32) -> String {
     format!("{}/{}/solutions", BASE_SUBMISSION_URL, problem_id)
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::init();
     let args = Opt::from_args();
 
@@ -53,17 +58,27 @@ async fn main() -> Result<()> {
     debug!("problem id = {}", problem_id);
     debug!("solution = {}", solution);
 
-    let client = reqwest::Client::new()
-            .post(submission_url)
-            .bearer_auth(api_key)
-            .body(solution);
-    
+    let mut f = NamedTempFile::new()?;
+    f.write_all(solution.as_bytes())?;
+    let form = multipart::Form::new()
+        .text("problem_id", problem_id.to_string())
+        .file("solution", f.path())?;
+    let dashboard_submission = CLIENT
+        .post(DASHBOARD_ENDPOINT)
+        .multipart(form)
+        .send()?;
+
     if args.dryrun {
         return Ok(());
     }
-    let res = client.send().await?;
-    debug!("Status: {}", res.status());
-    let body = res.text().await?;
+
+    let submission = CLIENT
+        .post(submission_url)
+        .bearer_auth(api_key)
+        .body(solution)
+        .send()?;
+    debug!("Status: {}", submission.status());
+    let body = submission.text()?;
     debug!("Body: {}", body);
 
     Ok(())
