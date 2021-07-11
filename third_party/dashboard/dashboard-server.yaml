@@ -14,6 +14,7 @@ spec:
       labels:
         app: dashboard-server
     spec:
+      serviceAccountName: dashboard-sa
       containers:
         - name: dashboard-server
           image: gcr.io/special-weekend-2021/dashboard-server:latest
@@ -49,14 +50,18 @@ spec:
           volumeMounts:
             - name: dashboard-data
               mountPath: '/dashboard-data'
-            - name: deploy-key
-              readOnly: true
-              mountPath: '/root/.ssh'
+        - name: cloud-sql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.17
+          command:
+            - "/cloud_sql_proxy"
+            - "-instances=special-weekend-2021:asia-east1:flex=tcp:1433"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu:    "1"
       volumes:
         - name: dashboard-data
           persistentVolumeClaim:
             claimName: dashboard-data
-        - name: deploy-key
-          secret:
-            secretName: deploy-key
-            defaultMode: 0600
