@@ -1,6 +1,6 @@
 import {Problem} from './types';
 
-const MAX_PROBLEM_ID: number = 106;
+const MAX_PROBLEM_ID: number = 132;
 
 export class ProblemSet {
     constructor() {
