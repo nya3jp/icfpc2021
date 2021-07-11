@@ -49,11 +49,6 @@ const ProblemCell = ({problem, bonuses}: {problem: Problem, bonuses: GotBonus[]}
                     <Viewer problem={problem} size={100} />
                 </Grid>
                 <Grid item>
-                    <Typography variant="h2">
-                        {problem.problem_id}
-                    </Typography>
-                </Grid>
-                <Grid item>
                     <Table size="small">
                         <TableBody>
                             <TableRow>
@@ -245,26 +240,8 @@ const ProblemList = (props: ProblemListProps) => {
     return (
         <Container component={Paper}>
             <FormGroup row>
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={formFilter.hideTopTie}
-                            onChange={switchHideTopTie}
-                            color="primary"
-                        />
-                    }
-                    label="トップタイの問題を隠す"
-                />
-                <FormControlLabel
-                    control={
-                        <Switch
-                            checked={formFilter.hideZeroScore}
-                            onChange={switchHideZeroScore}
-                            color="primary"
-                        />
-                    }
-                    label="0点の問題を隠す"
-                />
+                <FormControlLabel control={<Switch checked={formFilter.hideTopTie} onChange={switchHideTopTie} color="primary" />} label="トップタイの問題を隠す" />
+                <FormControlLabel control={<Switch checked={formFilter.hideZeroScore} onChange={switchHideZeroScore} color="primary" />} label="0点の問題を隠す" />
                 <div className={classes.spacer}></div>
                 <FormControl>
                     <InputLabel shrink id="sort-order-label">ソート順</InputLabel>
@@ -278,6 +255,7 @@ const ProblemList = (props: ProblemListProps) => {
             <Table size="small">
                 <TableHead>
                     <TableRow>
+                        <TableCell>ID</TableCell>
                         <TableCell>Problem</TableCell>
                         <TableCell>Best Solution</TableCell>
                     </TableRow>
@@ -288,6 +266,7 @@ const ProblemList = (props: ProblemListProps) => {
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
+                                    <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                     <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
@@ -306,6 +285,7 @@ const ProblemList = (props: ProblemListProps) => {
                         }
                         return (
                             <TableRow key={problem.problem_id} style={{background: color}}>
+                                <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
                                 <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
                                 <TableCell><SolutionCell problem={problem} solution={sol} /></TableCell>
                             </TableRow>
