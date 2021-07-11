@@ -1,11 +1,13 @@
 import {Problem} from './types';
 
+const MAX_PROBLEM_ID: number = 106;
+
 export class ProblemSet {
     constructor() {
     }
 
     public async getProblemIds(): Promise<number[]> {
-        return Array.from(Array(88).keys()).map(num => num + 1);
+        return Array.from(Array(MAX_PROBLEM_ID).keys()).map(num => num + 1);
     }
 
     public async getProblem(id: number): Promise<Problem> {
