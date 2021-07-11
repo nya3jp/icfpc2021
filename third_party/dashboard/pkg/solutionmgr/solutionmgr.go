@@ -58,10 +58,17 @@ func (f *Figure) Validate() error {
 	return nil
 }
 
+type Bonus struct {
+	Position Point  `json:"position"`
+	Bonus    string `json:"bonus"`
+	Problem  int64  `json:"problem"`
+}
+
 type ProblemData struct {
-	Hole    Hole   `json:"hole"`
-	Figure  Figure `json:"figure"`
-	Epsilon int64  `json:"epsilon"`
+	Hole    Hole    `json:"hole"`
+	Figure  Figure  `json:"figure"`
+	Epsilon int64   `json:"epsilon"`
+	Bonus   []Bonus `json:"bonuses"`
 }
 
 func (d *ProblemData) Validate() error {
