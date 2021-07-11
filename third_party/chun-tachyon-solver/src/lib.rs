@@ -1,34 +1,18 @@
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use reqwest::blocking::Client;
+use reqwest::blocking::{Client, multipart};
 use serde::{Deserialize, Serialize};
+use geom::schema::{Pose, Problem};
 use serde_json::Value;
 use std::ops::Deref;
 
-pub mod geom;
+//pub mod geom;
 
-const ENDPOINT: &str = "https://poses.live";
+pub const ENDPOINT: &str = "https://poses.live";
+pub const DASHBOARD_ENDPOINT: &str = "http://spweek.badalloc.com";
 
 static API_TOKEN: Lazy<String> =
     Lazy::new(|| std::env::var("API_TOKEN").expect("environment variable API_TOKEN must be set"));
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Problem {
-    pub hole: Vec<(i64, i64)>,
-    pub figure: Figure,
-    pub epsilon: i64,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Figure {
-    pub edges: Vec<(usize, usize)>,
-    pub vertices: Vec<(i64, i64)>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Solution {
-    pub vertices: Vec<(i64, i64)>,
-}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SubmitResult {
@@ -56,6 +40,19 @@ pub fn post_json(api: impl AsRef<str>, json: impl Serialize) -> Result<String> {
         .text()?)
 }
 
+pub fn post_solution_dashboard(problem_id: i64, file: &str) -> Result<String> {
+    let form = multipart::Form::new()
+        .text("problem_id", problem_id.to_string())
+        .file("solution", file)?;
+
+    Ok(CLIENT
+        .post(format!("{}/api/solutions", DASHBOARD_ENDPOINT))
+        .multipart(form)
+        .send()?
+        .error_for_status()?
+        .text()?)
+}
+
 pub fn hello() -> Result<Value> {
     Ok(serde_json::from_str(&http_get("/api/hello")?)?)
 }
@@ -67,9 +64,14 @@ pub fn get_problem(problem_id: i64) -> Result<Problem> {
     ))?)?)
 }
 
-pub fn submit(problem_id: i64, solution: &Solution) -> Result<SubmitResult> {
+pub fn submit(problem_id: i64, solution: &Pose) -> Result<SubmitResult> {
     Ok(serde_json::from_str(&post_json(
         format!("{}/api/problems/{}/solutions", ENDPOINT, problem_id),
         solution,
     )?)?)
+}
+
+pub fn submit_dashboard(problem_id: i64, solution_file_name: &str) -> Result<()> {
+    post_solution_dashboard(problem_id, solution_file_name)?;
+    Ok(())
 }

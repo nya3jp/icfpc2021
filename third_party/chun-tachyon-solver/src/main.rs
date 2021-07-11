@@ -3,16 +3,21 @@ mod brute;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+
+use anyhow::{anyhow, bail, Result};
 use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use num_complex::Complex;
+use geom::{
+    point::Point,
+    // polygon::ContainsResult,
+    schema::{BonusType, Edge, Pose, Problem as P, UsedBonus},
+};
 //use sa::*;
 
 use brute::*;
 //use chun_bruteforce_solver::brute::*;
-use chun_triangle_solver::geom::is_inside_hole;
-use chun_triangle_solver::{get_problem, Problem, Solution};
+use chun_tachyon_solver::{get_problem, SubmitResult};
 
 type Pt = Complex<f64>;
 
@@ -46,6 +51,12 @@ fn solve(
     threads: usize,
 
 
+    /// Bonus to use (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
+    #[opt(long)]
+    use_bonus: Option<BonusType>,
+
+    #[opt(long)] bonus_from: Option<i64>,
+
     #[opt(long)]
     problem: Option<PathBuf>,
 
@@ -55,36 +66,117 @@ fn solve(
     #[opt(long)]
     base_solution: Option<PathBuf>,
 
+    /// Bonuses to get (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
+    #[opt(long)]
+    get_bonuses_unimplemented: Vec<BonusType>,
+
+
     #[opt(long)] submit: bool,
     problem_id: i64,
 ) -> Result<()> {
-    let problem = match problem {
-        Some(probpath) => {
-            let prob: Problem =
-                serde_json::from_reader(
-                    File::open(&probpath).expect(&format!("{} is not found", probpath.display())),
-                )
-            .expect("invalid json file");
-            prob
-        },
-        None => get_problem(problem_id)?
-    };
+    eprintln!("Initializing solver");
+    match &use_bonus {
+        None => (),
+        Some(BonusType::GLOBALIST) => (),
+        Some(r) => {
+            bail!("Bonus {} is currently not supported", r);
+        }
+    }
+    let ps = get_problems()?;
+    eprintln!("Fetch problem completed");
 
-    let init_state: Option<Vec<(i64, i64)>> = base_solution.map(|frompath| {
-        let solution: Solution =
+    let use_bonus: Option<UsedBonus> = use_bonus
+    .map(|b| -> Result<UsedBonus> {
+        let problem = if let Some(pid) = &bonus_from {
+            let p = ps.iter().find(|p| p.0 == *pid).ok_or_else(|| {
+                anyhow!(
+                    "Problem {} does not provide bonus {} for problem {}",
+                    pid,
+                    b,
+                    problem_id
+                )
+            })?;
+
+            p.0
+        } else {
+            let avails = ps
+                .iter()
+                .filter(|(_, p)| {
+                    p.bonuses
+                        .iter()
+                        .any(|bonus| bonus.bonus == b && bonus.problem as i64 == problem_id)
+                })
+                .collect_vec();
+
+            if avails.is_empty() {
+                bail!("{} for problem {} is not available", b, problem_id);
+            }
+
+            eprintln!(
+                "Problem {:?} provide {} for problem {}",
+                avails
+                    .iter()
+                    .map(|r| r.0.to_string())
+                    .collect_vec()
+                    .join(", "),
+                b,
+                problem_id
+            );
+
+            eprintln!("Use bonus from Problem {}", avails[0].0);
+
+            avails[0].0
+        };
+
+        Ok(UsedBonus {
+            bonus: b,
+            problem: problem as _,
+        })
+    })
+    .transpose()?;
+
+    let problem = &ps
+    .iter()
+    .find(|p| p.0 == problem_id)
+    .ok_or_else(|| anyhow!("Problem {} does not exist", problem_id))?
+    .1;
+
+    for gb in get_bonuses_unimplemented.iter() {
+        if !problem.bonuses.iter().any(|b| b.bonus == *gb) {
+            bail!("Problem {} does not provide bonus {}", problem_id, gb);
+        }
+    }
+
+    let init_state: Option<Pose> = base_solution.map(|frompath| {
+        let solution: Pose =
             serde_json::from_reader(
                 File::open(&frompath).expect(&format!("{} is not found", frompath.display())),
             )
             .expect("invalid json file");
-        solution.vertices
+        solution
     });
+    eprintln!("Starting solver");
+    let mut fixed_vertices = Vec::new();
+    match search_vertices {
+        Some(vs) => {
+            fixed_vertices = {0usize..problem.figure.vertices.len()}.into_iter().collect();
+            fixed_vertices.retain(|i| !vs.contains(i))
+        },
+        None => ()
+    };
+    eprintln!("Starting solver");
     let (score, solution) = brute(
-        &problem, &init_state, &search_vertices
-    );
+        &brute::Problem {
+            problem: problem.clone(),
+            init_state,
+            use_bonus,
+            get_bonuses: get_bonuses_unimplemented,
+            fixed_vertices,
+        });
 
     //let solution = Solution { vertices: solution };
 
-    if score.is_infinite() || (score.round() - score).abs() > 1e-10 {
+    if score >= 99999999usize {
         eprintln!("Cannot find solution");
         eprintln!("Wrong solution: {}", serde_json::to_string(&solution)?);
         return Ok(());
@@ -99,33 +191,60 @@ fn solve(
     }
 
     let now = chrono::Local::now();
-    fs::write(
-        format!(
-            "results/{}-{}-{:02}{:02}{:02}{:02}.json",
-            problem_id,
-            score.round() as i64,
-            now.date().day(),
-            now.time().hour(),
-            now.time().minute(),
-            now.time().second(),
-        ),
-        serde_json::to_string(&solution)?,
-    )?;
+    let solution_filename = format!(
+        "results/{}-{:02}{:02}{:02}{:02}.json",
+        problem_id,
+        now.date().day(),
+        now.time().hour(),
+        now.time().minute(),
+        now.time().second(),
+    );
+
+    fs::write(&solution_filename, serde_json::to_string(&solution)?)?;
+
+    eprintln!("Submitting internal dashboard");
+    chun_tachyon_solver::submit_dashboard(problem_id, &solution_filename)?;
 
     if submit {
         eprintln!("Submitting");
 
-        let resp = chun_triangle_solver::submit(problem_id, &solution)?;
+        let resp = chun_tachyon_solver::submit(problem_id, &solution)?;
         eprintln!("Response: {:?}", resp);
     }
 
     Ok(())
 }
 
+fn get_problems() -> Result<Vec<(i64, P)>> {
+    let mut ret = vec![];
+    for rd in fs::read_dir("./problems")? {
+        let rd = rd?;
+
+        let path = rd.path();
+        if !matches!(path.extension(), Some(ext) if ext == "problem") {
+            continue;
+        }
+
+        eprintln!("Parsing {}", path.display());
+        let problem: P = serde_json::from_reader(File::open(&path)?)?;
+        let problem_id = path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<i64>()
+            .map_err(|_| anyhow!("{} is not valid problem filename", path.display()))?;
+
+        ret.push((problem_id, problem));
+    }
+
+    Ok(ret)
+}
+
 #[argopt::subcmd]
 fn submit(problem_id: i64, json_file: PathBuf) -> Result<()> {
     let solution = serde_json::from_reader(File::open(json_file)?)?;
-    let resp = chun_triangle_solver::submit(problem_id, &solution)?;
+    let resp = chun_tachyon_solver::submit(problem_id, &solution)?;
     println!("{:?}", resp);
     Ok(())
 }
