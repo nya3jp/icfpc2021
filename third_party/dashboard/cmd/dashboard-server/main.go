@@ -19,10 +19,11 @@ import (
 )
 
 var (
-	port        = flag.Int("port", 8080, "")
-	persistPath = flag.String("persist_path", "/tmp/dashboard-data", "")
-	staticPath  = flag.String("static_path", "/tmp/static-data", "")
-	scorerPath  = flag.String("scorer_path", "/static/scorer", "")
+	port         = flag.Int("port", 8080, "")
+	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
+	staticPath   = flag.String("static_path", "/tmp/static-data", "")
+	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
+	enableScrape = flag.Bool("enable_scrape", true, "")
 )
 
 func main() {
@@ -39,17 +40,20 @@ func main() {
 	if err != nil {
 		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
 	} else {
-		go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
-		go scrape.ScrapeDislikeTask(scraper, mgr)
+		if *enableScrape {
+			go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
+			go scrape.ScrapeDislikeTask(scraper, mgr)
+		}
 	}
 
-	s := &server{mgr}
+	s := &server{mgr, scraper}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}", s.handleProblemGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +66,8 @@ func main() {
 }
 
 type server struct {
-	mgr *solutionmgr.Manager
+	mgr     *solutionmgr.Manager
+	scraper *scrape.Scraper
 }
 
 func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
@@ -244,6 +249,30 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *server) handleSolutionSubmit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if s.scraper == nil {
+		http.Error(w, "do not have an ICFPC credential", http.StatusInternalServerError)
+		return
+	}
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	submitID, err := s.scraper.SubmitSolution(solution.ProblemID, &solution.Data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	io.WriteString(w, submitID)
 }
 
 func trimAndRemoveEmpty(ss []string) []string {

@@ -1,9 +1,12 @@
 package scrape
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -71,6 +74,32 @@ func (s *Scraper) loginSession() (*colly.Collector, error) {
 	login.Visit(loginURL)
 	login.Wait()
 	return login, nil
+}
+
+func (s *Scraper) SubmitSolution(problemID int64, data *solutionmgr.SolutionData) (string, error) {
+	bs, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf("cannot marshal the solution: %v", err)
+	}
+	submitURL := baseURL + fmt.Sprintf("api/problems/%d/solutions", problemID)
+	req, err := http.NewRequest(http.MethodPost, submitURL, bytes.NewReader(bs))
+	if err != nil {
+		return "", fmt.Errorf("cannot create a request: %v", err)
+	}
+	req.Header.Add("Authorization", "Bearer "+s.apiKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to POST the solution: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to create a solution: %d", resp.StatusCode)
+	}
+	bs, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("cannot read the response body: %v", err)
+	}
+	return string(bs), nil
 }
 
 func (s *Scraper) ScrapeMinimalDislikes() (map[int64]int64, error) {

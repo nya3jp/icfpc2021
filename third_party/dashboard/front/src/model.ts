@@ -30,6 +30,11 @@ class Client {
         const res = await fetch(`${this.baseURL}/api/problems/${id}/solutions`);
         return await res.json();
     }
+
+    async submitSolution(id: number): Promise<string> {
+        const res = await fetch(`${this.baseURL}/api/solutions/${id}/submit`, {method: 'POST'});
+        return await res.text();
+    }
 }
 
 // Model wraps Client for caching.
@@ -67,5 +72,9 @@ export class Model {
     getSolutionsForProblem(id: number): Promise<Solution[]> {
         // Solutions for a problem change over time, do not cache.
         return this.client.getSolutionsForProblem(id);
+    }
+
+    submitSolution(id: number): Promise<string> {
+        return this.client.submitSolution(id);
     }
 }
