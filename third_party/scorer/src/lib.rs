@@ -1,4 +1,4 @@
-use geom::schema::{Hole, Pose, Problem};
+use geom::schema::{Hole, Pose, Problem, UsedBonus};
 
 use geom::*;
 
@@ -18,6 +18,19 @@ pub fn dislike(hole: &Hole, pose: &Pose) -> usize {
             .unwrap()
     }
     dislike as usize
+}
+
+pub fn bonus(problem: &Problem, pose: &Pose) -> Vec<UsedBonus> {
+    let mut bonuses = vec![];
+    for b in &problem.bonuses {
+        for v in &pose.vertices {
+            if v == &b.position {
+                bonuses.push(UsedBonus{bonus: b.bonus, problem: b.problem});
+            }
+            eprintln!("b, v: {:?}, {:?}", v, &b.position);
+        }
+    }
+    bonuses
 }
 
 fn is_inside_hole_internal(
