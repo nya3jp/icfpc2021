@@ -1,5 +1,4 @@
 import {Edge, Pose} from './types';
-import {roundPoint} from './geom';
 
 const createGraph = require('ngraph.graph');
 const createLayout = require('ngraph.forcelayout');
@@ -19,7 +18,7 @@ export function forceLayout(pose: Pose, edges: Edge[], iters: number): Pose {
     for (let i = 0; i < iters; ++i) {
         layout.step();
     }
-    const result = [];
+    const result: Pose = [];
     for (let i = 0; i < pose.length; ++i) {
         const pos = layout.getNodePosition(i);
         result.push([pos.x, pos.y]);
