@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -78,6 +79,7 @@ func main() {
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/tasks/running", s.handleTasksRunningGet).Methods("GET")
+	r.HandleFunc("/api/tasks/all", s.handleTasksAllGet).Methods("GET")
 	r.HandleFunc("/api/tasks/info/{task_id}", s.handleTaskGet).Methods("GET")
 	r.HandleFunc("/api/tasks/add", s.handleAddTaskPost).Methods("POST")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -186,6 +188,25 @@ func (s *server) handleTasksRunningGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *server) handleTasksAllGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	tasks, err := s.flexClient.ListTasks(context.Background(), 1000000, math.MaxInt64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	io.WriteString(w, "[")
+	for i, task := range tasks {
+		if i > 0 {
+			io.WriteString(w, ",")
+		}
+		(&jsonpb.Marshaler{}).Marshal(w, task)
+	}
+	io.WriteString(w, "]")
 }
 
 func (s *server) handleTaskGet(w http.ResponseWriter, r *http.Request) {
