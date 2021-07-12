@@ -1008,7 +1008,7 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
     let ps = get_problems()?;
     let mut problems = vec![];
 
-    dbg!(ps.len());
+    println!("{} problems", ps.len());
 
     for m in pat.matches(&resp) {
         let problem_id: i64 = m["problem-id"].parse()?;
@@ -1132,5 +1132,84 @@ fn info(problem_id: i64) -> Result<()> {
     Ok(())
 }
 
-#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list, info])]
+#[argopt::subcmd]
+fn commands() -> Result<()> {
+    let mut ps = get_problems()?;
+    let status = get_problem_states()?;
+
+    ps.sort_by_cached_key(|p| p.0);
+
+    fn is_usable(bonus: BonusType) -> bool {
+        bonus == BonusType::GLOBALIST || bonus == BonusType::SUPERFLEX
+    }
+
+    for &(pid, ref p) in ps.iter() {
+        let stat = status
+            .iter()
+            .find(|r| r.problem_id == pid)
+            .ok_or_else(|| anyhow!("Problem {}'s status not found", pid))?;
+
+        let minimal_dislike = stat.minimal_dislikes;
+
+        let mut use_bonus = vec![None];
+
+        for pid in ps.iter().filter_map(|p| {
+            p.1.bonuses
+                .iter()
+                .find(|bonus| is_usable(bonus.bonus) && bonus.problem as i64 == pid)
+                .map(|_| p.0)
+        }) {
+            use_bonus.push(Some(pid));
+        }
+
+        for use_bonus in use_bonus {
+            'outer: for b in 0..(1 << p.bonuses.len()) {
+                let mut get_bonuses = vec![];
+
+                for i in 0..p.bonuses.len() {
+                    if (b >> i) & 1 != 0 {
+                        if !is_usable(p.bonuses[i].bonus) {
+                            continue 'outer;
+                        }
+
+                        get_bonuses.push(p.bonuses[i].problem);
+                    }
+                }
+
+                println!(
+                    "cargo run --release -- solve \
+                        --time-limit=600 \
+                        --threads=8 \
+                        {}\
+                        {}\
+                        --penalty-ratio {} \
+                        {}",
+                    if let Some(b) = use_bonus {
+                        format!("--bonus-from {} ", b)
+                    } else {
+                        "".to_string()
+                    },
+                    if !get_bonuses.is_empty() {
+                        format!(
+                            "--get-bonuses {} ",
+                            get_bonuses
+                                .iter()
+                                .map(|r| r.to_string())
+                                .collect_vec()
+                                .join(" ")
+                        )
+                    } else {
+                        "".to_string()
+                    },
+                    max(10, minimal_dislike / 2),
+                    pid
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list, info, commands])]
 fn main() -> Result<()> {}
