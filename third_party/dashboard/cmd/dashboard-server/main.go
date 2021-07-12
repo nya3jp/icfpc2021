@@ -80,7 +80,7 @@ func main() {
 }
 
 type server struct {
-	mgr        solutionmgr.Manager
+	mgr        *solutionmgr.MySQLManager
 	scraper    *scrape.Scraper
 	flexClient *flex.Client
 }

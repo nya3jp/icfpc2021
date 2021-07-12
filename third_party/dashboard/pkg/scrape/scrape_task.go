@@ -8,7 +8,7 @@ import (
 	"icfpc2021/dashboard/pkg/solutionmgr"
 )
 
-func ScrapeDislikeTask(scraper *Scraper, mgr solutionmgr.Manager) {
+func ScrapeDislikeTask(scraper *Scraper, mgr *solutionmgr.MySQLManager) {
 	tick := time.NewTicker(5 * time.Minute)
 	defer tick.Stop()
 	for {
@@ -28,7 +28,7 @@ func ScrapeDislikeTask(scraper *Scraper, mgr solutionmgr.Manager) {
 	}
 }
 
-func ScrapeSubmittedSolutionsTask(scraper *Scraper, m solutionmgr.Manager) {
+func ScrapeSubmittedSolutionsTask(scraper *Scraper, m *solutionmgr.MySQLManager) {
 	if err := scrapeSubmittedSolutionsTaskOnce(scraper, m); err != nil {
 		log.Printf("Failed to scrape the submitted solutions: %v", err)
 	}
@@ -45,7 +45,7 @@ func ScrapeSubmittedSolutionsTask(scraper *Scraper, m solutionmgr.Manager) {
 	}
 }
 
-func scrapeSubmittedSolutionsTaskOnce(scraper *Scraper, m solutionmgr.Manager) error {
+func scrapeSubmittedSolutionsTaskOnce(scraper *Scraper, m *solutionmgr.MySQLManager) error {
 	solutions, err := m.GetSubmittedSolutions()
 	if err != nil {
 		return err

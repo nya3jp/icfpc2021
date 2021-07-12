@@ -150,22 +150,3 @@ func (s *SubmittedSolution) Validate() error {
 	}
 	return nil
 }
-
-type Manager interface {
-	Close() error
-
-	AddProblem(problem *Problem) error
-	AddRunningTask(taskID, problemID int64) error
-	AddSolution(solution *Solution) (int64, error)
-	AddSubmittedSolution(solution *SubmittedSolution) error
-
-	GetProblem(problemID int64) (*Problem, error)
-	GetProblems() ([]*Problem, error)
-	GetRunningTasks() ([]*RunningTask, error)
-	GetSolution(solutionID int64) (*Solution, error)
-	GetSolutionsForProblem(problemID int64) ([]*Solution, error)
-	GetSubmittedSolutions() ([]*SubmittedSolution, error)
-
-	UpdateMinimalDislike(problemID int64, dislike int64) error
-	UpdateSolutionEvalResult(solutionID int64, rejectReason string, dislike int64) error
-}
