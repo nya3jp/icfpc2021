@@ -6,11 +6,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -72,6 +76,7 @@ func main() {
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/recalculate_solutions", s.handleSolutionsRecalculateGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
+	r.HandleFunc("/api/solutions/{solution_id}/tar", s.handleSolutionTarGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionAddTag).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionDeleteTag).Methods("DELETE")
@@ -331,6 +336,47 @@ func (s *server) handleSolutionGet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSolutionTarGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	td, err := ioutil.TempDir("", "")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer os.RemoveAll(td)
+
+	data, err := json.Marshal(solution.Data)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := os.WriteFile(filepath.Join(td, fmt.Sprintf("solution.%d.json", solution.SolutionID)), data, 0644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+
+	cmd := exec.Command("tar", "cz", "-C", td, ".")
+	cmd.Stdout = w
+	if err := cmd.Run(); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
