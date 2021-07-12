@@ -218,6 +218,10 @@ const ProblemList = (props: ProblemListProps) => {
             return;
         }
 
+        ss = ss.filter((s) => {
+            return s.data.bonuses == null || s.data.bonuses.length === 0;
+        });
+
         if (ss.length == 0) {
             return;
         }
