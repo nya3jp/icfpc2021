@@ -296,6 +296,9 @@ fn solve(
     #[opt(long, default_value = "5.0")]
     time_limit: f64,
 
+    #[opt(long)]
+    problem: PathBuf,
+
     /// Use specified initial state
     #[opt(long)]
     init_state: Option<PathBuf>,
@@ -304,7 +307,17 @@ fn solve(
 
     problem_id: i64,
 ) -> Result<()> {
-    let problem: P = get_problem(problem_id)?;
+
+    let problem: P = {
+        let solution: Option<P> =
+            serde_json::from_reader(
+                File::open(&problem).expect(&format!("{} is not found", problem.display())),
+            )
+            .expect("invalid json file");
+        solution
+    }.unwrap();
+
+    //     let problem: P = get_problem(problem_id)?;
 
     /*
     let mut triangles = vec![];
