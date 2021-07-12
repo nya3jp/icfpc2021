@@ -119,7 +119,7 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Mod
                 </ListItem>
                 <ListItem divider={true} dense={true}>
                     <ListItemText>
-                        獲得🍆
+                        獲得🍆:
                         {
                             solution.acquired_bonuses != null &&
                             solution.acquired_bonuses.map((bonus) =>
