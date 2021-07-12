@@ -70,7 +70,7 @@ const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, probl
     );
 };
 
-const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean}) => {
+const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonuses}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean, possibleBonuses: Set<string> | undefined}) => {
     if (!solution) {
         return (
             <Grid container direction="column" alignItems="center">
@@ -128,6 +128,17 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Mod
                         }
                     </ListItemText>
                 </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        獲得可能🍆:
+                        {
+                            possibleBonuses != null &&
+                            Array.from(possibleBonuses.keys()).map((b) => 
+                                <BonusChip key={`bonus-${b}`} bonus={b} />
+                            )
+                        }
+                    </ListItemText>
+                </ListItem>
             </List>
         </Grid>
     );
@@ -137,6 +148,7 @@ export interface ListColumnData {
     header: string;
     bonus: string;
     solutions: Map<number, Solution>;
+    possibleBonuses: Map<number, Set<string>> | undefined,
 };
 
 export interface ProblemListProps {
@@ -181,7 +193,8 @@ export const ProblemList = (props: ProblemListProps) => {
                                 const sol = column.solutions.get(problem.problem_id);
                                 return (
                                     <TableCell key={`problem-row-${problem.problem_id}-column-${column.header}`} style={{verticalAlign: 'top'}}>
-                                        <SolutionCell model={model} problem={problem} showViewer={showViewer} bonus={column.bonus} solution={sol} />
+                                        <SolutionCell model={model} problem={problem} showViewer={showViewer} bonus={column.bonus} solution={sol}
+                                            possibleBonuses={column.possibleBonuses?.get(problem.problem_id)}/>
                                     </TableCell>
                                 );
                             })}

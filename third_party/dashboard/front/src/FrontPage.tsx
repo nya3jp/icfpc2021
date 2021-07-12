@@ -198,6 +198,9 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
     let solSuperflexes: Map<number, Solution> = new Map<number, Solution>();
     let hiddenProblems: Set<number> = new Set<number>();
     let greenBackgroundProblems: Set<number> = new Set<number>();
+    let pbs: Map<number, Set<string>> = new Map<number, Set<string>>();
+    let pbsGlobalists: Map<number, Set<string>> = new Map<number, Set<string>>();
+    let pbsSuperflexes: Map<number, Set<string>> = new Map<number, Set<string>>();
     ps.forEach((problem) => {
         const sol = bestSolutions[problem.problem_id];
         const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
@@ -226,22 +229,44 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
                 greenBackgroundProblems.add(problem.problem_id);
             }
         }
+
+        pbs.set(problem.problem_id, new Set<string>());
+        pbsGlobalists.set(problem.problem_id, new Set<string>());
+        pbsSuperflexes.set(problem.problem_id, new Set<string>());
+        if (sol) {
+            sol.acquired_bonuses.map((v) => {
+                pbs.get(problem.problem_id)?.add(v.bonus)
+            });
+        }
+        if (solGlobalist) {
+            sol.acquired_bonuses.map((v) => {
+                pbsGlobalists.get(problem.problem_id)?.add(v.bonus)
+            })
+        }
+        if (solSuperflex) {
+            sol.acquired_bonuses.map((v) => {
+                pbsSuperflexes.get(problem.problem_id)?.add(v.bonus)
+            })
+        }
     });
     const columns: ListColumnData[] = [
         {
             header: "Best Solution",
             bonus: "",
             solutions: sols,
+            possibleBonuses: pbs,
         },
         {
             header: "Best (+GLOBALIST)",
             bonus: "GLOBALIST",
             solutions: solGlobalists,
+            possibleBonuses: pbsGlobalists,
         },
         {
             header: "Best (+SUPERFLEX)",
             bonus: "SUPERFLEX",
             solutions: solSuperflexes,
+            possibleBonuses: pbsSuperflexes,
         }
     ];
 

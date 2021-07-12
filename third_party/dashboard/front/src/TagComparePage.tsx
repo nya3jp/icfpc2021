@@ -59,6 +59,7 @@ export const TagComparePage = ({model}: {model: Model}) => {
             header: `${tag} (Total ${numberWithCommas(point)})`,
             bonus: "",
             solutions: m,
+            possibleBonuses: undefined,
         });
     });
 
