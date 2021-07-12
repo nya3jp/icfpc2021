@@ -33,6 +33,24 @@ for sid in solution_set:
         solutions.append(res.read().strip())
 
 # Sanity check
+problem_set = set()
+solution_set = set()
+for sol in solutions:
+    s = json.loads(sol)
+    print(s)
+    problem_id = s['problem_id']
+    solution_id = s['solution_id']
+    if problem_id in problem_set:
+        print("solution set has two solutions for problem {}, solution_id={}".format(
+            problem_id, solution_id))
+        sys.exit()
+    if solution_id in solution_set:
+        print("solution set has two same solution {}".format(solution_id))
+        sys.exit()
+    problem_set.add(problem_id)
+    solution_set.add(solution_id)
+
+print("Found {} solutions for {} problems".format(len(solution_set), len(problem_set)))
 
 if not yes_no_input():
     sys.exit()
