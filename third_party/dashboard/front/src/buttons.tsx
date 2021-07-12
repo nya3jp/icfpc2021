@@ -11,7 +11,7 @@ import {Model} from './model';
 import {Problem} from './types';
 import {useHistory} from 'react-router-dom';
 
-export const BonusChip = ({bonus}: {bonus: string}) => {
+export const BonusChip = ({bonus, text}: {bonus: string, text: string}) => {
     let fg = "";
     let bg = "";
     if (bonus === "GLOBALIST") {
@@ -28,7 +28,7 @@ export const BonusChip = ({bonus}: {bonus: string}) => {
         bg = "#ff1744";
     }
 
-    return <Chip color='primary' style={{color: fg, backgroundColor: bg}} label={bonus} />
+    return <Chip color='primary' style={{color: fg, backgroundColor: bg}} label={text} />
 };
 
 export interface EditButtonProps {

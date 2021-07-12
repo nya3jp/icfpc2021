@@ -57,6 +57,7 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
             header: `Solution (Total ${numberWithCommas(point)})`,
             bonus: "",
             solutions: solutions,
+            possibleBonuses: undefined,
         },
     ];
 

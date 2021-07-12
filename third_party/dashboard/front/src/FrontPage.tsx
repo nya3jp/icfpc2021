@@ -198,6 +198,9 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
     let solSuperflexes: Map<number, Solution> = new Map<number, Solution>();
     let hiddenProblems: Set<number> = new Set<number>();
     let greenBackgroundProblems: Set<number> = new Set<number>();
+    let pbs: Map<number, Map<string, number>> = new Map<number, Map<string, number>>();
+    let pbsGlobalists: Map<number, Map<string, number>> = new Map<number, Map<string, number>>();
+    let pbsSuperflexes: Map<number, Map<string, number>> = new Map<number, Map<string, number>>();
     ps.forEach((problem) => {
         const sol = bestSolutions[problem.problem_id];
         const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
@@ -226,22 +229,66 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
                 greenBackgroundProblems.add(problem.problem_id);
             }
         }
+
+        pbs.set(problem.problem_id, new Map<string, number>());
+        pbsGlobalists.set(problem.problem_id, new Map<string, number>());
+        pbsSuperflexes.set(problem.problem_id, new Map<string, number>());
+        if (solutions[problem.problem_id]) {
+            solutions[problem.problem_id].map((s) => {
+                if (s.data.bonuses == null || s.data.bonuses.length === 0) {
+                    s.acquired_bonuses.map((v) => {
+                        if (!pbs.get(problem.problem_id)?.has(v.bonus)) {
+                            pbs.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                        const current = pbs.get(problem.problem_id)?.get(v.bonus);
+                        if (current && current > s.dislike) {
+                            pbs.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                    })
+                }
+                if (s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus === "GLOBALIST")) {
+                    s.acquired_bonuses.map((v) => {
+                        if (!pbsGlobalists.get(problem.problem_id)?.has(v.bonus)) {
+                            pbsGlobalists.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                        const current = pbsGlobalists.get(problem.problem_id)?.get(v.bonus);
+                        if (current && current > s.dislike) {
+                            pbsGlobalists.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                    })
+                }
+                if (s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus === "SUPERFLEX")) {
+                    s.acquired_bonuses.map((v) => {
+                        if (!pbsSuperflexes.get(problem.problem_id)?.has(v.bonus)) {
+                            pbsSuperflexes.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                        const current = pbsSuperflexes.get(problem.problem_id)?.get(v.bonus);
+                        if (current && current > s.dislike) {
+                            pbsSuperflexes.get(problem.problem_id)?.set(v.bonus, s.dislike)
+                        }
+                    })
+                }
+            })
+        }
     });
     const columns: ListColumnData[] = [
         {
             header: "Best Solution",
             bonus: "",
             solutions: sols,
+            possibleBonuses: pbs,
         },
         {
             header: "Best (+GLOBALIST)",
             bonus: "GLOBALIST",
             solutions: solGlobalists,
+            possibleBonuses: pbsGlobalists,
         },
         {
             header: "Best (+SUPERFLEX)",
             bonus: "SUPERFLEX",
             solutions: solSuperflexes,
+            possibleBonuses: pbsSuperflexes,
         }
     ];
 
