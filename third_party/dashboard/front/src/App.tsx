@@ -15,6 +15,7 @@ import {SolutionSetPage} from './SolutionSetPage';
 import {TaskPage} from './TaskPage';
 import {TagPage} from './TagPage';
 import {TagComparePage} from './TagComparePage';
+import {TasksPage} from './TasksPage';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -46,6 +47,7 @@ export default function App() {
                             <Button variant="outlined" color="inherit" href="https://nya3jp.github.io/icfpc2021/fcc7938b3c545e6ff51b101ea86f548b/">手動UI</Button>
                             <Button variant="outlined" color="inherit" href="https://poses.live/problems">ICFPC問題ページ</Button>
                             <Button variant="outlined" color="inherit" href="https://poses.live/teams">チームスコア</Button>
+                            <Button variant="outlined" color="inherit" component={Link} to="/tasks">タスク一覧</Button>
                             <Button variant="outlined" color="inherit" component={Link} to="/">Home</Button>
                         </div>
                     </Toolbar>
@@ -60,6 +62,9 @@ export default function App() {
                         </Route>
                         <Route path="/problems/:problemID">
                             <ProblemPage model={model} />
+                        </Route>
+                        <Route exact path="/tasks/">
+                            <TasksPage model={model} />
                         </Route>
                         <Route path="/tasks/:taskID">
                             <TaskPage model={model} />

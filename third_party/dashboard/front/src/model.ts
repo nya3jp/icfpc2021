@@ -51,6 +51,11 @@ class Client {
         return await res.json();
     }
 
+    async getAllTaskStatuses(): Promise<TaskStatus[]> {
+        const res = await fetch(`${this.baseURL}/api/tasks/all`);
+        return await res.json();
+    }
+
     async setSolutionTag(id: number, tag: string): Promise<Solution> {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}/tags?tag=${tag}`, {method: 'POST'});
         return await res.json();
@@ -67,7 +72,8 @@ export class Model {
     private readonly problems = new Map<number, Promise<Problem>>();
     private readonly solutions = new Map<number, Promise<Solution>>();
 
-    constructor(private readonly client = new Client()) {}
+    constructor(private readonly client = new Client()) {
+    }
 
     getProblems(): Promise<Problem[]> {
         // Problems change over time, do not cache.
@@ -107,12 +113,16 @@ export class Model {
         return this.client.submitSolution(id);
     }
 
-    triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<number> {
+    triggerSolver(problemID: number, bonus: string, penaltyRatio: number, timeLimitSec: number, deadlineSec: number): Promise<number> {
         return this.client.triggerSolver(problemID, bonus, penaltyRatio, timeLimitSec, deadlineSec);
     }
 
     getTaskStatus(id: number): Promise<TaskStatus> {
         return this.client.getTaskStatus(id);
+    }
+
+    getAllTaskStatuses(): Promise<TaskStatus[]> {
+        return this.client.getAllTaskStatuses();
     }
 
     setSolutionTag(id: number, tag: string): Promise<Solution> {
