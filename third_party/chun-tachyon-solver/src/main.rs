@@ -60,16 +60,6 @@ fn solve(
     problem_id: i64,
 ) -> Result<()> {
     eprintln!("Initializing solver");
-    match &use_bonus {
-        None => (),
-        Some(BonusType::GLOBALIST) => (),
-        Some(BonusType::SUPERFLEX) => (),
-        Some(BonusType::WALLHACK) => (),
-        Some(BonusType::BREAK_A_LEG) => (),
-        Some(r) => {
-            bail!("Bonus {} is currently not supported", r);
-        }
-    }
     let ps = get_problems()?;
     eprintln!("Fetch problem completed");
 
