@@ -59,7 +59,7 @@ export const TaskPage = (props: TaskPageProps) => {
 
     return (
         <Container>
-            <Typography variant={'h3'}>Submit</Typography>
+            <Typography variant={'h3'}>Task {taskID}</Typography>
             <TableContainer component={Paper}>
                 <Table size="small" aria-label="a dense table">
                     <TableHead>
