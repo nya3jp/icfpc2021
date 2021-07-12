@@ -45,7 +45,7 @@ export const TaskPage = (props: TaskPageProps) => {
     useEffect(() => {
         (async () => {
             const taskStatus = await model.getTaskStatus(taskID);
-            if (taskStatus.result) {
+            if (taskStatus.state === 'FINISHED') {
                 setStdout(await (await fetch(`https://storage.googleapis.com/special-weekend-2021-flex/prod/tasks/${taskID}/stdout.txt`)).text());
                 setStderr(await (await fetch(`https://storage.googleapis.com/special-weekend-2021-flex/prod/tasks/${taskID}/stderr.txt`)).text());
             }

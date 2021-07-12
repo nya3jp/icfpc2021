@@ -160,13 +160,7 @@ func (s *server) handleProblemSolve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	task, err := s.flexClient.GetTask(r.Context(), taskID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(task); err != nil {
+	if err := json.NewEncoder(w).Encode(taskID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -8,6 +8,7 @@ import Snackbar from '@material-ui/core/Snackbar';
 
 import {Model} from './model';
 import {Problem} from './types';
+import { useHistory } from 'react-router-dom';
 
 export interface EditButtonProps {
     problemID: number;
@@ -70,26 +71,23 @@ export const RunSolverButton = (props: RunSolverButtonProps) => {
 
     const [sending, setSending] = useState<boolean>(false);
     const [message, setMessage] = useState<string>("");
-    const [openTimedMessage, setOpenTimedMessage] = useState<boolean>(false);
-    const [timedMessage, setTimedMessage] = useState<string>("");
+    const history = useHistory();
 
     const handleSend = async () => {
         setMessage("Triggering the solver...");
         setSending(true);
-        let resp = await model.triggerSolver(problem.problem_id, bonus, problem.minimal_dislike, 10 /* sec */, 60 /* sec */);
-        setSending(false);
-        setTimedMessage(resp);
-        setOpenTimedMessage(true);
-    };
-    const handleClose = () => {
-        setOpenTimedMessage(false);
+        try {
+            const taskID = await model.triggerSolver(problem.problem_id, bonus, problem.minimal_dislike, 10 /* sec */, 60 /* sec */);
+            history.push(`/tasks/${taskID}`);
+        } finally {
+            setSending(false);
+        }
     };
 
     return (
         <React.Fragment>
             <Button disabled={sending} color="primary" onClick={handleSend} endIcon={<DirectionsRunIcon />} variant="contained">{text}</Button>
             <Snackbar open={sending} message={message} />
-            <Snackbar open={openTimedMessage} autoHideDuration={3000} onClose={handleClose} message={timedMessage} />
         </React.Fragment>
     );
 };
