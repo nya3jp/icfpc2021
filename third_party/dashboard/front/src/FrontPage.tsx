@@ -12,7 +12,6 @@ import Select from '@material-ui/core/Select';
 import Switch from '@material-ui/core/Switch';
 import {makeStyles} from '@material-ui/core/styles';
 
-
 import {maxScore, scoreInfo} from './utils';
 import {ListColumnData, ProblemList} from './ProblemList';
 
@@ -22,8 +21,8 @@ const useStyles = makeStyles((_) => ({
     },
 }));
 
-type SolutionsMap = {[key: number]: Solution[]};
 type BestSolutionMap = {[key: number]: Solution};
+type SolutionsMap = {[key: number]: Solution[]};
 
 interface FormFilterState {
     hideTopTie: boolean;
