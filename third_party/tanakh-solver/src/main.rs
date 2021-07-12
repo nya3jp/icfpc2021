@@ -116,7 +116,7 @@ fn filter_triangles(
 struct Problem {
     problem: P,
     use_bonus: Option<UsedBonus>,
-    get_bonuses: Vec<BonusType>,
+    get_bonuses: Vec<i64>,
     penalty_ratio: f64,
     penalty_deflate: f64,
     exact: bool,
@@ -294,7 +294,8 @@ impl Annealer for Problem {
 
     fn eval(&self, state: &Self::State, _best_score: f64, _valid_best_score: f64) -> (f64, bool) {
         let mut pena = 0.0;
-        let mut exists_invalid_edge = true;
+        let mut invalid_edge_count = 0;
+        let mut max_invalid_err = 0.0_f64;
         let mut total_err = 0.0;
 
         // let penalty_ratio = if valid_best_score.is_finite() {
@@ -324,14 +325,17 @@ impl Annealer for Problem {
                 continue;
             }
 
-            exists_invalid_edge = false;
+            invalid_edge_count += 1;
 
             // score += 500.0 * (err / eps);
             // score += 1000.0 * (err / eps).powi(2);
+            let e = (err / eps - self.penalty_deflate).abs();
 
-            pena += (err / eps - self.penalty_deflate).abs();
             // pena += (err / eps - 1.0).powi(2);
             // pena += (err / eps - 0.90).abs().powf(0.75);
+
+            pena += e;
+            max_invalid_err = max_invalid_err.max(e);
         }
 
         let dislike = state.dislike() as f64;
@@ -343,7 +347,7 @@ impl Annealer for Problem {
                 .problem
                 .bonuses
                 .iter()
-                .find(|b| b.bonus == *bonus)
+                .find(|b| b.problem as i64 == *bonus)
                 .unwrap()
                 .position;
 
@@ -367,6 +371,14 @@ impl Annealer for Problem {
             })
         );
 
+        let superflex = matches!(
+            &self.use_bonus,
+            Some(UsedBonus {
+                bonus: geom::schema::BonusType::SUPERFLEX,
+                ..
+            })
+        );
+
         if globalist {
             let total_eps = eps * self.problem.figure.edges.len() as f64;
             is_valid = is_valid && total_err <= total_eps;
@@ -374,13 +386,17 @@ impl Annealer for Problem {
             let score = dislike + pena * penalty_ratio;
             (score, is_valid)
         } else {
-            let pena = pena + bonus_err as f64;
+            let pena = if !superflex {
+                pena
+            } else {
+                pena - max_invalid_err
+            } + bonus_err as f64;
 
             let score = dislike * (1.0 + pena / 8.0) + pena * self.penalty_ratio;
             // let score = dislike + pena * penalty_ratio;
             // let score = dislike * (1.0 + pena / 8.0) + pena * penalty_ratio;
 
-            is_valid = is_valid && exists_invalid_edge;
+            is_valid = is_valid && invalid_edge_count <= if superflex { 1 } else { 0 };
 
             (score, is_valid)
         }
@@ -576,8 +592,13 @@ fn solve(
     #[opt(long)] start_temp: Option<f64>,
     #[opt(long, default_value = "0.25")] min_temp: f64,
 
-    #[opt(long, default_value = "1000.0")] penalty_ratio: f64,
-    #[opt(long, default_value = "0.25")] penalty_deflate: f64,
+    /// Penalty deflating ratio (0.0 - 1.0). Please set this value to around minimal dislike value (e.g. max(min_dislike/2, 10)).
+    #[opt(long, default_value = "1000.0")]
+    penalty_ratio: f64,
+
+    /// Penalty deflating ratio (0.0 - 1.0). Larger value means more agressive (but unstable) search.
+    #[opt(long, default_value = "0.25")]
+    penalty_deflate: f64,
 
     #[opt(long)] no_submit: bool,
     #[opt(long)] submit_on_better: bool,
@@ -588,9 +609,9 @@ fn solve(
 
     #[opt(long)] bonus_from: Option<i64>,
 
-    /// Bonuses to get (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
+    /// Bonuses to get specified by problem id
     #[opt(long)]
-    get_bonuses: Vec<BonusType>,
+    get_bonuses: Vec<i64>,
 
     /// search parallel moves
     #[opt(long)]
@@ -598,9 +619,11 @@ fn solve(
 
     problem_id: i64,
 ) -> Result<()> {
+    // bonus support check
     match &use_bonus {
         None => (),
         Some(BonusType::GLOBALIST) => (),
+        Some(BonusType::SUPERFLEX) => (),
         Some(r) => {
             bail!("Bonus {} is currently not supported", r);
         }
@@ -667,8 +690,12 @@ fn solve(
     let seed = seed.unwrap_or_else(|| rand::thread_rng().gen());
 
     for gb in get_bonuses.iter() {
-        if !problem.bonuses.iter().any(|b| b.bonus == *gb) {
-            bail!("Problem {} does not provide bonus {}", problem_id, gb);
+        if !problem.bonuses.iter().any(|b| b.problem as i64 == *gb) {
+            bail!(
+                "Problem {} does not provide bonus for problem {}",
+                problem_id,
+                gb
+            );
         }
     }
 
