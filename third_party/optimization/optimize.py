@@ -45,6 +45,7 @@ def createStates(problem, solution):
             for bonus in problems[problem]['data']['bonuses']:
                 for v in submit['data']['vertices']:
                     if bonus['position'] == v:
+                        print("catch bournus "+str(problem)+' '+str(v[0])+' '+str(v[1]))
                         catchedBonus.append((bonus['bonus'], bonus['problem']))
         states[problem].append((solutionId, dislike, usedBonus, catchedBonus))
 
@@ -91,13 +92,14 @@ def calcup(candidate):
     return candidate['score'] - diffData[candidate['problemId']]['unused']['score']
     
 def calcdown(prob, bonus):
-    ret = -999999999
-    # check diff that have valid constraint
+    ret = -9999999
     if prob not in diffData:
-        return 999999999
+        return 9999999
     for item in diffData[prob]['candidates']:
         if seenCandidates[item['solutionId']]:
-                continue
+            continue
+        if len(item['catchedBonus']) == 0:
+            continue
         valid = True
         for b in item['catchedBonus']:
             tmp = False
@@ -110,17 +112,21 @@ def calcdown(prob, bonus):
             valid = valid and tmp
         if valid:
             ret = max(ret, item['score'] - diffData[prob]['unused']['score'])
-    if ret == -999999999:
-        return 999999999
+    if ret == -9999999:
+        return 9999999
     else:
         return ret
 
 def decide(candidate):
+    print("Candidate ", end="")
+    print(candidate)
+    seenCandidates[candidate['solutionId']] = True
     if candidate['problemId'] in decided:
+        print("Rejected already decided")
         return
 
     # reject candidates that have invalid catch Bonus
-    if candidate['problemId'] in constraint:
+    if (candidate['problemId'] in constraint) and (len(constraint[candidate['problemId']]) != 0):
         is_ret = True
         for i in  constraint[candidate['problemId']]:
             found = False
@@ -130,40 +136,47 @@ def decide(candidate):
             is_ret = is_ret and found
         if not is_ret:
             seenCandidates[candidate['solutionId']] = True
+            print("Rejected does not fit constraint")
             return
+        else:
+            print("Selected! fit all constraint")
+            selected.append(candidate)
+            decided[candidate['problemId']] = candidate
+        return
     else:
         constraint[candidate['problemId']] = []
+
     if len(candidate['usedBonus']) == 0:
-        print(candidate)
+        print("Selected! bonus is not enabled")
         selected.append(candidate)
         decided[candidate['problemId']] = candidate
-        seenCandidates[candidate['solutionId']] = True
         return
 
     bonus = candidate['usedBonus'][0][0]
     prob = candidate['usedBonus'][0][1]
+    if prob not in constraint:
+        constraint[prob] = []
     if prob in decided:
         found = False
         for catched in decided[prob]['catchedBonus']:
             if catched[0] == bonus:
                 found = True
         if found:
-            print(candidate)
+            print("Selected! fit all constraint in previous selected item")
             selected.append(candidate)
             decided[candidate['problemId']] = candidate
-            seenCandidates[candidate['solutionId']] = True
+        print("Rejected does not fit constraint in decided")
         return
     else:
-        # TODO: see constraint dependency
-        if calcup(candidate) > calcdown(prob, bonus):
-            print(candidate)
+        #if calcup(candidate) > calcdown(prob, bonus):
+            print("Selected! we need to get this item from cost")
             selected.append(candidate)
             decided[candidate['problemId']] = candidate
-            if bonus not in constraint[candidate['problemId']]:
-                constraint[candidate['problemId']].append(bonus)
+            if bonus not in constraint[prob]:
+                constraint[prob].append(bonus)
 
 def solve():
-    sortedCandidates = sorted(candidates, key=lambda x:x['score'], reverse=True)
+    sortedCandidates = sorted(candidates, key=lambda x:(x['score'], -len(x['usedBonus']), len(x['catchedBonus'])), reverse=True)
     for candidate in sortedCandidates:
         decide(candidate)
 
@@ -220,8 +233,8 @@ def main():
     totalScore = 0
     for i in selected:
         totalScore = totalScore + i['score']
+    print(len(selected))
     print(totalScore)
-    #print(sortedSelected)
 
 if __name__ == "__main__":
     main()
