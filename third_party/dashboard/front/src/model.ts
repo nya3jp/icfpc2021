@@ -1,4 +1,4 @@
-import {Problem, Solution, TaskStatus} from './types';
+import {Problem, Solution, TaskSpec, TaskStatus} from './types';
 
 const PROD_BASE_URL = 'https://spweek.badalloc.com';
 const DEV_BASE_URL = 'http://localhost:8080'
@@ -63,6 +63,16 @@ class Client {
 
     async deleteSolutionTag(id: number, tag: string): Promise<void> {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}/tags?tag=${tag}`, {method: 'DELETE'});
+        return await res.json();
+    }
+
+    async addTask(spec: TaskSpec): Promise<number> {
+        const init: RequestInit = {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(spec),
+        };
+        const res = await fetch(`${this.baseURL}/api/tasks/addjson`, init);
         return await res.json();
     }
 }
@@ -135,5 +145,9 @@ export class Model {
         const ret = this.client.deleteSolutionTag(id, tag);
         this.solutions.delete(id);
         return ret;
+    }
+
+    addTask(spec: TaskSpec): Promise<number> {
+        return this.client.addTask(spec)
     }
 }
