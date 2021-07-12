@@ -82,6 +82,7 @@ func main() {
 	r.HandleFunc("/api/tasks/all", s.handleTasksAllGet).Methods("GET")
 	r.HandleFunc("/api/tasks/info/{task_id}", s.handleTaskGet).Methods("GET")
 	r.HandleFunc("/api/tasks/add", s.handleAddTaskPost).Methods("POST")
+	r.HandleFunc("/api/tasks/addjson", s.handleAddTaskJSONPBPost).Methods("POST")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
@@ -239,6 +240,30 @@ func (s *server) handleAddTaskPost(w http.ResponseWriter, r *http.Request) {
 
 	var spec flexpb.TaskSpec
 	if err := proto.Unmarshal(body, &spec); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Spot check
+	if spec.GetCommand().GetShell() == "" {
+		http.Error(w, "Invalid TaskSpec", http.StatusInternalServerError)
+		return
+	}
+
+	id, err := s.flexClient.AddTask(context.Background(), &spec)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, id)
+}
+
+func (s *server) handleAddTaskJSONPBPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	var spec flexpb.TaskSpec
+	if err :=jsonpb.Unmarshal(r.Body, &spec); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
