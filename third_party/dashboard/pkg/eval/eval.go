@@ -1,43 +1,38 @@
 package eval
 
 import (
-	"context"
 	"encoding/json"
+	"flag"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
-	"time"
 
 	"icfpc2021/dashboard/pkg/solutionmgr"
+)
+var (
+	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
 )
 
 const RejectDislike = 999999999
 
-func UpdateDislikeTask(ctx context.Context, scorerPath string, mgr *solutionmgr.Manager) {
-	tick := time.NewTicker(time.Minute)
-	defer tick.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick.C:
-			if err := UpdateDislikes(scorerPath, mgr); err != nil {
-				log.Printf("Failed to update dislikes: %v", err)
-			}
-		}
-	}
-}
-
-func UpdateDislikes(scorerPath string, mgr *solutionmgr.Manager) error {
-	solutions, err := mgr.GetSolutionsPendingEval()
+func Recalculate(mgr solutionmgr.Manager) error {
+	problems, err := mgr.GetProblems()
 	if err != nil {
 		return err
 	}
-	for _, solution := range solutions {
-		dislike, rejectReason := Eval(scorerPath, mgr.ProblemFilePath(solution.ProblemID), mgr.SolutionFilePath(solution.FileHash))
-		if err := mgr.UpdateSolutionEvalResult(solution.SolutionID, rejectReason, dislike); err != nil {
+	for _, problem := range problems {
+		solutions, err := mgr.GetSolutionsForProblem(problem.ProblemID)
+		if err != nil {
 			return err
+		}
+		for _, solution := range solutions {
+			dislike, rejectReason, err := EvalData(&problem.Data, &solution.Data)
+			if err != nil {
+				return err
+			}
+			if err := mgr.UpdateSolutionEvalResult(solution.SolutionID, rejectReason, dislike); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -48,9 +43,34 @@ type scorerOutput struct {
 	Dislike int64 `json:"dislike"`
 }
 
-func Eval(scorerPath string, problemPath, solutionPath string) (int64, string) {
+func EvalData(problemData *solutionmgr.ProblemData, solutionData *solutionmgr.SolutionData) (int64, string, error) {
+	tmpProblem, err := ioutil.TempFile("", "scorerproblem.")
+	if err != nil {
+		return 0, "", err
+	}
+	defer tmpProblem.Close()
+	defer os.Remove(tmpProblem.Name())
+	if err := json.NewEncoder(tmpProblem).Encode(problemData); err != nil {
+		return 0, "", err
+	}
+
+	tmpSolution, err := ioutil.TempFile("", "scorersolution.")
+	if err != nil {
+		return 0, "", err
+	}
+	defer tmpSolution.Close()
+	defer os.Remove(tmpSolution.Name())
+	if err := json.NewEncoder(tmpSolution).Encode(solutionData); err != nil {
+		return 0, "", err
+	}
+
+	dislike, rejectReason := eval(tmpProblem.Name(), tmpSolution.Name())
+	return dislike, rejectReason, nil
+}
+
+func eval(problemPath, solutionPath string) (int64, string) {
 	cmd := exec.Command(
-		scorerPath,
+		*scorerPath,
 		problemPath,
 		solutionPath,
 		"json",
@@ -67,18 +87,4 @@ func Eval(scorerPath string, problemPath, solutionPath string) (int64, string) {
 		return RejectDislike, "rejected by scorer"
 	}
 	return output.Dislike, ""
-}
-
-func EvalSolution(scorerPath string, mgr *solutionmgr.Manager, problemID int64, data *solutionmgr.SolutionData) (int64, string, error) {
-	tmp, err := ioutil.TempFile("", "scorer.")
-	if err != nil {
-		return 0, "", err
-	}
-	defer tmp.Close()
-	defer os.Remove(tmp.Name())
-	if err := json.NewEncoder(tmp).Encode(data); err != nil {
-		return 0, "", err
-	}
-	dislike, rejectReason := Eval(scorerPath, mgr.ProblemFilePath(problemID), tmp.Name())
-	return dislike, rejectReason, nil
 }

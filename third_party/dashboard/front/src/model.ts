@@ -35,6 +35,11 @@ class Client {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}/submit`, {method: 'POST'});
         return await res.text();
     }
+
+    async triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
+        const res = await fetch(`${this.baseURL}/api/problems/${problemID}/solve?penalty_ratio=${penaltyRatio}&deadline=${deadlineSec}&time_limit=${timeLimitSec}&bonus=${bonus}`, {method: 'POST'});
+        return await res.text();
+    }
 }
 
 // Model wraps Client for caching.
@@ -76,5 +81,9 @@ export class Model {
 
     submitSolution(id: number): Promise<string> {
         return this.client.submitSolution(id);
+    }
+
+    triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
+        return this.client.triggerSolver(problemID, bonus, penaltyRatio, timeLimitSec, deadlineSec);
     }
 }

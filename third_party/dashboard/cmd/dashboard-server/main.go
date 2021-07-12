@@ -1,74 +1,88 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"icfpc2021/dashboard/pkg/eval"
 	"icfpc2021/dashboard/pkg/scrape"
 	"icfpc2021/dashboard/pkg/solutionmgr"
+	"icfpc2021/dashboard/pkg/tasks"
 
 	"github.com/gorilla/mux"
+	"github.com/nya3jp/flex"
 )
 
 var (
 	port         = flag.Int("port", 8080, "")
-	persistPath  = flag.String("persist_path", "/tmp/dashboard-data", "")
-	staticPath   = flag.String("static_path", "/tmp/static-data", "")
-	scorerPath   = flag.String("scorer_path", "/static/scorer", "")
+	uiServer     = flag.String("ui_server", "", "")
 	enableScrape = flag.Bool("enable_scrape", true, "")
 )
 
 func main() {
 	flag.Parse()
-	mgr, err := solutionmgr.NewManager(*persistPath)
+	mgr, err := solutionmgr.NewMySQLManager()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer mgr.Close()
 
-	go eval.UpdateDislikeTask(context.Background(), *scorerPath, mgr)
+	flexClient, err := tasks.NewFlexClient()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	scraper, err := scrape.NewScraper()
 	if err != nil {
 		log.Printf("Cannot create a scraper. Disable scraping part: %v", err)
 	} else {
 		if *enableScrape {
-			go scrape.ScrapeSubmittedSolutionsTask(*scorerPath, scraper, mgr)
+			go scrape.ScrapeSubmittedSolutionsTask(scraper, mgr)
 			go scrape.ScrapeDislikeTask(scraper, mgr)
 		}
 	}
 
-	s := &server{mgr, scraper}
+	u, err := url.Parse(*uiServer)
+	if err != nil {
+		log.Fatal(err)
+	}
+	uiHandler := httputil.NewSingleHostReverseProxy(u)
+
+	s := &server{mgr, scraper, flexClient}
 	r := mux.NewRouter()
 	r.HandleFunc("/api/problems", s.handleProblemsGet).Methods("GET")
 	r.HandleFunc("/api/problems", s.handleProblemsPost).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}", s.handleProblemGet).Methods("GET")
+	r.HandleFunc("/api/problems/{problem_id}/solve", s.handleProblemSolve).Methods("POST")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
+	r.HandleFunc("/api/tasks/running", s.handleTasksRunningGet).Methods("GET")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir(*staticPath)))
+	r.PathPrefix("/").Handler(uiHandler)
 
 	log.Print("Starting...")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), r))
 }
 
 type server struct {
-	mgr     *solutionmgr.Manager
-	scraper *scrape.Scraper
+	mgr        solutionmgr.Manager
+	scraper    *scrape.Scraper
+	flexClient *flex.Client
 }
 
 func (s *server) handleProblemsGet(w http.ResponseWriter, r *http.Request) {
@@ -99,6 +113,72 @@ func (s *server) handleProblemGet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(problem); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleProblemSolve(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	problemID, err := strconv.ParseInt(mux.Vars(r)["problem_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	bonus := r.URL.Query().Get("bonus")
+	deadlineSec, err := strconv.ParseInt(r.URL.Query().Get("deadline"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	timeLimitSec, err := strconv.ParseInt(r.URL.Query().Get("time_limit"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	penaltyRatio, err := strconv.ParseInt(r.URL.Query().Get("penalty_ratio"), 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// TODO: Parameter validation
+
+	if _, err := s.mgr.GetProblem(problemID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	taskSpec := tasks.NewTask(time.Duration(deadlineSec)*time.Second, time.Duration(timeLimitSec)*time.Second, penaltyRatio, problemID, bonus)
+	taskID, err := s.flexClient.AddTask(r.Context(), taskSpec)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.mgr.AddRunningTask(taskID, problemID,); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	task, err := s.flexClient.GetTask(r.Context(), taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(task); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleTasksRunningGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	tasks, err := s.mgr.GetRunningTasks()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(tasks); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -212,7 +292,12 @@ func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	problem, err := s.mgr.GetProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,7 +353,12 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := trimAndRemoveEmpty(strings.Split(r.Form.Get("tags"), ","))
-	dislike, rejectReason, err := eval.EvalSolution(*scorerPath, s.mgr, problemID, &data)
+	problem, err := s.mgr.GetProblem(problemID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

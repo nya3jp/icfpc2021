@@ -6,24 +6,24 @@ spec:
   selector:
     matchLabels:
       app: dashboard-server
-  strategy:
-    type: Recreate
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
         app: dashboard-server
     spec:
+      serviceAccountName: dashboard-sa
       containers:
         - name: dashboard-server
           image: gcr.io/special-weekend-2021/dashboard-server:latest
           imagePullPolicy: Always
           args:
-            - '--persist_path=/dashboard-data'
-            - '--static_path=/build'
+            - '--ui_server=http://ui-server.default.svc.cluster.local'
           envFrom:
             - secretRef:
                 name: icfpc
+            - secretRef:
+                name: cloudsql-secret
           livenessProbe:
             httpGet:
               path: /healthz
@@ -46,17 +46,14 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-          volumeMounts:
-            - name: dashboard-data
-              mountPath: '/dashboard-data'
-            - name: deploy-key
-              readOnly: true
-              mountPath: '/root/.ssh'
-      volumes:
-        - name: dashboard-data
-          persistentVolumeClaim:
-            claimName: dashboard-data
-        - name: deploy-key
-          secret:
-            secretName: deploy-key
-            defaultMode: 0600
+        - name: cloud-sql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.17
+          command:
+            - "/cloud_sql_proxy"
+            - "-instances=special-weekend-2021:asia-east1:flex=tcp:3306"
+          securityContext:
+            runAsNonRoot: true
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu:    "1"

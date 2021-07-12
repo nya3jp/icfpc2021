@@ -3,7 +3,6 @@ import {Problem, Solution, GotBonus, BonusMap} from './types';
 import {Model} from './model';
 import {Link} from 'react-router-dom';
 
-import {makeStyles} from '@material-ui/core/styles';
 import Container from '@material-ui/core/Container';
 import FormControl from '@material-ui/core/FormControl';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
@@ -11,7 +10,6 @@ import FormGroup from '@material-ui/core/FormGroup';
 import Grid from '@material-ui/core/Grid';
 import InputLabel from '@material-ui/core/InputLabel';
 import MenuItem from '@material-ui/core/MenuItem';
-import Paper from '@material-ui/core/Paper';
 import Select from '@material-ui/core/Select';
 import Switch from '@material-ui/core/Switch';
 import Table from '@material-ui/core/Table';
@@ -20,9 +18,16 @@ import TableCell from '@material-ui/core/TableCell';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import Typography from '@material-ui/core/Typography';
-import {Viewer} from './editor/Viewer';
 import {green} from '@material-ui/core/colors';
+import {makeStyles} from '@material-ui/core/styles';
+
+import List from '@material-ui/core/List';
+import ListItem from '@material-ui/core/ListItem';
+import ListItemText from '@material-ui/core/ListItemText';
+
+import {Viewer} from './editor/Viewer';
 import {maxScore, scoreInfo, bonusMap} from './utils';
+import {RunSolverButton} from './buttons';
 
 const useStyles = makeStyles((_) => ({
     spacer: {
@@ -37,105 +42,109 @@ interface ProblemListProps {
     model: Model;
 }
 
-const ProblemCell = ({problem, bonuses}: {problem: Problem, bonuses: GotBonus[]}) => {
-    const problemLink = `/problems/${problem.problem_id}`;
+const CondViewer = ({problem, solution, showViewer}: {problem: Problem, solution?: Solution, showViewer: boolean}) => {
+    if (!showViewer) {
+        return <div></div>
+    }
+    if (!solution) {
+        return <Viewer problem={problem} size={100} />
+    }
+    return <Viewer problem={problem} solution={solution} size={100} />
+};
+
+const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, problem: Problem, bonuses: GotBonus[], showViewer: boolean}) => {
     if (!bonuses) {
         bonuses = [];
     }
     return (
-        <Link to={problemLink} style={{textDecoration: 'none'}}>
-            <Grid container spacing={2}>
-                <Grid item>
-                    <Viewer problem={problem} size={100} />
-                </Grid>
-                <Grid item>
-                    <Table size="small">
-                        <TableBody>
-                            <TableRow>
-                                <TableCell>Minimal Dislike</TableCell>
-                                <TableCell>{problem.minimal_dislike}</TableCell>
-                            </TableRow>
-                            <TableRow>
-                                <TableCell>Max Score</TableCell>
-                                <TableCell>{maxScore(problem)}</TableCell>
-                            </TableRow>
-                            <TableRow>
-                                <TableCell>使用可ボーナス</TableCell>
-                                <TableCell>{
-                                    bonuses.map((bonus) => {
-                                        return <div>{bonus.from_problem_id}から{bonus.kind}</div>
-                                    })
-                                }</TableCell>
-                            </TableRow>
-                            <TableRow>
-                                <TableCell>獲得可能ボーナス</TableCell>
-                                <TableCell>{
-                                    problem.data.bonuses.map((bonus) => {
-                                        return <div>{bonus.problem}へ{bonus.bonus}</div>
-                                    })
-                                }</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </Grid>
-            </Grid>
-        </Link>
+        <Grid container direction="column" alignItems="center">
+            <RunSolverButton model={model} problem={problem} bonus="" text="ソルバ" />
+            <CondViewer problem={problem} showViewer={showViewer} />
+            <List dense={true} style={{width: '13em'}}>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        最小Dislike: <b>{problem.minimal_dislike}</b>
+                    </ListItemText>
+                </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        最大スコア: <b>{maxScore(problem)}</b>
+                    </ListItemText>
+                </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        使用可🍆:<br />
+                        {bonuses.map((bonus) => {
+                            return <span>{bonus.from_problem_id}から{bonus.kind}<br /></span>
+                        })}
+                    </ListItemText>
+                </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        獲得可🍆:<br />
+                        {problem.data.bonuses.map((bonus) => {
+                            return <span>{bonus.problem}へ{bonus.bonus}<br /></span>
+                        })}
+                    </ListItemText>
+                </ListItem>
+            </List>
+        </Grid>
     );
 };
 
-const SolutionCell = ({problem, solution}: {problem: Problem, solution: Solution}) => {
+const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean}) => {
+    if (!solution) {
+        return (
+            <Grid container direction="column" alignItems="center">
+                <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />
+            </Grid>
+        );
+    }
     const solutionLink = `/solutions/${solution.solution_id}`;
     const si = scoreInfo(problem, solution);
 
-    let diff = "";
+    let dislikeText = "";
     let scoreText = "";
     if (problem.minimal_dislike !== solution.dislike) {
-        diff = ` (${solution.dislike - problem.minimal_dislike}点差)`
-        scoreText = `${si.score} (残り ${si.maxScore - si.score} / ${Math.ceil(100 - si.ratio * 100)}%)`;
+        dislikeText = `${solution.dislike} (${solution.dislike - problem.minimal_dislike}点差)`
+        scoreText = `(残り ${si.maxScore - si.score} / ${Math.ceil(100 - si.ratio * 100)}%)`;
     } else {
-        diff = " (トップタイ)"
-        scoreText = `${si.score} (MAX)`;
+        dislikeText = `${solution.dislike} (トップタイ)`
+        scoreText = `(MAX)`;
     }
     return (
-        <Link to={solutionLink} style={{textDecoration: 'none'}}>
-            <Grid container spacing={2}>
-                <Grid item>
-                    <Viewer problem={problem} solution={solution} size={100} />
-                </Grid>
-                <Grid item>
-                    <Table size="small">
-                        <TableBody>
-                            <TableRow>
-                                <TableCell>Dislike</TableCell>
-                                <TableCell>{solution.dislike}{diff}</TableCell>
-                            </TableRow>
-                            <TableRow>
-                                <TableCell>Score</TableCell>
-                                <TableCell>{scoreText}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </Grid>
-            </Grid>
-        </Link>
+        <Grid container direction="column" alignItems="center">
+            <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />
+            <Link to={solutionLink} style={{textDecoration: 'none'}}>
+                <CondViewer problem={problem} solution={solution} showViewer={showViewer} />
+            </Link>
+            <List dense={true} style={{width: '17em'}}>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        Dislike: <b>{dislikeText}</b>
+                    </ListItemText>
+                </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        スコア: <b>{si.score}<br />{scoreText}</b>
+                    </ListItemText>
+                </ListItem>
+            </List>
+        </Grid>
     );
 };
 
 interface FormFilterState {
     hideTopTie: boolean;
     hideZeroScore: boolean;
+    hideViewer: boolean;
     order: string;
 };
-
-interface SolutionFilterState {
-    useGlobalist: boolean;
-}
 
 const ProblemList = (props: ProblemListProps) => {
     const {model} = props;
     const classes = useStyles();
     const ssKey = "ProblemListFormFilterState";
-    const solFilterKey = "ProblemListSolutionFilterState";
 
     const [formFilter, setFormFilter] = useState<FormFilterState>(() => {
         const s = localStorage.getItem(ssKey);
@@ -145,21 +154,13 @@ const ProblemList = (props: ProblemListProps) => {
         return {
             hideTopTie: false,
             hideZeroScore: false,
+            hideViewer: false,
             order: "ProblemID",
         };
     });
     const [problems, setProblems] = useState<Problem[]>([]);
     const [bonuses, setBonuses] = useState<BonusMap>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
-    const [solutionFilter, setSolutionFilter] = useState<SolutionFilterState>(() => {
-        const s = localStorage.getItem(solFilterKey);
-        if (s) {
-            return JSON.parse(s);
-        }
-        return {
-            useGlobalist: false,
-        };
-    });
 
     useEffect(() => {
         // Every time the state is updated, this is called...
@@ -187,9 +188,6 @@ const ProblemList = (props: ProblemListProps) => {
     const formFilterSaveHook = (d: FormFilterState) => {
         localStorage.setItem(ssKey, JSON.stringify(d));
     };
-    const solutionFilterSaveHook = (d: SolutionFilterState) => {
-        localStorage.setItem(solFilterKey, JSON.stringify(d));
-    }
     const switchHideTopTie = (event: React.ChangeEvent<HTMLInputElement>) => {
         const v = {...formFilter, hideTopTie: event.target.checked};
         setFormFilter(v);
@@ -200,15 +198,15 @@ const ProblemList = (props: ProblemListProps) => {
         setFormFilter(v);
         formFilterSaveHook(v);
     };
+    const switchHideViewer = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const v = {...formFilter, hideViewer: event.target.checked};
+        setFormFilter(v);
+        formFilterSaveHook(v);
+    };
     const switchSortOrder = (event: React.ChangeEvent<{value: unknown}>) => {
         const v = {...formFilter, order: event.target.value as string};
         setFormFilter(v);
         formFilterSaveHook(v);
-    };
-    const filterBestSolution = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const v = {...solutionFilter, useGlobalist: event.target.checked};
-        setSolutionFilter(v);
-        solutionFilterSaveHook(v);
     };
 
     if (problems.length === 0) return <p>No solutions</p>;
@@ -220,14 +218,9 @@ const ProblemList = (props: ProblemListProps) => {
             return;
         }
 
-        // TODO: Extend to other bonuses
-        if (solutionFilter.useGlobalist) {
-            ss = ss.filter((s) => {
-                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == 'GLOBALIST');
-            });
-        } else {
-            ss = ss.filter((s) => s.data.bonuses == null || s.data.bonuses.length === 0);
-        }
+        ss = ss.filter((s) => {
+            return s.data.bonuses == null || s.data.bonuses.length === 0;
+        });
 
         if (ss.length == 0) {
             return;
@@ -238,26 +231,33 @@ const ProblemList = (props: ProblemListProps) => {
         });
         bestSolutions[problem.problem_id] = sol;
     });
-    let bestSolutionsGlobalist: BestSolutionMap = {};
-    problems.forEach((problem) => {
-        let ss = solutions[problem.problem_id];
-        if (!ss) {
-            return;
-        }
 
-        ss = ss.filter((s) => {
-            return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == 'GLOBALIST');
+    const filteredBestSolutionMap = (bonus: string) => {
+        let solutionMap: BestSolutionMap = {};
+        problems.forEach((problem) => {
+            let ss = solutions[problem.problem_id];
+            if (!ss) {
+                return;
+            }
+
+            ss = ss.filter((s) => {
+                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == bonus);
+            });
+
+            if (ss.length == 0) {
+                return;
+            }
+
+            const sol = ss.reduce((prev, current) => {
+                return prev.dislike < current.dislike ? prev : current;
+            });
+            solutionMap[problem.problem_id] = sol;
         });
+        return solutionMap;
+    };
+    const bestSolutionsGlobalist: BestSolutionMap = filteredBestSolutionMap("GLOBALIST");
+    const bestSolutionsSuperflex: BestSolutionMap = filteredBestSolutionMap("SUPERFLEX");
 
-        if (ss.length == 0) {
-            return;
-        }
-
-        const sol = ss.reduce((prev, current) => {
-            return prev.dislike < current.dislike ? prev : current;
-        });
-        bestSolutionsGlobalist[problem.problem_id] = sol;
-    });
     const ps = problems.sort((p1: Problem, p2: Problem) => {
         if (formFilter.order === "ProblemID") {
             return p1.problem_id - p2.problem_id;
@@ -302,11 +302,11 @@ const ProblemList = (props: ProblemListProps) => {
     });
 
     return (
-        <Container component={Paper}>
+        <Container>
             <FormGroup row>
                 <FormControlLabel control={<Switch checked={formFilter.hideTopTie} onChange={switchHideTopTie} color="primary" />} label="トップタイの問題を隠す" />
                 <FormControlLabel control={<Switch checked={formFilter.hideZeroScore} onChange={switchHideZeroScore} color="primary" />} label="0点の問題を隠す" />
-                <FormControlLabel control={<Switch checked={solutionFilter.useGlobalist} onChange={filterBestSolution} color="primary" />} label="GLOBALIST" />
+                <FormControlLabel control={<Switch checked={formFilter.hideViewer} onChange={switchHideViewer} color="primary" />} label="ビューアーを隠す" />
                 <div className={classes.spacer}></div>
                 <FormControl>
                     <InputLabel shrink id="sort-order-label">ソート順</InputLabel>
@@ -324,19 +324,23 @@ const ProblemList = (props: ProblemListProps) => {
                         <TableCell>Problem</TableCell>
                         <TableCell>Best Solution</TableCell>
                         <TableCell>Best (+GLOBALIST)</TableCell>
+                        <TableCell>Best (+SUPERFLEX)</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
                     {ps.map((problem) => {
                         const sol = bestSolutions[problem.problem_id];
                         const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
+                        const solSuperflex = bestSolutionsSuperflex[problem.problem_id];
+                        const problemLink = `/problems/${problem.problem_id}`;
                         if (!sol) {
                             return (
                                 <TableRow key={problem.problem_id}>
-                                    <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
-                                    <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
-                                    <TableCell></TableCell>
-                                    <TableCell></TableCell>
+                                    <TableCell align="right"><Link to={problemLink} style={{textDecoration: 'none'}}><Typography variant="h2">{problem.problem_id}</Typography></Link></TableCell>
+                                    <TableCell style={{verticalAlign: 'top'}}><ProblemCell model={model} problem={problem} bonuses={bonuses[problem.problem_id]} showViewer={!formFilter.hideViewer} /></TableCell>
+                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="" /></TableCell>
+                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="GLOBALIST" /></TableCell>
+                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="SUPERFLEX" /></TableCell>
                                 </TableRow>
                             );
                         }
@@ -353,10 +357,11 @@ const ProblemList = (props: ProblemListProps) => {
                         }
                         return (
                             <TableRow key={problem.problem_id} style={{background: color}}>
-                                <TableCell align="right"><Typography variant="h2">{problem.problem_id}</Typography></TableCell>
-                                <TableCell><ProblemCell problem={problem} bonuses={bonuses[problem.problem_id]} /></TableCell>
-                                <TableCell><SolutionCell problem={problem} solution={sol}/></TableCell>
-                                <TableCell>{solGlobalist && <SolutionCell problem={problem} solution={bestSolutionsGlobalist[problem.problem_id]}></SolutionCell>}</TableCell>
+                                <TableCell align="right"><Link to={problemLink} style={{textDecoration: 'none'}}><Typography variant="h2">{problem.problem_id}</Typography></Link></TableCell>
+                                <TableCell style={{verticalAlign: 'top'}}><ProblemCell model={model} problem={problem} bonuses={bonuses[problem.problem_id]} showViewer={!formFilter.hideViewer} /></TableCell>
+                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="" solution={sol} /></TableCell>
+                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="GLOBALIST" solution={solGlobalist} /></TableCell>
+                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="SUPERFLEX" solution={solSuperflex} /></TableCell>
                             </TableRow>
                         );
                     })}
