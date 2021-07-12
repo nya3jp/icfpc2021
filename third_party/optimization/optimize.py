@@ -45,7 +45,6 @@ def createStates(problem, solution):
             for bonus in problems[problem]['data']['bonuses']:
                 for v in submit['data']['vertices']:
                     if bonus['position'] == v:
-                        print("catch bournus "+str(problem)+' '+str(v[0])+' '+str(v[1]))
                         catchedBonus.append((bonus['bonus'], bonus['problem']))
         states[problem].append((solutionId, dislike, usedBonus, catchedBonus))
 
@@ -89,16 +88,20 @@ def createDiffDataAndCandidate():
             candidates.append(candidate)
 
 def calcup(candidate):
-    return candidate['score'] - diffData[candidate['problemId']]['unused']['score']
+    return candidate['score'] * 1.5 - diffData[candidate['problemId']]['unused']['score']
     
 def calcdown(prob, bonus):
     ret = -9999999
     if prob not in diffData:
+        print('diffData invalid')
         return 9999999
+    print(len(diffData[prob]['candidates']))
     for item in diffData[prob]['candidates']:
         if seenCandidates[item['solutionId']]:
+            print('Seen!')
             continue
         if len(item['catchedBonus']) == 0:
+            print('dont catched Bonus')
             continue
         valid = True
         for b in item['catchedBonus']:
@@ -113,8 +116,10 @@ def calcdown(prob, bonus):
         if valid:
             ret = max(ret, item['score'] - diffData[prob]['unused']['score'])
     if ret == -9999999:
+        print('Invalid!')
         return 9999999
     else:
+        print('Hit!')
         return ret
 
 def decide(candidate):
@@ -142,6 +147,8 @@ def decide(candidate):
             print("Selected! fit all constraint")
             selected.append(candidate)
             decided[candidate['problemId']] = candidate
+            if candidate['usedBonus'][0][0] not in constraint[candidate['problemId']]:
+                    constraint[candidate['problemId']].append(candidate['usedBonus'][0][0])
         return
     else:
         constraint[candidate['problemId']] = []
@@ -168,12 +175,14 @@ def decide(candidate):
         print("Rejected does not fit constraint in decided")
         return
     else:
-        #if calcup(candidate) > calcdown(prob, bonus):
+        if calcup(candidate) > calcdown(prob, bonus):
             print("Selected! we need to get this item from cost")
             selected.append(candidate)
             decided[candidate['problemId']] = candidate
             if bonus not in constraint[prob]:
                 constraint[prob].append(bonus)
+        else:
+            print("Rejected! we don't need to get this item from cost")
 
 def solve():
     sortedCandidates = sorted(candidates, key=lambda x:(x['score'], -len(x['usedBonus']), len(x['catchedBonus'])), reverse=True)
@@ -234,6 +243,19 @@ def main():
     for i in selected:
         totalScore = totalScore + i['score']
     print(len(selected))
+    print(totalScore)
+    totalScore = 0
+    count_total_candidate = 0
+    seenCandidates = dict()
+    for i in candidates:
+        if len(i['usedBonus']) > 0:
+            continue
+        if i['problemId'] in seenCandidates:
+            continue
+        seenCandidates[i['problemId']] = True
+        count_total_candidate = count_total_candidate + 1
+        totalScore = totalScore + i['score']
+    print(count_total_candidate)
     print(totalScore)
 
 if __name__ == "__main__":
