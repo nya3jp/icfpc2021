@@ -1,6 +1,5 @@
 import {Link} from 'react-router-dom';
 
-import Chip from '@material-ui/core/Chip';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
@@ -11,6 +10,7 @@ import TableRow from '@material-ui/core/TableRow';
 
 import {Problem, Solution} from './types';
 import {Viewer} from './editor/Viewer';
+import {BonusChip} from './buttons';
 
 export interface ProblemSolutionPair {
     problem: Problem;
@@ -49,12 +49,12 @@ export function SolutionsTable({pairs, showProblem = false}: {pairs: ProblemSolu
                                 <TableCell>{
                                     solution.data.bonuses != null &&
                                     solution.data.bonuses.length === 1 &&
-                                    solution.data.bonuses[0].bonus
+                                    <BonusChip bonus={solution.data.bonuses[0].bonus} />
                                 }</TableCell>
                                 <TableCell>{
                                     solution.acquired_bonuses != null &&
                                     solution.acquired_bonuses.map((bonus) =>
-                                        <Chip color="primary" key={`bonus-${bonus.bonus}`} label={bonus.bonus} />
+                                        <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} />
                                     )
                                 }</TableCell>
                             </TableRow>

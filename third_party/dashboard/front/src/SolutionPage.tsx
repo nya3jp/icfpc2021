@@ -21,7 +21,7 @@ import {Typography} from '@material-ui/core';
 
 import {Viewer} from './editor/Viewer';
 import {scoreInfo} from './utils';
-import {EditButton, OfficialSubmitButton} from './buttons';
+import {EditButton, OfficialSubmitButton, BonusChip} from './buttons';
 
 const useStyles = makeStyles((theme) => ({
     buttons: {
@@ -125,6 +125,24 @@ export const SolutionPage = (props: SolutionPageProps) => {
                             <TableCell component="th" scope="row" align="right">Score</TableCell>
                             <TableCell>{scoreText}</TableCell>
                         </TableRow>
+                        <TableRow>
+                            <TableCell component="th" scope="row" align="right">使用🍆</TableCell>
+                            <TableCell>{
+                                solution.data.bonuses != null &&
+                                solution.data.bonuses.length === 1 &&
+                                <BonusChip bonus={solution.data.bonuses[0].bonus} />
+                            }</TableCell>
+                        </TableRow>
+                        <TableRow>
+                            <TableCell component="th" scope="row" align="right">獲得🍆</TableCell>
+                            <TableCell>{
+                                solution.acquired_bonuses != null &&
+                                solution.acquired_bonuses.map((bonus) =>
+                                    <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} />
+                                )
+                            }</TableCell>
+                        </TableRow>
+
                         <TableRow>
                             <TableCell component="th" scope="row" align="right">Tags</TableCell>
                             <TableCell>

@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 
 import Button from '@material-ui/core/Button';
+import Chip from '@material-ui/core/Chip';
 import DirectionsRunIcon from '@material-ui/icons/DirectionsRun';
 import EditIcon from '@material-ui/icons/Edit';
 import SendIcon from '@material-ui/icons/Send';
@@ -8,7 +9,27 @@ import Snackbar from '@material-ui/core/Snackbar';
 
 import {Model} from './model';
 import {Problem} from './types';
-import { useHistory } from 'react-router-dom';
+import {useHistory} from 'react-router-dom';
+
+export const BonusChip = ({bonus}: {bonus: string}) => {
+    let fg = "";
+    let bg = "";
+    if (bonus === "GLOBALIST") {
+        fg = "#000";
+        bg = "#ffeb3b";
+    } else if (bonus === "BREAK_A_LEG") {
+        fg = "#fff";
+        bg = "#26a69a";
+    } else if (bonus === "WALLHACK") {
+        fg = "#000";
+        bg = "#ff9100";
+    } else if (bonus === "SUPERFLEX") {
+        fg = "#fff";
+        bg = "#ff1744";
+    }
+
+    return <Chip color='primary' style={{color: fg, backgroundColor: bg}} label={bonus} />
+};
 
 export interface EditButtonProps {
     problemID: number;
