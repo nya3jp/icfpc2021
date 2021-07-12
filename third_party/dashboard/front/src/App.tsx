@@ -16,6 +16,7 @@ import {TaskPage} from './TaskPage';
 import {TagPage} from './TagPage';
 import {TagComparePage} from './TagComparePage';
 import {TasksPage} from './TasksPage';
+import {SubmitPage} from './SubmitPage';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -68,6 +69,9 @@ export default function App() {
                         </Route>
                         <Route path="/tasks/:taskID">
                             <TaskPage model={model} />
+                        </Route>
+                        <Route path="/submit/:problemID">
+                            <SubmitPage model={model} />
                         </Route>
                         <Route path="/tags/:tag">
                             <TagPage model={model} />

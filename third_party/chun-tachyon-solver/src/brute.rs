@@ -624,7 +624,6 @@ pub fn brute(prob: &Problem, timer: &SystemTime) -> (usize, Pose) {
     // modify the problem for BreakALeg
     let mut prob: Problem = prob.clone();
     prob.problem.figure.vertices.resize(nvert_solution, Point {x: 0., y: 0.});
-    let nedge_solution = nvert_solution - n + prob.problem.figure.edges.len();
     prob.problem.figure.edges.resize(nedge_solution, Edge {v1: 0, v2: 0});
     for bonus_use_plan in bonus_use_plans {
         let mut edge_backup: Option<Edge> = None;
