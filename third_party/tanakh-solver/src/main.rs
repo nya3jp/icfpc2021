@@ -666,6 +666,7 @@ fn solve(
             Some(UsedBonus {
                 bonus: b,
                 problem: problem as _,
+                edge: None,
             })
         }
 
@@ -695,6 +696,7 @@ fn solve(
             Some(UsedBonus {
                 bonus: p.1.bonus,
                 problem: p.0 as _,
+                edge: None,
             })
         }
 
