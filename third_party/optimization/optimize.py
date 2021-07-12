@@ -236,19 +236,24 @@ def encost(candidate):
         cost = cost + getScore(candidate['problemId'], globalBestDislike[candidate['problemId']]) - getScore(candidate['problemId'], globalBestDislikeIn[candidate['problemId']])
     return cost
 
-def dfs(candidate, depth):
-    print(candidate)
+def dfs(candidate, depth, seen):
+    #print(candidate)
+    if candidate['problemId'] in seen:
+        return ("", 0)
+    seen[candidate['problemId']] = True
     if len(candidate['usedBonus']) == 0:
         return ('('+str(candidate['solutionId'])+','+str(candidate['problemId'])+')', -discost(candidate))
     for i in diffData[candidate['problemId']]['candidates']:
         if suitable(i, candidate, depth):
-            print(i, candidate, depth)
-            return ( '('+str(candidate['solutionId'])+','+str(candidate['problemId'])+')' + dfs(i, depth+1)[0], dfs(i,depth+1)[1] + encost(candidate) )
+            #print(i, candidate, depth)
+            result =  dfs(i, depth+1)
+            return ( '('+str(candidate['solutionId'])+','+str(candidate['problemId'])+')' + result[0], result[1] + encost(candidate) )
+    return ("", -9999999999)
 
 def solve2():
     sortedCandidates = sorted(candidates, key=lambda x:(x['score'], -len(x['usedBonus']), len(x['catchedBonus'])), reverse=True)
     for candidate in candidates:
-        print(dfs(candidate, 0))
+        print(dfs(candidate, 0, dict()))
 
 def main():
     # Get Problems and Solutions
