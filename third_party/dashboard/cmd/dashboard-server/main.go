@@ -162,7 +162,7 @@ func (s *server) handleProblemSolve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := s.mgr.AddRunningTask(taskID, problemID,); err != nil {
+	if err := s.mgr.AddRunningTask(taskID, problemID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -350,16 +350,17 @@ func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
+	dislike, acquiredBonus, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	solution := &solutionmgr.Solution{
-		ProblemID:    problemID,
-		Dislike:      dislike,
-		RejectReason: rejectReason,
-		Data:         data,
+		ProblemID:     problemID,
+		Dislike:       dislike,
+		RejectReason:  rejectReason,
+		AcquiredBonus: acquiredBonus,
+		Data:          data,
 	}
 	solutionID, err := s.mgr.AddSolution(solution)
 	if err != nil {
@@ -430,17 +431,18 @@ func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dislike, rejectReason, err := eval.EvalData(&problem.Data, &data)
+	dislike, acquiredBonus, rejectReason, err := eval.EvalData(&problem.Data, &data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	solution := &solutionmgr.Solution{
-		ProblemID:    problemID,
-		Tags:         tags,
-		Dislike:      dislike,
-		RejectReason: rejectReason,
-		Data:         data,
+		ProblemID:     problemID,
+		Tags:          tags,
+		Dislike:       dislike,
+		RejectReason:  rejectReason,
+		AcquiredBonus: acquiredBonus,
+		Data:          data,
 	}
 	solutionID, err := s.mgr.AddSolution(solution)
 	if err != nil {

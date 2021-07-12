@@ -112,14 +112,15 @@ func (s *SolutionData) Validate(problem *ProblemData) error {
 }
 
 type Solution struct {
-	SolutionID   int64        `json:"solution_id"`
-	ProblemID    int64        `json:"problem_id"`
-	CreatedAt    int64        `json:"created_at"`
-	Dislike      int64        `json:"dislike"`
-	RejectReason string       `json:"reject_reason"`
-	Tags         []string     `json:"tags"`
-	Data         SolutionData `json:"data"`
-	fileHash     string
+	SolutionID    int64        `json:"solution_id"`
+	ProblemID     int64        `json:"problem_id"`
+	CreatedAt     int64        `json:"created_at"`
+	Dislike       int64        `json:"dislike"`
+	RejectReason  string       `json:"reject_reason"`
+	Tags          []string     `json:"tags"`
+	AcquiredBonus []UsedBonus  `json:"acquired_bonuses"`
+	Data          SolutionData `json:"data"`
+	fileHash      string
 }
 
 type SubmittedSolution struct {
@@ -132,7 +133,7 @@ type SubmittedSolution struct {
 type RunningTask struct {
 	TaskID    int64 `json:"task_id"`
 	ProblemID int64 `json:"problem_id"`
-	CreatedAt           int64  `json:"created_at"`
+	CreatedAt int64 `json:"created_at"`
 }
 
 func (s *SubmittedSolution) Validate() error {

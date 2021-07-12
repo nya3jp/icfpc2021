@@ -148,6 +148,14 @@ func runSchemaMigration(db *sql.DB) error {
 		}
 		version = 2
 		fallthrough
+	case 2:
+		if _, err := db.Exec(`
+			ALTER TABLE solutions ADD acquired_bonus VARCHAR(256);
+		`); err != nil {
+			return fmt.Errorf("cannot update table: %v", err)
+		}
+		version = 3
+		fallthrough
 	default:
 	}
 	if _, err := db.Exec(`UPDATE schema_version SET version = ? WHERE id = 1`, version); err != nil {
@@ -244,20 +252,23 @@ func (m *MySQLManager) AddSolution(solution *Solution) (int64, error) {
 		return 0, err
 	}
 
+	rawBonus, err := json.Marshal(solution.AcquiredBonus)
+	if err != nil {
+		return 0, err
+	}
+
 	if solution.SolutionID != 0 {
 		_, err := tx.Exec(
-			"INSERT INTO solutions(solution_id, problem_id, created_at, file_hash, dislike, reject_reason) VALUES (?, ?, ?, ?, ?, ?)",
-			solution.SolutionID, solution.ProblemID, solution.CreatedAt, fileHash, solution.Dislike, solution.RejectReason,
-		)
+			"INSERT INTO solutions(solution_id, problem_id, created_at, file_hash, dislike, reject_reason, acquired_bonus) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			solution.SolutionID, solution.ProblemID, solution.CreatedAt, fileHash, solution.Dislike, solution.RejectReason, rawBonus)
 		if err != nil {
 			return 0, err
 		}
 		solutionID = solution.SolutionID
 	} else {
 		result, err := tx.Exec(
-			"INSERT INTO solutions(problem_id, created_at, file_hash, dislike, reject_reason) VALUES (?, ?, ?, ?, ?)",
-			solution.ProblemID, solution.CreatedAt, fileHash, solution.Dislike, solution.RejectReason,
-		)
+			"INSERT INTO solutions(problem_id, created_at, file_hash, dislike, reject_reason, acquired_bonus) VALUES (?, ?, ?, ?, ?, ?)",
+			solution.ProblemID, solution.CreatedAt, fileHash, solution.Dislike, solution.RejectReason, rawBonus)
 		if err != nil {
 			return 0, err
 		}
@@ -392,11 +403,11 @@ func (m *MySQLManager) GetRunningTasks() ([]*RunningTask, error) {
 func (m *MySQLManager) GetSolution(solutionID int64) (*Solution, error) {
 	var fileHash, rejectReason string
 	var problemID, createdAt, dislike int64
-	var bs []byte
+	var bs, bonusRaw []byte
 	if err := m.db.QueryRow(
-		"SELECT problem_id, created_at, file_hash, dislike, reject_reason, data FROM solutions INNER JOIN solution_data USING (file_hash) WHERE solution_id = ?",
+		"SELECT problem_id, created_at, file_hash, dislike, reject_reason, data, acquired_bonus FROM solutions INNER JOIN solution_data USING (file_hash) WHERE solution_id = ?",
 		solutionID,
-	).Scan(&problemID, &createdAt, &fileHash, &dislike, &rejectReason, &bs); err != nil {
+	).Scan(&problemID, &createdAt, &fileHash, &dislike, &rejectReason, &bs, &bonusRaw); err != nil {
 		return nil, err
 	}
 
@@ -420,20 +431,29 @@ func (m *MySQLManager) GetSolution(solutionID int64) (*Solution, error) {
 		return nil, err
 	}
 
+	if bonusRaw == nil {
+		bonusRaw = []byte("[]")
+	}
+	var acquiredBonus []UsedBonus
+	if err := json.Unmarshal(bonusRaw, &acquiredBonus); err != nil {
+		return nil, err
+	}
+
 	return &Solution{
-		SolutionID:   solutionID,
-		ProblemID:    problemID,
-		CreatedAt:    createdAt,
-		Dislike:      dislike,
-		RejectReason: rejectReason,
-		Tags:         tags,
-		Data:         data,
-		fileHash:     fileHash,
+		SolutionID:    solutionID,
+		ProblemID:     problemID,
+		CreatedAt:     createdAt,
+		Dislike:       dislike,
+		RejectReason:  rejectReason,
+		Tags:          tags,
+		AcquiredBonus: acquiredBonus,
+		Data:          data,
+		fileHash:      fileHash,
 	}, nil
 }
 
 func (m *MySQLManager) GetSolutionsForProblem(problemID int64) ([]*Solution, error) {
-	rows, err := m.db.Query("SELECT solution_id, created_at, file_hash, dislike, reject_reason, data FROM solutions INNER JOIN solution_data USING (file_hash) WHERE problem_id = ?", problemID)
+	rows, err := m.db.Query("SELECT solution_id, created_at, file_hash, dislike, reject_reason, data, acquired_bonus FROM solutions INNER JOIN solution_data USING (file_hash) WHERE problem_id = ?", problemID)
 	if err != nil {
 		return nil, err
 	}
@@ -443,8 +463,8 @@ func (m *MySQLManager) GetSolutionsForProblem(problemID int64) ([]*Solution, err
 	for rows.Next() {
 		var fileHash, rejectReason string
 		var solutionID, createdAt, dislike int64
-		var bs []byte
-		if err := rows.Scan(&solutionID, &createdAt, &fileHash, &dislike, &rejectReason, &bs); err != nil {
+		var bs, bonusRaw []byte
+		if err := rows.Scan(&solutionID, &createdAt, &fileHash, &dislike, &rejectReason, &bs, &bonusRaw); err != nil {
 			return nil, err
 		}
 
@@ -453,15 +473,24 @@ func (m *MySQLManager) GetSolutionsForProblem(problemID int64) ([]*Solution, err
 			return nil, err
 		}
 
+		if bonusRaw == nil {
+			bonusRaw = []byte("[]")
+		}
+		var acquiredBonus []UsedBonus
+		if err := json.Unmarshal(bonusRaw, &acquiredBonus); err != nil {
+			return nil, err
+		}
+
 		solutionMap[solutionID] = &Solution{
-			SolutionID:   solutionID,
-			ProblemID:    problemID,
-			CreatedAt:    createdAt,
-			Dislike:      dislike,
-			RejectReason: rejectReason,
-			Tags:         make([]string, 0), // must be non-nil
-			Data:         data,
-			fileHash:     fileHash,
+			SolutionID:    solutionID,
+			ProblemID:     problemID,
+			CreatedAt:     createdAt,
+			Dislike:       dislike,
+			RejectReason:  rejectReason,
+			Tags:          make([]string, 0), // must be non-nil
+			AcquiredBonus: acquiredBonus,
+			Data:          data,
+			fileHash:      fileHash,
 		}
 	}
 
@@ -593,8 +622,13 @@ func (m *MySQLManager) UpdateMinimalDislike(problemID int64, dislike int64) erro
 	return nil
 }
 
-func (m *MySQLManager) UpdateSolutionEvalResult(solutionID int64, rejectReason string, dislike int64) error {
-	_, err := m.db.Exec("UPDATE solutions SET reject_reason = ?, dislike = ? WHERE solution_id = ?", rejectReason, dislike, solutionID)
+func (m *MySQLManager) UpdateSolutionEvalResult(solutionID int64, rejectReason string, dislike int64, acquiredBonus []UsedBonus) error {
+	rawBonus, err := json.Marshal(acquiredBonus)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.db.Exec("UPDATE solutions SET reject_reason = ?, dislike = ?, acquired_bonus = ? WHERE solution_id = ?", rejectReason, dislike, solutionID, string(rawBonus))
 	if err != nil {
 		return err
 	}

@@ -72,16 +72,17 @@ func scrapeSubmittedSolutionsTaskOnce(scraper *Scraper, m *solutionmgr.MySQLMana
 			if err != nil {
 				return err
 			}
-			dislike, rejectReason, err := eval.EvalData(&problem.Data, data)
+			dislike, acquiredBonus, rejectReason, err := eval.EvalData(&problem.Data, data)
 			if err != nil {
 				return err
 			}
 			sol := &solutionmgr.Solution{
-				ProblemID:    problem.ProblemID,
-				CreatedAt:    subsol.CreatedAt,
-				Dislike:      dislike,
-				RejectReason: rejectReason,
-				Data:         *data,
+				ProblemID:     problem.ProblemID,
+				CreatedAt:     subsol.CreatedAt,
+				Dislike:       dislike,
+				RejectReason:  rejectReason,
+				AcquiredBonus: acquiredBonus,
+				Data:          *data,
 			}
 			solutionID, err := m.AddSolution(sol)
 			if err != nil {
