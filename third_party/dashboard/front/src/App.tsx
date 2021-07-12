@@ -13,6 +13,7 @@ import {Model} from './model';
 import {ProblemPage} from './ProblemPage';
 import {SolutionSetPage} from './SolutionSetPage';
 import {TaskPage} from './TaskPage';
+import {TagPage} from './TagPage';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -61,6 +62,9 @@ export default function App() {
                         </Route>
                         <Route path="/tasks/:taskID">
                             <TaskPage model={model} />
+                        </Route>
+                        <Route path="/tags/:tag">
+                            <TagPage model={model} />
                         </Route>
                         <Route path="/">
                             <FrontPage model={model} />

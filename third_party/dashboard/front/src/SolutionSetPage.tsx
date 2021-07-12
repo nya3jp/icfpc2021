@@ -57,7 +57,7 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
         <Container>
             <ProblemList model={model} problems={ps} hiddenProblems={hiddenProblems}
                 greenBackgroundProblems={greenBackgroundProblems} columns={columns}
-                showViewer={false} />
+                showViewer={true} />
         </Container>
     );
 };

@@ -31,6 +31,11 @@ class Client {
         return await res.json();
     }
 
+    async getSolutionsForTag(tag: string): Promise<Solution[]> {
+        const res = await fetch(`${this.baseURL}/api/solutions?tag=${tag}`);
+        return await res.json();
+    }
+
     async submitSolution(id: number): Promise<string> {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}/submit`, {method: 'POST'});
         return await res.text();
@@ -43,6 +48,16 @@ class Client {
 
     async getTaskStatus(id: number): Promise<TaskStatus> {
         const res = await fetch(`${this.baseURL}/api/tasks/info/${id}`);
+        return await res.json();
+    }
+
+    async setSolutionTag(id: number, tag: string): Promise<Solution> {
+        const res = await fetch(`${this.baseURL}/api/solutions/${id}/tags?tag=${tag}`, {method: 'POST'});
+        return await res.json();
+    }
+
+    async deleteSolutionTag(id: number, tag: string): Promise<void> {
+        const res = await fetch(`${this.baseURL}/api/solutions/${id}/tags?tag=${tag}`, {method: 'DELETE'});
         return await res.json();
     }
 }
@@ -84,6 +99,10 @@ export class Model {
         return this.client.getSolutionsForProblem(id);
     }
 
+    getSolutionsForTag(tag: string): Promise<Solution[]> {
+        return this.client.getSolutionsForTag(tag);
+    }
+
     submitSolution(id: number): Promise<string> {
         return this.client.submitSolution(id);
     }
@@ -94,5 +113,17 @@ export class Model {
 
     getTaskStatus(id: number): Promise<TaskStatus> {
         return this.client.getTaskStatus(id);
+    }
+
+    setSolutionTag(id: number, tag: string): Promise<Solution> {
+        const fresh = this.client.setSolutionTag(id, tag);
+        this.solutions.set(id, fresh);
+        return fresh;
+    }
+
+    deleteSolutionTag(id: number, tag: string): Promise<void> {
+        const ret = this.client.deleteSolutionTag(id, tag);
+        this.solutions.delete(id);
+        return ret;
     }
 }

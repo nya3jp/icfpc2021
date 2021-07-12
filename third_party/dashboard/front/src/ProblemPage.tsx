@@ -1,69 +1,19 @@
+import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
-import React, {useEffect, useState} from 'react';
-import {Problem, Solution} from './types';
-import {Link} from 'react-router-dom';
-import {Model} from './model';
-import {Paper, Typography} from '@material-ui/core';
-import TableContainer from '@material-ui/core/TableContainer';
+
+import Typography from '@material-ui/core/Typography';
 import Container from '@material-ui/core/Container';
-import Table from '@material-ui/core/Table';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import TableCell from '@material-ui/core/TableCell';
-import TableBody from '@material-ui/core/TableBody';
+
+import {Problem, Solution} from './types';
+import {Model} from './model';
 import {Viewer} from './editor/Viewer';
+import {ProblemSolutionPair, SolutionsTable} from './SolutionsTable';
 
 function ProblemPane({problem}: {problem: Problem}) {
     return (
         <div>
             <Viewer problem={problem} />
         </div>
-    );
-}
-
-function SolutionsTable({problem, solutions}: {problem: Problem, solutions: Solution[]}) {
-    return (
-        <TableContainer component={Paper}>
-            <Table size="small" aria-label="a dense table">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>SolutionID</TableCell>
-                        <TableCell>Solution</TableCell>
-                        <TableCell>Created at</TableCell>
-                        <TableCell>Dislike</TableCell>
-                        <TableCell>使用🍆</TableCell>
-                        <TableCell>獲得🍆</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {solutions.map((solution) => {
-                        const link = `/solutions/${solution.solution_id}`;
-                        const createdAt = new Date();
-                        createdAt.setTime(solution.created_at * 1000);
-                        return (
-                            <TableRow key={solution.solution_id}>
-                                <TableCell><Link to={link}>{solution.solution_id}</Link></TableCell>
-                                <TableCell><Link to={link}><Viewer problem={problem} solution={solution} size={100} /></Link></TableCell>
-                                <TableCell>{createdAt.toString()}</TableCell>
-                                <TableCell>{solution.dislike}</TableCell>
-                                <TableCell>{
-                                    solution.data.bonuses != null &&
-                                    solution.data.bonuses.map((bonus) => {
-                                        return <div>{bonus.bonus}</div>
-                                    })
-                                }</TableCell>
-                                <TableCell>{
-                                    solution.acquired_bonuses != null &&
-                                    solution.acquired_bonuses.map((bonus) => {
-                                        return <div>{bonus.bonus}</div>
-                                    })
-                                }</TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
-        </TableContainer>
     );
 }
 
@@ -81,7 +31,7 @@ export const ProblemPage = (props: ProblemPageProps) => {
         (async () => {
             setProblem(await model.getProblem(+problemID));
         })();
-    }, []);
+    }, [model, problemID]);
     useEffect(() => {
         (async () => {
             let solutions = await model.getSolutionsForProblem(+problemID);
@@ -101,20 +51,26 @@ export const ProblemPage = (props: ProblemPageProps) => {
             });
             setSolutions(solutions);
         })();
-    }, []);
+    }, [model, problemID]);
 
     if (!problem || !solutions) {
         return <div></div>;
     }
 
-    const createdAt = new Date();
-    createdAt.setTime(problem.created_at * 1000);
+    const pairs: ProblemSolutionPair[] = solutions.map((solution) => {
+        return {
+            problem: problem,
+            solution: solution,
+        };
+    });
+
     return (
         <Container>
             <Typography variant={'h3'}>Problem {problem.problem_id}</Typography>
             <ProblemPane problem={problem} />
+
             <Typography variant={'h4'}>Solutions</Typography>
-            <SolutionsTable problem={problem} solutions={solutions} />
+            <SolutionsTable pairs={pairs} />
         </Container>
     );
 };

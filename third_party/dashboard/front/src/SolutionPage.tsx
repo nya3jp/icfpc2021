@@ -5,8 +5,9 @@ import {Link} from 'react-router-dom';
 
 import {makeStyles} from '@material-ui/core/styles';
 import Button from '@material-ui/core/Button';
-import Chip from '@material-ui/core/Chip';
+import ButtonGroup from '@material-ui/core/ButtonGroup';
 import Paper from '@material-ui/core/Paper';
+import DeleteIcon from '@material-ui/icons/Delete';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
 import TableCell from '@material-ui/core/TableCell';
@@ -14,6 +15,7 @@ import TableContainer from '@material-ui/core/TableContainer';
 import Container from '@material-ui/core/Container';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
+import TextField from '@material-ui/core/TextField';
 import {Model} from './model';
 import {Typography} from '@material-ui/core';
 
@@ -40,6 +42,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
     const {solutionID} = useParams<{solutionID: string}>();
     const [solution, setSolution] = useState<Solution | null>(null);
     const [problem, setProblem] = useState<Problem | null>(null);
+    const [newTag, setNewTag] = useState<string>("");
 
     useEffect(() => {
         (async () => {
@@ -54,6 +57,19 @@ export const SolutionPage = (props: SolutionPageProps) => {
         return <div></div>
     }
 
+    const handleChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        setNewTag(event.target.value);
+    };
+    const handleSubmit = async () => {
+        setSolution(await model.setSolutionTag(+solutionID, newTag));
+        setNewTag("");
+    };
+    const handleTagDelete = (tag: string) => {
+        (async () => {
+            await model.deleteSolutionTag(+solutionID, tag);
+            setSolution(await model.getSolution(+solutionID));
+        })();
+    };
 
     const si = scoreInfo(problem, solution);
     let diff = "";
@@ -71,7 +87,8 @@ export const SolutionPage = (props: SolutionPageProps) => {
     const dump = JSON.stringify({
         problem_id: solution.problem_id,
         ...solution.data
-    })
+    });
+
     return (
         <Container>
             <Typography variant={'h3'}>Solution {solutionID}</Typography>
@@ -108,12 +125,24 @@ export const SolutionPage = (props: SolutionPageProps) => {
                             <TableCell component="th" scope="row" align="right">Score</TableCell>
                             <TableCell>{scoreText}</TableCell>
                         </TableRow>
-                        {solution.tags &&
-                            <TableRow>
-                                <TableCell component="th" scope="row" align="right">Tags</TableCell>
-                                <TableCell>{solution.tags.map((tag) => <Link to={`/tags/${tag}`}><Chip label={tag} /></Link>)}</TableCell>
-                            </TableRow>
-                        }
+                        <TableRow>
+                            <TableCell component="th" scope="row" align="right">Tags</TableCell>
+                            <TableCell>
+                                {
+                                    solution.tags.map((tag) => {
+                                        return (
+                                            <ButtonGroup color="primary" key={`tag=${tag}`} >
+                                                <Button component={Link} to={`/tags/${tag}`} style={{textTransform: "none"}}>{tag}</Button>
+                                                <Button onClick={() => handleTagDelete(tag)}><DeleteIcon /></Button>
+                                            </ButtonGroup>
+                                        );
+                                    })
+                                }
+                                <form noValidate autoComplete="off" onSubmit={handleSubmit}>
+                                    <TextField value={newTag} label="Add tag" onChange={handleChange} />
+                                </form>
+                            </TableCell>
+                        </TableRow>
                         <TableRow>
                             <TableCell component="th" scope="row" align="right">JSON</TableCell>
                             <TableCell><textarea style={{width: '100%', height: '200px'}}>{dump}</textarea></TableCell>

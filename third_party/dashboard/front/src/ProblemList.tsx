@@ -107,6 +107,16 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Mod
                         スコア: <b>{si.score}<br />{scoreText}</b>
                     </ListItemText>
                 </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        使用🍆:
+                        {
+                            solution.data.bonuses != null &&
+                            solution.data.bonuses.length === 1 &&
+                            solution.data.bonuses[0].bonus
+                        }
+                    </ListItemText>
+                </ListItem>
             </List>
         </Grid>
     );
