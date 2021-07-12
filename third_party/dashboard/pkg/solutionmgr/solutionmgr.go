@@ -92,7 +92,7 @@ type UsedBonus struct {
 
 type SolutionData struct {
 	Vertices []Point     `json:"vertices"`
-	Bonuses  []UsedBonus `json:"bonuses"`
+	Bonuses  []UsedBonus `json:"bonuses,omitempty"`
 }
 
 func (s *SolutionData) MarshalAndHash() ([]byte, string, error) {

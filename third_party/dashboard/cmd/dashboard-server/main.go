@@ -69,6 +69,9 @@ func main() {
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
+	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionAddTag).Methods("POST")
+	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionDeleteTag).Methods("DELETE")
+	r.HandleFunc("/api/solutions", s.handleSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/tasks/running", s.handleTasksRunningGet).Methods("GET")
@@ -342,6 +345,25 @@ func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+func (s *server) handleSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	solutions, err := s.mgr.GetSolutionsForTag(tag)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solutions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
@@ -426,6 +448,62 @@ func (s *server) handleSolutionSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	io.WriteString(w, submitID)
+}
+
+func (s *server) handleSolutionAddTag(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	if err := s.mgr.AddSolutionTag(solutionID, tag); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSolutionDeleteTag(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	if err := s.mgr.RemoveSolutionTag(solutionID, tag); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func trimAndRemoveEmpty(ss []string) []string {
