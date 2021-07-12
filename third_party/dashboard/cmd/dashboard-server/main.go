@@ -22,6 +22,8 @@ import (
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/nya3jp/flex"
+	"github.com/nya3jp/flex/flexpb"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -76,6 +78,7 @@ func main() {
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/tasks/running", s.handleTasksRunningGet).Methods("GET")
 	r.HandleFunc("/api/tasks/info/{task_id}", s.handleTaskGet).Methods("GET")
+	r.HandleFunc("/api/tasks/add", s.handleAddTaskPost).Methods("POST")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
@@ -202,6 +205,36 @@ func (s *server) handleTaskGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (s *server) handleAddTaskPost(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var spec flexpb.TaskSpec
+	if err := proto.Unmarshal(body, &spec); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Spot check
+	if spec.GetCommand().GetShell() == "" {
+		http.Error(w, "Invalid TaskSpec", http.StatusInternalServerError)
+		return
+	}
+
+	id, err := s.flexClient.AddTask(context.Background(), &spec)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, id)
 }
 
 func (s *server) handleProblemSolutionsGet(w http.ResponseWriter, r *http.Request) {
