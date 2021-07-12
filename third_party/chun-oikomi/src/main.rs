@@ -25,7 +25,7 @@ use reqwest::cookie::{CookieStore, Jar};
 use reqwest::header::HeaderValue;
 use sa::*;
 use scorer::{is_inside_hole, is_inside_hole_partial, is_valid_solution};
-use chun_oikomi_solver::{get_problem, ENDPOINT};
+use chun_oikomi_solver::get_problem;
 use std::{thread, time::SystemTime};
 
 fn read_hint<P: AsRef<Path>>(path: P) -> Result<BTreeMap<usize, usize>> {
@@ -419,119 +419,11 @@ fn solve(
         return Ok(());
     }
 
-    let problems = get_problem_states()?;
-    let problem = problems.iter().find(|r| r.problem_id == problem_id);
-
-    if let Some(problem) = problem {
-        eprintln!(
-            "Dislike: {}, Your previous dislike: {}, Minimal dislike: {}",
-            score as i64, problem.your_dislikes, problem.minimal_dislikes
-        );
-        if (score as i64) < problem.your_dislikes {
-            if dialoguer::Confirm::new()
-                .with_prompt("Submit?")
-                .interact()?
-            {
-                eprintln!("Submitting");
-    
-                // let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
-                // eprintln!("Response: {:?}", resp);
-    
-                // Submit to the internal dashboard.
-                chun_oikomi_solver::submit_dashboard(problem_id, &result_file_name)?;
-            }
-        }else{
-            println!("Shinchoku damedesu (no point improvement)");
-        }
-    } else {
-        eprintln!("No submission for problem {} found.", problem_id);
-    }
+    chun_oikomi_solver::submit_dashboard(problem_id, &result_file_name)?;
 
     Ok(())
 }
 
-#[argopt::subcmd]
-fn submit(problem_id: i64, json_file: PathBuf) -> Result<()> {
-    let solution = serde_json::from_reader(File::open(json_file)?)?;
-    let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
-    println!("{:?}", resp);
-    Ok(())
-}
-
-#[argopt::subcmd(name = "max-scores")]
-fn max_scores() -> Result<()> {
-    println!("Max scores:");
-
-    for pid in 1..=59 {
-        let problem = get_problem(pid)?;
-        let max_score = 1000.0
-            * ((problem.figure.vertices.len()
-                * problem.figure.edges.len()
-                * problem.hole.polygon.vertices.len()) as f64
-                / 6.0)
-                .log2();
-
-        println!("Problem {}: {}", pid, max_score.ceil() as i64);
-    }
-
-    Ok(())
-}
-
-fn load_cookie_store(session_file: impl AsRef<Path>, endpoint: &str) -> Result<Jar> {
-    let url = endpoint.parse().unwrap();
-    let jar = reqwest::cookie::Jar::default();
-    let f = File::open(session_file);
-
-    if f.is_err() {
-        // eprintln!("Session file not found. start new session.");
-        // return Ok(jar);
-        bail!("session.txt not found. Please login first.");
-    }
-
-    for line in BufReader::new(f.unwrap()).lines() {
-        let v = line?
-            .split("; ")
-            .map(|s| HeaderValue::from_str(s).unwrap())
-            .collect_vec();
-        jar.set_cookies(&mut v.iter(), &url)
-    }
-
-    Ok(jar)
-}
-
-#[argopt::subcmd]
-fn login() -> Result<()> {
-    let cookie_store = Arc::new(Jar::default());
-
-    let client = ClientBuilder::new()
-        .cookie_provider(cookie_store.clone())
-        .build()?;
-
-    let email: String = dialoguer::Input::new()
-        .with_prompt("Email address")
-        .interact()?;
-    let passwd = dialoguer::Password::new()
-        .with_prompt("Password")
-        .interact()?;
-
-    let _resp = client
-        .post("https://poses.live/login")
-        .form(&[("login.email", &email), ("login.password", &passwd)])
-        .send()?
-        .error_for_status()?
-        .text()?;
-
-    {
-        let mut f = File::create("session.txt")?;
-        for cookie in cookie_store.cookies(&ENDPOINT.parse().unwrap()) {
-            writeln!(&mut f, "{}", cookie.to_str()?)?;
-        }
-    }
-
-    println!("Ok");
-
-    Ok(())
-}
 
 struct ProblemState {
     problem_id: i64,
@@ -558,121 +450,7 @@ fn get_problem_latest_solution(problemid: i64) -> Result<Pose> {
     Ok(ret.unwrap())
 }
 
-fn get_problem_states() -> Result<Vec<ProblemState>> {
-    let cookie_store = Arc::new(load_cookie_store("session.txt", ENDPOINT)?);
 
-    let client = ClientBuilder::new()
-        .cookie_provider(cookie_store.clone())
-        .build()?;
 
-    let resp = client
-        .get("https://poses.live/problems")
-        .send()?
-        .error_for_status()?
-        .text()?;
-
-    let pat = Pattern::new(
-        r#"
-        <table>
-            <tr>
-                <td><a href="/problems/{{problem-id}}"></a></td>
-                <td>{{your-dislikes}}</td>
-                <td>{{minimal-dislikes}}</td>
-            </tr>
-        </table>
-        "#,
-    )
-    .unwrap();
-
-    let mut problems = vec![];
-
-    for m in pat.matches(&resp) {
-        let problem_id: i64 = m["problem-id"].parse()?;
-        let your_dislikes = m["your-dislikes"].parse();
-
-        let your_dislikes = your_dislikes.unwrap_or(9999999);
-
-        let minimal_dislikes: i64 = m["minimal-dislikes"].parse()?;
-
-        let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
-
-        let problem: P =
-            serde_json::from_reader(File::open(format!("../problems/{}.problem", problem_id))?)?;
-
-        let max_score = (1000.0
-            * ((problem.figure.vertices.len()
-                * problem.figure.edges.len()
-                * problem.hole.polygon.vertices.len()) as f64
-                / 6.0)
-                .log2()) as i64;
-
-        let your_score = (max_score as f64 * point_ratio).ceil() as i64;
-        let remaining_score = max_score - your_score;
-
-        problems.push(ProblemState {
-            problem_id,
-            your_dislikes,
-            minimal_dislikes,
-            point_ratio,
-            max_score,
-            your_score,
-            remaining_score,
-        });
-    }
-
-    Ok(problems)
-}
-
-#[argopt::subcmd]
-fn list() -> Result<()> {
-    let mut problems = get_problem_states()?;
-
-    problems.sort_by_key(|r| Reverse(r.remaining_score));
-
-    let mut table = prettytable::Table::new();
-
-    table.add_row(row![
-        "pid",
-        "your",
-        "best",
-        "point ratio",
-        "max score",
-        "your score",
-        "remaining",
-    ]);
-
-    for p in problems.iter() {
-        table.add_row(row![
-            p.problem_id,
-            p.your_dislikes,
-            p.minimal_dislikes,
-            format!("{:.2}%", p.point_ratio * 100.0),
-            p.max_score,
-            p.your_score,
-            p.remaining_score
-        ]);
-    }
-
-    table.printstd();
-
-    Ok(())
-}
-
-#[argopt::subcmd]
-fn info(problem_id: i64) -> Result<()> {
-    let problem = get_problem(problem_id)?;
-
-    println!("Problem {}:", problem_id);
-    println!("  * hole vertices:   {}", problem.hole.len());
-    println!("  * figure vertices: {}", problem.figure.vertices.len());
-    println!("  * figure edges:    {}", problem.figure.edges.len());
-    println!(
-        "  * epsilon:         {:.2}%",
-        problem.epsilon as f64 / 1_000_000.0 * 100.0
-    );
-
-    Ok(())
-}
-
-#[argopt::cmd_group(commands = [solve, max_scores, submit, login, list, info])]
+#[argopt::cmd_group(commands = [solve])]
 fn main() -> Result<()> {}
