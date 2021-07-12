@@ -9,15 +9,16 @@ use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 use num_complex::Complex;
 use geom::{
-    point::Point,
+    //point::Point,
     // polygon::ContainsResult,
-    schema::{BonusType, Edge, Pose, Problem as P, UsedBonus},
+    schema::{BonusType, /*Edge,*/ Pose, Problem as P, UsedBonus},
 };
+use std::time::SystemTime;
 //use sa::*;
 
 use brute::*;
 //use chun_bruteforce_solver::brute::*;
-use chun_tachyon_solver::{get_problem, SubmitResult};
+use chun_tachyon_solver::get_problem;
 
 type Pt = Complex<f64>;
 
@@ -30,26 +31,12 @@ pub fn triangle_area_signed(a: &Pt, b: &Pt, c: &Pt) -> f64 {
     cross(&(b - a), &(c - a)) / 2.0
 }
 
-fn pt_sub(p1: &(i64, i64), p2: &(i64, i64)) -> (i64, i64) {
-    (p1.0 - p2.0, p1.1 - p2.1)
-}
-
-fn norm_sqr(p: &(i64, i64)) -> i64 {
-    p.0 * p.0 + p.1 * p.1
-}
-
 #[argopt::subcmd]
 fn solve(
     /// time limit in seconds
     //
-    #[opt(long, default_value = "5.0")]
+    #[opt(long, default_value = "300.0")]
     time_limit: f64,
-
-    /// number of threads
-    //
-    #[opt(long, default_value = "1")]
-    threads: usize,
-
 
     /// Bonus to use (one of "GLOBALIST", "BREAK_A_LEG", "WALLHACK")
     #[opt(long)]
@@ -57,8 +44,6 @@ fn solve(
 
     #[opt(long)] bonus_from: Option<i64>,
 
-    #[opt(long)]
-    problem: Option<PathBuf>,
 
     #[opt(long)]
     search_vertices: Option<Vec<usize>>,
@@ -80,6 +65,7 @@ fn solve(
         Some(BonusType::GLOBALIST) => (),
         Some(BonusType::SUPERFLEX) => (),
         Some(BonusType::WALLHACK) => (),
+        Some(BonusType::BREAK_A_LEG) => (),
         Some(r) => {
             bail!("Bonus {} is currently not supported", r);
         }
@@ -133,6 +119,7 @@ fn solve(
         Ok(UsedBonus {
             bonus: b,
             problem: problem as _,
+            edge: None
         })
     })
     .transpose()?;
@@ -167,6 +154,7 @@ fn solve(
         None => ()
     };
     eprintln!("Starting solver");
+    let timer = SystemTime::now();
     let (score, solution) = brute(
         &brute::Problem {
             problem: problem.clone(),
@@ -174,7 +162,9 @@ fn solve(
             use_bonus,
             get_bonuses: get_bonuses_unimplemented,
             fixed_vertices,
-        });
+            time_limit
+        },
+        &timer);
 
     //let solution = Solution { vertices: solution };
 

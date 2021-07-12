@@ -28,6 +28,7 @@ pub fn bonus(problem: &Problem, pose: &Pose) -> Vec<UsedBonus> {
                 bonuses.push(UsedBonus {
                     bonus: b.bonus,
                     problem: b.problem,
+                    edge: None
                 });
             }
             eprintln!("b, v: {:?}, {:?}", v, &b.position);

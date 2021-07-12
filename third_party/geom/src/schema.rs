@@ -209,6 +209,7 @@ pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>>
 pub struct UsedBonus {
     pub bonus: BonusType,
     pub problem: usize,
+    pub edge: Option<Edge>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
