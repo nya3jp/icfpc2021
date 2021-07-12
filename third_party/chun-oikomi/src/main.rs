@@ -434,8 +434,8 @@ fn solve(
             {
                 eprintln!("Submitting");
     
-                let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
-                eprintln!("Response: {:?}", resp);
+                // let resp = chun_oikomi_solver::submit(problem_id, &solution)?;
+                // eprintln!("Response: {:?}", resp);
     
                 // Submit to the internal dashboard.
                 chun_oikomi_solver::submit_dashboard(problem_id, &result_file_name)?;
