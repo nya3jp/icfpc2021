@@ -209,6 +209,7 @@ pub fn parse_problem<P: AsRef<Path>>(path: P) -> Result<Problem, Box<dyn Error>>
 pub struct UsedBonus {
     pub bonus: BonusType,
     pub problem: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub edge: Option<Edge>
 }
 
