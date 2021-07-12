@@ -103,6 +103,7 @@ enum Plan {
 enum PrepInfo {
     PFixVertex (Vec<Point>),
     PFixEdge (Vec<Point>),
+    PFixFlexibleEdge (Vec<Point>),
     PFixTriangle (Vec<[Point; 3]>),
     PNone
 }
@@ -112,7 +113,7 @@ enum BonusPlanMod {
     UseWallhack { vertex: usize },
     UseSuperFlex { edgeid: usize },
     UseGlobalist, // Use global setup
-    UseBereakALeg, // Unsupported yet
+    UseBereakALeg { edgeid: usize }, // Unsupported yet
     UseNothing
 }
 
@@ -142,7 +143,7 @@ fn visit_order_dfs(ptr: usize, node: usize, edges: &Vec<(usize, usize)>, visited
     visit_order_dfs(ptr + 1, bestnode, edges, visited, resorder, n);
 }
 
-fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod) -> Vec<Plan> {
+fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod, useTriangle: bool) -> Vec<Plan> {
     let n = prob.problem.figure.vertices.len();
 
     let mut fixed_vertices = prob.fixed_vertices.clone();
@@ -154,6 +155,12 @@ fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod) -> Vec<Plan> {
         degrees[*v1] += 1;
         degrees[*v2] += 1;
     }
+    match bonus_use_plan { 
+        BonusPlanMod::UseWallhack {vertex} =>
+            degrees[*vertex] = 0 // try best to not select this one
+        ,
+        _ => ()
+    };
     let mut deg_and_ix: Vec<(i64, usize)> = degrees.iter().enumerate().map(|(idx, v)| (-v, idx)).collect();
     deg_and_ix.sort_unstable();
     //let firstnode = deg_and_ix[0].1;
@@ -162,28 +169,30 @@ fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod) -> Vec<Plan> {
     // get triangles in the poses. Values are edge ids.
     let mut triangles: Vec<[usize; 3]> = Vec::new();
     let nedge = prob.problem.figure.edges.len();
-    for i in 0..nedge {
-        let Edge {v1: vi1, v2:vi2} = prob.problem.figure.edges[i];
-        let (vi1, vi2) = if vi1 > vi2 { (vi2, vi1) } else { (vi1, vi2) };
-        for j in (i + 1)..nedge {
-            let Edge {v1:vj1, v2:vj2} = prob.problem.figure.edges[j];
-            let (vj1, vj2) = if vj1 > vj2 { (vj2, vj1) } else { (vj1, vj2) };
-            if vi1 != vj1 && vi1 != vj2 && vi2 != vj1 && vi2 != vj2 {
-                continue;
-            }
-            let jicommon = if vi1 == vj1 || vi1 == vj2 { vi1 } else { vi2 };
-            let iremain = if vi1 == jicommon { vi2 } else { vi1 };
-            let jremain = if vj1 == jicommon { vj2 } else { vj1 };
-            for k in (j + 1)..nedge {
-                let Edge {v1: vk1, v2: vk2} = prob.problem.figure.edges[k];
-                if (vk1, vk2) == (iremain, jremain) || (vk2, vk1) == (iremain, jremain) {
-                    // found
-                    triangles.push([i, j, k]);
+    if useTriangle {
+        for i in 0..nedge {
+            let Edge {v1: vi1, v2:vi2} = prob.problem.figure.edges[i];
+            let (vi1, vi2) = if vi1 > vi2 { (vi2, vi1) } else { (vi1, vi2) };
+            for j in (i + 1)..nedge {
+                let Edge {v1:vj1, v2:vj2} = prob.problem.figure.edges[j];
+                let (vj1, vj2) = if vj1 > vj2 { (vj2, vj1) } else { (vj1, vj2) };
+                if vi1 != vj1 && vi1 != vj2 && vi2 != vj1 && vi2 != vj2 {
+                    continue;
+                }
+                let jicommon = if vi1 == vj1 || vi1 == vj2 { vi1 } else { vi2 };
+                let iremain = if vi1 == jicommon { vi2 } else { vi1 };
+                let jremain = if vj1 == jicommon { vj2 } else { vj1 };
+                for k in (j + 1)..nedge {
+                    let Edge {v1: vk1, v2: vk2} = prob.problem.figure.edges[k];
+                    if (vk1, vk2) == (iremain, jremain) || (vk2, vk1) == (iremain, jremain) {
+                        // found
+                        triangles.push([i, j, k]);
+                    }
                 }
             }
         }
+        println!("Found triangles: (denoted by edge id) {:?}", triangles);
     }
-    println!("Found triangles: (denoted by edge id) {:?}", triangles);
     if fixed_vertices.len() > 0 { triangles = Vec::new() } // delete triangles if using fixed vertices
 
     // Generate plans
@@ -211,6 +220,7 @@ fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod) -> Vec<Plan> {
                 Plan::FixSolutionVertex {vertex: v, point: prob.init_state.as_ref().unwrap().vertices[v] }
             } else if available_triangles.len() > 0 {
                 // FIXME find most well-connected triangle here
+                // Currently unused, triangle fix is not beneficial
                 let mut best_connection_score = -1; 
                 let mut best_triangle = 0xfffffffff as usize;
                 for (itriangle, [i, j, k]) in available_triangles.iter().enumerate() {
@@ -311,7 +321,13 @@ fn plan_search(prob: &Problem, bonus_use_plan: &BonusPlanMod) -> Vec<Plan> {
                 let newplan = Plan::TestEdge(edgeid);
                 edges_used[edgeid] = true;
                 println!("Picking Plan {:?}", newplan);
-                resorder.push(newplan);
+                match bonus_use_plan {
+                    BonusPlanMod::UseSuperFlex {edgeid: e} if *e == edgeid => {
+                        ()/* Do not push anything */
+                    },
+                    _ =>
+                        resorder.push(newplan)
+                }
             }
 
         }
@@ -349,7 +365,7 @@ fn get_all_delta_combination(prob: &Problem, v1idx: usize, v2idx: usize, numedge
     ret
 }
 
-fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
+fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>, use_bonus_plan: &BonusPlanMod) -> Vec<PrepInfo> {
     let edgenum_or_one =
         if prob.use_bonus.iter().any(|b| b.bonus == BonusType::GLOBALIST) {
             Some(prob.problem.figure.edges.len()) 
@@ -435,7 +451,12 @@ fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
             Plan::FixEdge {edgeid, basevertex, newvertex } => {
                 let mut deltas = get_all_delta_combination(prob, *basevertex, *newvertex, edgenum_or_one);
                 println!("Plan {}: Fixed edge with {} possible combinations", iplan, deltas.len());
-                PrepInfo::PFixEdge(deltas)
+                match use_bonus_plan {
+                    BonusPlanMod::UseSuperFlex {edgeid: flexedge} if flexedge == edgeid => 
+                        PrepInfo::PFixFlexibleEdge (placeable.clone()),
+                    _ =>
+                        PrepInfo::PFixEdge(deltas)
+                }
             },
             Plan::FixVertex (vertexid) =>
                 PrepInfo::PFixVertex(placeable.clone()),
@@ -448,7 +469,7 @@ fn precompute_plan(prob: &Problem, resorder: &Vec<Plan>) -> Vec<PrepInfo> {
 
 
 
-fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>, prob: &Problem, globalist_budget: f64, bestscore: &mut usize, resfigure: &mut Pose, bestfigure: &mut Pose)
+fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>, prob: &Problem, bonus_use_plan: &BonusPlanMod, globalist_budget: f64, bestscore: &mut usize, resfigure: &mut Pose, bestfigure: &mut Pose)
 {
     // println!("depth {}/{}", ptr, resfigure.len());
     if ptr == solve_plan.len() {
@@ -470,7 +491,7 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
     match (current_plan, current_precompute) {
         (Plan::FixSolutionVertex {vertex, point}, PrepInfo::PNone) => {
             resfigure.vertices[*vertex] = *point;
-            do_brute(ptr + 1, solve_plan, precompute_info, prob, globalist_budget, bestscore, resfigure, bestfigure);
+            do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, globalist_budget, bestscore, resfigure, bestfigure);
         },
         (Plan::FixTriangle {edgeids, vertices}, PrepInfo::PFixTriangle(threepts)) => {
             for pts in threepts.iter() {
@@ -490,14 +511,30 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
                         continue;
                     }
                 }
-                do_brute(ptr + 1, solve_plan, precompute_info, prob, remain_globalist_budget, bestscore, resfigure, bestfigure);
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, remain_globalist_budget, bestscore, resfigure, bestfigure);
             }
         },
         (Plan::FixEdge {edgeid, basevertex, newvertex }, PrepInfo::PFixEdge(edgedeltas)) => {
             for edgedelta in edgedeltas.iter() {
                 resfigure.vertices[*newvertex] = resfigure.vertices[*basevertex] + *edgedelta;
-                if has_collision(&prob.problem.hole, &resfigure.vertices[*basevertex], &resfigure.vertices[*newvertex]) {
-                    continue;
+                match bonus_use_plan {
+                    BonusPlanMod::UseWallhack {vertex} if vertex == newvertex =>
+                        // nothing to check!
+                        ()
+                    ,
+                    BonusPlanMod::UseWallhack {vertex} if vertex == basevertex =>
+                        if !prob.problem.hole.contains(&resfigure.vertices[*newvertex]) {
+                            continue;
+                        }
+                    ,
+                    _ => {
+                        if !prob.problem.hole.contains(&resfigure.vertices[*newvertex]) {
+                            continue;
+                        }
+                        if has_collision(&prob.problem.hole, &resfigure.vertices[*basevertex], &resfigure.vertices[*newvertex]) {
+                            continue;
+                        }
+                    }
                 }
                 let mut remain_globalist_budget = globalist_budget;
                 if use_globalist {
@@ -509,13 +546,23 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
                     }
                 }
                 // this delta is already distance-checked
-                do_brute(ptr + 1, solve_plan, precompute_info, prob, remain_globalist_budget, bestscore, resfigure, bestfigure);
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, remain_globalist_budget, bestscore, resfigure, bestfigure);
+            }
+        },
+        (Plan::FixEdge {edgeid, basevertex, newvertex }, PrepInfo::PFixFlexibleEdge(points)) => {
+            for p in points.iter() {
+                resfigure.vertices[*newvertex] = *p;
+                if has_collision(&prob.problem.hole, &resfigure.vertices[*basevertex], &resfigure.vertices[*newvertex]) {
+                    continue;
+                }
+                // does never come globalist
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, globalist_budget, bestscore, resfigure, bestfigure);
             }
         },
         (Plan::FixVertex (vertid), PrepInfo::PFixVertex(placeable)) => {
             for p in placeable.iter() {
                 resfigure.vertices[*vertid] = *p;
-                do_brute(ptr + 1, solve_plan, precompute_info, prob, globalist_budget, bestscore, resfigure, bestfigure);
+                do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, globalist_budget, bestscore, resfigure, bestfigure);
             }
         },
         (Plan::TestEdge (edgeid), PrepInfo::PNone) => {
@@ -535,7 +582,7 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
             if has_collision(&prob.problem.hole, &resfigure.vertices[v1], &resfigure.vertices[v2]) {
                 return;
             }
-            do_brute(ptr + 1, solve_plan, precompute_info, prob, remain_globalist_budget, bestscore, resfigure, bestfigure);
+            do_brute(ptr + 1, solve_plan, precompute_info, prob, bonus_use_plan, remain_globalist_budget, bestscore, resfigure, bestfigure);
         },
         _ => {
             panic!("Plan/Precompute unmatched")
@@ -544,16 +591,22 @@ fn do_brute(ptr: usize, solve_plan: &Vec<Plan>, precompute_info: &Vec<PrepInfo>,
 }
 
 pub fn brute(prob: &Problem) -> (usize, Pose) {
-    let bonus_use_plans = 
+    let n = prob.problem.figure.vertices.len();
+        let bonus_use_plans = 
         match prob.use_bonus {
             Some(UsedBonus{bonus: BonusType::GLOBALIST, ..}) => vec![BonusPlanMod::UseGlobalist],
-            Some(UsedBonus{bonus: BonusType::BREAK_A_LEG, ..}) => panic!("Break a leg: impl difficulty"),
-            Some(UsedBonus{bonus: BonusType::SUPERFLEX, ..}) => panic!("superflex todo"),
-            Some(UsedBonus{bonus: BonusType::WALLHACK, ..}) => panic!("todo"),
+            Some(UsedBonus{bonus: BonusType::BREAK_A_LEG, ..}) => {
+                (0..prob.problem.figure.edges.len()).map(|i| BonusPlanMod::UseBereakALeg {edgeid: i}).collect() 
+            },
+            Some(UsedBonus{bonus: BonusType::SUPERFLEX, ..}) => {
+                (0..prob.problem.figure.edges.len()).map(|i| BonusPlanMod::UseSuperFlex {edgeid: i}).collect()
+            },
+            Some(UsedBonus{bonus: BonusType::WALLHACK, ..}) => {
+                (0..prob.problem.figure.vertices.len()).map(|i| BonusPlanMod::UseWallhack {vertex: i}).collect()
+            },
             None => vec![BonusPlanMod::UseNothing]
         };
     let mut bestscore = 99999999usize;
-    let n = prob.problem.figure.vertices.len();
     let bonuses: Option<Vec<UsedBonus>> = match &prob.use_bonus {
         Some(b) => Some(vec![b.clone()]),
         None => None
@@ -562,11 +615,11 @@ pub fn brute(prob: &Problem) -> (usize, Pose) {
     let mut bestfigure = Pose { vertices: vec![Point {x: 0., y: 0.}; n], bonuses: bonuses.clone() };
     for bonus_use_plan in bonus_use_plans {
         println!("retarting solver with plan {:?}", bonus_use_plan);
-        let visit_order = plan_search(prob, &bonus_use_plan);
+        let visit_order = plan_search(prob, &bonus_use_plan, false);
         println!("visit_order = {:?}", visit_order);
-        let precomputed = precompute_plan(prob, &visit_order);
+        let precomputed = precompute_plan(prob, &visit_order, &bonus_use_plan);
         let globalist_budget = prob.problem.epsilon as f64 * prob.problem.figure.edges.len() as f64;
-        do_brute(0usize, &visit_order, &precomputed, &prob, globalist_budget, &mut bestscore, &mut resfigure, &mut bestfigure);
+        do_brute(0usize, &visit_order, &precomputed, &prob, &bonus_use_plan, globalist_budget, &mut bestscore, &mut resfigure, &mut bestfigure);
     }
     (bestscore, bestfigure)
 }

@@ -78,6 +78,8 @@ fn solve(
     match &use_bonus {
         None => (),
         Some(BonusType::GLOBALIST) => (),
+        Some(BonusType::SUPERFLEX) => (),
+        Some(BonusType::WALLHACK) => (),
         Some(r) => {
             bail!("Bonus {} is currently not supported", r);
         }
