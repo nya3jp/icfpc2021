@@ -90,6 +90,7 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonu
         dislikeText = `${solution.dislike} (トップタイ)`
         scoreText = `(MAX)`;
     }
+    console.log(possibleBonuses)
     return (
         <Grid container direction="column" alignItems="center">
             <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />

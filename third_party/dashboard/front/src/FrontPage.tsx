@@ -233,19 +233,23 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
         pbs.set(problem.problem_id, new Set<string>());
         pbsGlobalists.set(problem.problem_id, new Set<string>());
         pbsSuperflexes.set(problem.problem_id, new Set<string>());
-        if (sol) {
-            sol.acquired_bonuses.map((v) => {
-                pbs.get(problem.problem_id)?.add(v.bonus)
-            });
-        }
-        if (solGlobalist) {
-            sol.acquired_bonuses.map((v) => {
-                pbsGlobalists.get(problem.problem_id)?.add(v.bonus)
-            })
-        }
-        if (solSuperflex) {
-            sol.acquired_bonuses.map((v) => {
-                pbsSuperflexes.get(problem.problem_id)?.add(v.bonus)
+        if (solutions[problem.problem_id]) {
+            solutions[problem.problem_id].map((s) => {
+                if (s.data.bonuses == null || s.data.bonuses.length === 0) {
+                    s.acquired_bonuses.map((v) => {
+                        pbs.get(problem.problem_id)?.add(v.bonus)
+                    })
+                }
+                if (s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus === "GLOBALIST")) {
+                    s.acquired_bonuses.map((v) => {
+                        pbsGlobalists.get(problem.problem_id)?.add(v.bonus)
+                    })
+                }
+                if (s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus === "SUPERFLEX")) {
+                    s.acquired_bonuses.map((v) => {
+                        pbsSuperflexes.get(problem.problem_id)?.add(v.bonus)
+                    })
+                }
             })
         }
     });
