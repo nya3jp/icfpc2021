@@ -1,7 +1,6 @@
 import {Problem, Solution} from './types';
 
-const PROD_BASE_URL = 'http://10.0.10.202:8080'
-// const PROD_BASE_URL = 'https://spweek.badalloc.com';
+const PROD_BASE_URL = 'https://spweek.badalloc.com';
 const DEV_BASE_URL = 'http://localhost:8080'
 
 // Client is the API client for our dashboard server.
