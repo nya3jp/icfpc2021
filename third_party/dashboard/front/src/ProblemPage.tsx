@@ -31,7 +31,8 @@ function SolutionsTable({problem, solutions}: {problem: Problem, solutions: Solu
                         <TableCell>Solution</TableCell>
                         <TableCell>Created at</TableCell>
                         <TableCell>Dislike</TableCell>
-                        <TableCell>使用ボーナス</TableCell>
+                        <TableCell>使用🍆</TableCell>
+                        <TableCell>獲得🍆</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
@@ -48,6 +49,12 @@ function SolutionsTable({problem, solutions}: {problem: Problem, solutions: Solu
                                 <TableCell>{
                                     solution.data.bonuses != null &&
                                     solution.data.bonuses.map((bonus) => {
+                                        return <div>{bonus.bonus}</div>
+                                    })
+                                }</TableCell>
+                                <TableCell>{
+                                    solution.acquired_bonuses != null &&
+                                    solution.acquired_bonuses.map((bonus) => {
                                         return <div>{bonus.bonus}</div>
                                     })
                                 }</TableCell>
@@ -78,6 +85,7 @@ export const ProblemPage = (props: ProblemPageProps) => {
     useEffect(() => {
         (async () => {
             let solutions = await model.getSolutionsForProblem(+problemID);
+            console.log(solutions);
             solutions = solutions.sort((s1: Solution, s2: Solution) => {
                 if (s1.dislike < s2.dislike) {
                     return -1;

@@ -33,6 +33,7 @@ export interface Solution {
     tags: string[];
     dislike: number;
     reject_reason: string;
+    acquired_bonuses: UsedBonus[];
     data: SolutionData;
 }
 
