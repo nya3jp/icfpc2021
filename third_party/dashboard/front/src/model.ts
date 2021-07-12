@@ -1,4 +1,4 @@
-import {Problem, Solution} from './types';
+import {Problem, Solution, TaskStatus} from './types';
 
 const PROD_BASE_URL = 'https://spweek.badalloc.com';
 const DEV_BASE_URL = 'http://localhost:8080'
@@ -39,6 +39,11 @@ class Client {
     async triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
         const res = await fetch(`${this.baseURL}/api/problems/${problemID}/solve?penalty_ratio=${penaltyRatio}&deadline=${deadlineSec}&time_limit=${timeLimitSec}&bonus=${bonus}`, {method: 'POST'});
         return await res.text();
+    }
+
+    async getTaskStatus(id: number): Promise<TaskStatus> {
+        const res = await fetch(`${this.baseURL}/api/tasks/info/${id}`);
+        return await res.json();
     }
 }
 
@@ -85,5 +90,9 @@ export class Model {
 
     triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
         return this.client.triggerSolver(problemID, bonus, penaltyRatio, timeLimitSec, deadlineSec);
+    }
+
+    getTaskStatus(id: number): Promise<TaskStatus> {
+        return this.client.getTaskStatus(id);
     }
 }
