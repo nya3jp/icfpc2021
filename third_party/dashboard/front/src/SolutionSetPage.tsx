@@ -22,7 +22,7 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
             model.getProblems().then((ps: Problem[]) => {
                 setProblems(ps);
             });
-        } else if (Object.keys(solutions).length === 0) {
+        } else if (solutions.size === 0) {
             solutionIDs.forEach((solutionID) => {
                 model.getSolution(solutionID)
                     .then((s: Solution) => {
