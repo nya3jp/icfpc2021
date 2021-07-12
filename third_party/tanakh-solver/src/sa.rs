@@ -160,9 +160,10 @@ fn do_annealing<A: Annealer>(
 
             if (timer.elapsed().unwrap() - prev_heart_beat).as_secs_f64() >= 10.0 {
                 progress!(
-                    "best score = {:12.3}, valid best = {:12.3}, temp = {:12.3}, progress: {:6.2}% 🈚",
+                    "best = {:12.3}, valid best = {:12.3}, cur = {:12.3}, temp = {:12.3}, progress: {:6.2}% ⛔",
                     best_score,
                     valid_best_score,
+                    cur_score,
                     temp,
                     progress_ratio * 100.0
                 );
@@ -202,9 +203,10 @@ fn do_annealing<A: Annealer>(
 
             if best_updated || best_valid_updated {
                 progress!(
-                    "best score = {:12.3}, valid best = {:12.3}, temp = {:12.3}, progress: {:6.2}% {}",
+                    "best = {:12.3}, valid best = {:12.3}, cur = {:12.3}, temp = {:12.3}, progress: {:6.2}% {}",
                     best_score,
                     valid_best_score,
+                    cur_score,
                     temp,
                     progress_ratio * 100.0,
                     if best_valid_updated { "✅" } else { "🐴" }
