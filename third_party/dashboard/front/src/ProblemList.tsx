@@ -18,7 +18,7 @@ import ListItemText from '@material-ui/core/ListItemText';
 
 import {Viewer} from './editor/Viewer';
 import {maxScore, scoreInfo, bonusMap} from './utils';
-import {RunSolverButton} from './buttons';
+import {BonusChip, RunSolverButton} from './buttons';
 
 const CondViewer = ({problem, solution, showViewer}: {problem: Problem, solution?: Solution, showViewer: boolean}) => {
     if (!showViewer) {
@@ -113,7 +113,18 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Mod
                         {
                             solution.data.bonuses != null &&
                             solution.data.bonuses.length === 1 &&
-                            solution.data.bonuses[0].bonus
+                            <BonusChip bonus={solution.data.bonuses[0].bonus} />
+                        }
+                    </ListItemText>
+                </ListItem>
+                <ListItem divider={true} dense={true}>
+                    <ListItemText>
+                        獲得🍆
+                        {
+                            solution.acquired_bonuses != null &&
+                            solution.acquired_bonuses.map((bonus) =>
+                                <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} />
+                            )
                         }
                     </ListItemText>
                 </ListItem>
