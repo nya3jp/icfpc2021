@@ -43,7 +43,7 @@ func NewFlexClient() (*flex.Client, error) {
 }
 
 func NewTask(deadline, timeLimit time.Duration, penaltyRatio, problemID int64, bonus string) *flexpb.TaskSpec {
-	shell := fmt.Sprintf("./tanakh-solver solve --no-submit --time-limit=%d --penalty-ratio=%d", deadline/time.Second, penaltyRatio)
+	shell := fmt.Sprintf("exec ./tanakh-solver solve --no-submit --time-limit=%d --penalty-ratio=%d", deadline/time.Second, penaltyRatio)
 	if bonus != "" {
 		shell += fmt.Sprintf(" ---use-bonus %s", bonus)
 	}
