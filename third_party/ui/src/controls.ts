@@ -51,7 +51,7 @@ export class OutputTextArea {
 
     private onChange(): void {
         (async () => {
-            const data = JSON.parse(this.textarea.value);
+            const data = JSON.parse(this.textarea.value.replace(/(\r\n|\n|\r)/gm, ""));
             const problemId = data['problem_id'];
             if (problemId !== undefined && problemId !== this.problemSelector.getProblemId()) {
                 await this.problemSelector.setProblemId(problemId);
