@@ -5,6 +5,7 @@ import {useLocation} from "react-router-dom";
 import {Problem, Solution} from './types';
 import {Model} from './model';
 import {ListColumnData, ProblemList} from './ProblemList';
+import {scoreInfo, numberWithCommas} from './utils';
 
 export const SolutionSetPage = ({model}: {model: Model}) => {
     const [problems, setProblems] = useState<Problem[]>([]);
@@ -14,7 +15,6 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
     if (idStr) {
         solutionIDs = idStr.split(',').map((s) => +s)
     }
-
 
     useEffect(() => {
         // Every time the state is updated, this is called...
@@ -37,7 +37,16 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
     });
 
     if (solutionIDs.length === 0) return <p>Specify /solutionsets?id=1,2,3</p>;
-    if (problems.length === 0) return <p>Loading...</p>;
+    if (problems.length === 0 || solutionIDs.length !== solutions.size) return <p>Loading...</p>;
+
+    const point = problems.map((problem) => {
+        const solution = solutions.get(problem.problem_id);
+        if (!solution) {
+            return 0;
+        }
+        const si = scoreInfo(problem, solution);
+        return si.score;
+    }).reduce((a, b) => a + b);
 
     const ps = problems.sort((p1: Problem, p2: Problem) => {
         return p1.problem_id - p2.problem_id;
@@ -45,7 +54,7 @@ export const SolutionSetPage = ({model}: {model: Model}) => {
 
     const columns: ListColumnData[] = [
         {
-            header: "Solution",
+            header: `Solution (Total ${numberWithCommas(point)})`,
             bonus: "",
             solutions: solutions,
         },

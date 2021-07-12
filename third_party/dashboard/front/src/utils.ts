@@ -43,3 +43,7 @@ export function bonusMap(problems: Problem[]): BonusMap {
     });
     return m;
 };
+
+export function numberWithCommas(x: number): string {
+    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+};
