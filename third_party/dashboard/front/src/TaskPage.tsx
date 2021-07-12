@@ -1,11 +1,8 @@
-import {useLocation, useParams} from 'react-router-dom';
+import {useParams} from 'react-router-dom';
 import {useEffect, useState} from 'react';
-import {Problem, Solution, TaskStatus} from './types';
-import {Link} from 'react-router-dom';
+import {TaskStatus} from './types';
 
 import {makeStyles} from '@material-ui/core/styles';
-import Button from '@material-ui/core/Button';
-import Chip from '@material-ui/core/Chip';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
@@ -16,10 +13,6 @@ import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
 import {Model} from './model';
 import {Typography} from '@material-ui/core';
-
-import {Viewer} from './editor/Viewer';
-import {scoreInfo} from './utils';
-import {EditButton, OfficialSubmitButton} from './buttons';
 
 const useStyles = makeStyles((theme) => ({
     buttons: {
@@ -36,7 +29,6 @@ export interface TaskPageProps {
 export const TaskPage = (props: TaskPageProps) => {
     const {model} = props;
 
-    const classes = useStyles();
     const taskID = parseInt(useParams<{taskID: string}>().taskID);
     const [taskStatus, setTaskStatus] = useState<TaskStatus | null>(null);
     const [stdout, setStdout] = useState<string>('');
@@ -48,6 +40,9 @@ export const TaskPage = (props: TaskPageProps) => {
             if (taskStatus.state === 'FINISHED') {
                 setStdout(await (await fetch(`https://storage.googleapis.com/special-weekend-2021-flex/prod/tasks/${taskID}/stdout.txt`)).text());
                 setStderr(await (await fetch(`https://storage.googleapis.com/special-weekend-2021-flex/prod/tasks/${taskID}/stderr.txt`)).text());
+            } else {
+                setStdout('');
+                setStderr('');
             }
             setTaskStatus(taskStatus);
         })();
