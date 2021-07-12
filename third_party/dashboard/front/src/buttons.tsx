@@ -90,25 +90,15 @@ export interface RunSolverButtonProps {
 export const RunSolverButton = (props: RunSolverButtonProps) => {
     const {model, problem, bonus, text = 'ソルバを叩く'} = props;
 
-    const [sending, setSending] = useState<boolean>(false);
-    const [message, setMessage] = useState<string>("");
     const history = useHistory();
 
     const handleSend = async () => {
-        setMessage("Triggering the solver...");
-        setSending(true);
-        try {
-            const taskID = await model.triggerSolver(problem.problem_id, bonus, problem.minimal_dislike, 10 /* sec */, 60 /* sec */);
-            history.push(`/tasks/${taskID}`);
-        } finally {
-            setSending(false);
-        }
+        history.push(`/submit/${problem.problem_id}`);
     };
 
     return (
         <React.Fragment>
-            <Button disabled={sending} color="primary" onClick={handleSend} endIcon={<DirectionsRunIcon />} variant="contained">{text}</Button>
-            <Snackbar open={sending} message={message} />
+            <Button color="primary" onClick={handleSend} endIcon={<DirectionsRunIcon />} variant="contained">{text}</Button>
         </React.Fragment>
     );
 };
