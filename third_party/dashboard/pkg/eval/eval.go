@@ -15,7 +15,7 @@ var (
 
 const RejectDislike = 999999999
 
-func Recalculate(mgr solutionmgr.Manager) error {
+func Recalculate(mgr *solutionmgr.MySQLManager) error {
 	problems, err := mgr.GetProblems()
 	if err != nil {
 		return err

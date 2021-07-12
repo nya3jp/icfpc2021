@@ -1,6 +1,7 @@
 import {Problem, Solution, GotBonus} from './types';
 import {Model} from './model';
 import {Link} from 'react-router-dom';
+import React from 'react';
 
 import Grid from '@material-ui/core/Grid';
 import Table from '@material-ui/core/Table';
@@ -52,7 +53,7 @@ const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, probl
                     <ListItemText>
                         使用可🍆:<br />
                         {bonuses.map((bonus) => {
-                            return <span>{bonus.from_problem_id}から{bonus.kind}<br /></span>
+                            return <span key={`bonus-recv-${problem.problem_id}-${bonus.from_problem_id}-${bonus.kind}`}>{bonus.from_problem_id}から{bonus.kind}<br /></span>
                         })}
                     </ListItemText>
                 </ListItem>
@@ -60,7 +61,7 @@ const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, probl
                     <ListItemText>
                         獲得可🍆:<br />
                         {problem.data.bonuses.map((bonus) => {
-                            return <span>{bonus.problem}へ{bonus.bonus}<br /></span>
+                            return <span key={`bonus-${problem.problem_id}-${bonus.problem}-${bonus.bonus}`}>{bonus.problem}へ{bonus.bonus}<br /></span>
                         })}
                     </ListItemText>
                 </ListItem>
@@ -136,13 +137,13 @@ export const ProblemList = (props: ProblemListProps) => {
                 <TableRow>
                     <TableCell>ID</TableCell>
                     <TableCell>Problem</TableCell>
-                    {columns.map((column) => <TableCell>{column.header}</TableCell>)}
+                    {columns.map((column) => <TableCell key={`header-${column.header}`}>{column.header}</TableCell>)}
                 </TableRow>
             </TableHead>
             <TableBody>
                 {problems.map((problem) => {
                     if (hiddenProblems.has(problem.problem_id)) {
-                        return <div></div>;
+                        return <React.Fragment></React.Fragment>
                     }
                     const problemLink = `/problems/${problem.problem_id}`;
                     let color = "#FFF";
@@ -150,7 +151,7 @@ export const ProblemList = (props: ProblemListProps) => {
                         color = green[100];
                     }
                     return (
-                        <TableRow key={problem.problem_id} style={{background: color}}>
+                        <TableRow key={`problem-row-${problem.problem_id}`} style={{background: color}}>
                             <TableCell align="right"><Link to={problemLink} style={{textDecoration: 'none'}}><Typography variant="h2">{problem.problem_id}</Typography></Link></TableCell>
                             <TableCell style={{verticalAlign: 'top'}}>
                                 <ProblemCell model={model} problem={problem} bonuses={bonuses[problem.problem_id]} showViewer={showViewer} />
@@ -158,7 +159,7 @@ export const ProblemList = (props: ProblemListProps) => {
                             {columns.map((column) => {
                                 const sol = column.solutions.get(problem.problem_id);
                                 return (
-                                    <TableCell style={{verticalAlign: 'top'}}>
+                                    <TableCell key={`problem-row-${problem.problem_id}-column-${column.header}`} style={{verticalAlign: 'top'}}>
                                         <SolutionCell model={model} problem={problem} showViewer={showViewer} bonus={column.bonus} solution={sol} />
                                     </TableCell>
                                 );

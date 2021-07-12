@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"icfpc2021/dashboard/pkg/solutionmgr"
 	"icfpc2021/dashboard/pkg/tasks"
 
+	"github.com/golang/protobuf/jsonpb"
 	"github.com/gorilla/mux"
 	"github.com/nya3jp/flex"
 )
@@ -67,9 +69,13 @@ func main() {
 	r.HandleFunc("/api/problems/{problem_id}/solutions", s.handleProblemSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/solutions/{solution_id}", s.handleSolutionGet).Methods("GET")
 	r.HandleFunc("/api/solutions/{solution_id}/submit", s.handleSolutionSubmit).Methods("POST")
+	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionAddTag).Methods("POST")
+	r.HandleFunc("/api/solutions/{solution_id}/tags", s.handleSolutionDeleteTag).Methods("DELETE")
+	r.HandleFunc("/api/solutions", s.handleSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/solutions", s.handleSolutionsPost).Methods("POST")
 	r.HandleFunc("/api/submittedsolutions", s.handleSubmittedSolutionsGet).Methods("GET")
 	r.HandleFunc("/api/tasks/running", s.handleTasksRunningGet).Methods("GET")
+	r.HandleFunc("/api/tasks/info/{task_id}", s.handleTaskGet).Methods("GET")
 	r.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, "ok")
 	})
@@ -80,7 +86,7 @@ func main() {
 }
 
 type server struct {
-	mgr        solutionmgr.Manager
+	mgr        *solutionmgr.MySQLManager
 	scraper    *scrape.Scraper
 	flexClient *flex.Client
 }
@@ -157,13 +163,7 @@ func (s *server) handleProblemSolve(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	task, err := s.flexClient.GetTask(r.Context(), taskID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(task); err != nil {
+	if err := json.NewEncoder(w).Encode(taskID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -179,6 +179,26 @@ func (s *server) handleTasksRunningGet(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(tasks); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleTaskGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	taskID, err := strconv.ParseInt(mux.Vars(r)["task_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	task, err := s.flexClient.GetTask(context.Background(), taskID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := (&jsonpb.Marshaler{}).Marshal(w, task); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -325,6 +345,25 @@ func (s *server) handleProblemSolutionsPost(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+func (s *server) handleSolutionsGet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	solutions, err := s.mgr.GetSolutionsForTag(tag)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solutions); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func (s *server) handleSolutionsPost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
@@ -409,6 +448,62 @@ func (s *server) handleSolutionSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	io.WriteString(w, submitID)
+}
+
+func (s *server) handleSolutionAddTag(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	if err := s.mgr.AddSolutionTag(solutionID, tag); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *server) handleSolutionDeleteTag(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	solutionID, err := strconv.ParseInt(mux.Vars(r)["solution_id"], 10, 64)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	tag := r.URL.Query().Get("tag")
+	if tag == "" {
+		http.Error(w, "tag is needed", http.StatusBadRequest)
+		return
+	}
+	if err := s.mgr.RemoveSolutionTag(solutionID, tag); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	solution, err := s.mgr.GetSolution(solutionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(solution); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func trimAndRemoveEmpty(ss []string) []string {

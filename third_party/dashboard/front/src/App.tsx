@@ -11,6 +11,8 @@ import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
 import {Model} from './model';
 import {ProblemPage} from './ProblemPage';
+import {SolutionSetPage} from './SolutionSetPage';
+import {TaskPage} from './TaskPage';
 
 const useStyles = makeStyles((theme) => ({
     root: {
@@ -48,11 +50,17 @@ export default function App() {
                 </AppBar>
                 <Box pt={1}>
                     <Switch>
+                        <Route path="/solutionsets/">
+                            <SolutionSetPage model={model} />
+                        </Route>
                         <Route path="/solutions/:solutionID">
                             <SolutionPage model={model} />
                         </Route>
                         <Route path="/problems/:problemID">
                             <ProblemPage model={model} />
+                        </Route>
+                        <Route path="/tasks/:taskID">
+                            <TaskPage model={model} />
                         </Route>
                         <Route path="/">
                             <FrontPage model={model} />

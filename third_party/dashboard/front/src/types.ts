@@ -53,3 +53,47 @@ export interface GotBonus {
 };
 
 export type BonusMap = {[key: number]: GotBonus[]};
+
+export interface TaskStatus {
+    task: Task;
+    state: 'PENDING' | 'RUNNING' | 'FINISHED';
+    worker?: string;
+    result?: TaskResult;
+}
+
+export interface Task {
+    id: TaskId;
+    spec: TaskSpec;
+}
+
+export interface TaskId {
+    id: number;
+}
+
+export interface TaskSpec {
+    command: TaskCommand;
+    packages?: TaskPackage[];
+    constraints?: TaskConstraints;
+    limits?: TaskLimits;
+}
+
+export interface TaskCommand {
+    shell: string;
+}
+
+export interface TaskPackage {
+    url: string
+}
+
+export interface TaskConstraints {
+    priority: number;
+}
+
+export interface TaskLimits {
+    time?: string;
+}
+
+export interface TaskResult {
+    exitCode?: number;
+    error?: string;
+}

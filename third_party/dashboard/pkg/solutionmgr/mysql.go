@@ -278,6 +278,13 @@ func (m *MySQLManager) AddSolution(solution *Solution) (int64, error) {
 	return solutionID, nil
 }
 
+func (m *MySQLManager) AddSolutionTag(solutionID int64, tag string) error {
+	if _, err := m.db.Exec("INSERT INTO tags(solution_id, tag) VALUES (?, ?) ON DUPLICATE KEY UPDATE solution_id = ?", solutionID, tag, solutionID); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *MySQLManager) SetSolutionAutoIncrement() error {
 	var solutionID int64
 	if err := m.db.QueryRow("SELECT MAX(solution_id) FROM solutions").Scan(&solutionID); err != nil {
@@ -485,6 +492,66 @@ func (m *MySQLManager) GetSolutionsForProblem(problemID int64) ([]*Solution, err
 	return solutions, nil
 }
 
+func (m *MySQLManager) GetSolutionsForTag(tag string) ([]*Solution, error) {
+	rows, err := m.db.Query("SELECT solution_id, problem_id, created_at, file_hash, dislike, reject_reason, data FROM solutions INNER JOIN solution_data USING (file_hash) INNER JOIN tags USING (solution_id) WHERE tag = ?", tag)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	solutionMap := make(map[int64]*Solution)
+	for rows.Next() {
+		var fileHash, rejectReason string
+		var solutionID, problemID, createdAt, dislike int64
+		var bs []byte
+		if err := rows.Scan(&solutionID, &problemID, &createdAt, &fileHash, &dislike, &rejectReason, &bs); err != nil {
+			return nil, err
+		}
+
+		var data SolutionData
+		if err := json.Unmarshal(bs, &data); err != nil {
+			return nil, err
+		}
+
+		solutionMap[solutionID] = &Solution{
+			SolutionID:   solutionID,
+			ProblemID:    problemID,
+			CreatedAt:    createdAt,
+			Dislike:      dislike,
+			RejectReason: rejectReason,
+			Tags:         make([]string, 0), // must be non-nil
+			Data:         data,
+			fileHash:     fileHash,
+		}
+	}
+
+	rows, err = m.db.Query("SELECT solution_id, tag FROM tags WHERE solution_id IN (SELECT solution_id FROM tags WHERE tag = ?)", tag)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var solutionID int64
+		var tag string
+		if err := rows.Scan(&solutionID, &tag); err != nil {
+			return nil, err
+		}
+
+		solution := solutionMap[solutionID]
+		if solution == nil {
+			continue
+		}
+		solution.Tags = append(solution.Tags, tag)
+	}
+
+	solutions := make([]*Solution, 0) // must be non-nil
+	for _, s := range solutionMap {
+		solutions = append(solutions, s)
+	}
+	return solutions, nil
+}
+
 func (m *MySQLManager) GetSubmittedSolutions() ([]*SubmittedSolution, error) {
 	rows, err := m.db.Query("SELECT submitted_solution_id, problem_id, created_at, solution_id FROM submitted_solutions")
 	if err != nil {
@@ -508,6 +575,14 @@ func (m *MySQLManager) GetSubmittedSolutions() ([]*SubmittedSolution, error) {
 		})
 	}
 	return solutions, nil
+}
+
+func (m *MySQLManager) RemoveSolutionTag(solutionID int64, tag string) error {
+	_, err := m.db.Exec("DELETE FROM tags WHERE solution_id = ? AND tag = ?", solutionID, tag)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (m *MySQLManager) UpdateMinimalDislike(problemID int64, dislike int64) error {

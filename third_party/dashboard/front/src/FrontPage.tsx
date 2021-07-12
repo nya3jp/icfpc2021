@@ -12,7 +12,6 @@ import Select from '@material-ui/core/Select';
 import Switch from '@material-ui/core/Switch';
 import {makeStyles} from '@material-ui/core/styles';
 
-
 import {maxScore, scoreInfo} from './utils';
 import {ListColumnData, ProblemList} from './ProblemList';
 
@@ -22,8 +21,8 @@ const useStyles = makeStyles((_) => ({
     },
 }));
 
-type SolutionsMap = {[key: number]: Solution[]};
 type BestSolutionMap = {[key: number]: Solution};
+type SolutionsMap = {[key: number]: Solution[]};
 
 interface FormFilterState {
     hideTopTie: boolean;
@@ -213,11 +212,11 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
             solSuperflexes.set(problem.problem_id, solSuperflex);
         }
 
-        if (formFilter.hideZeroScore && sol.dislike === 0) {
-            hiddenProblems.add(problem.problem_id);
-            return;
-        }
         if (sol) {
+            if (formFilter.hideZeroScore && sol.dislike === 0) {
+                hiddenProblems.add(problem.problem_id);
+                return;
+            }
             const topTie = sol.dislike === problem.minimal_dislike;
             if (formFilter.hideTopTie && topTie) {
                 hiddenProblems.add(problem.problem_id);
