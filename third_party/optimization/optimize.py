@@ -11,6 +11,7 @@ problems = dict()
 solutions = dict()
 
 globalBestDislike = dict()
+globalBestDislikeIn = dict()
 dependency = dict()
 states = dict()
 candidates = list()
@@ -104,14 +105,10 @@ def calcdown(prob, bonus):
             print('dont catched Bonus')
             continue
         valid = True
-        for b in item['catchedBonus']:
+        for c in constraint[prob] + [bonus]:
             tmp = False
-            if b == bonus:
+            for b in item['catchedBonus']:
                 tmp = True
-            else:
-                for c in constraint[prob]:
-                    if b == c:
-                        tmp = True
             valid = valid and tmp
         if valid:
             ret = max(ret, item['score'] - diffData[prob]['unused']['score'])
@@ -205,7 +202,9 @@ def getGlobalBestDislike(problem):
 def updateGlobalBestDislike(problemNumber, solution):
     for submit in solution:
         dislike = submit['dislike']
-        globalBestDislike[problemNumber] = min(globalBestDislike[problemNumber], dislike)
+        if problemNumber not in globalBestDislikeIn:
+            globalBestDislikeIn[problemNumber] = dislike
+        globalBestDislikeIn[problemNumber] = min(globalBestDislikeIn[problemNumber], dislike)
 
 def createDependency(problem):
     if 'bonuses' in problem['data'] and problem['data']['bonuses'] is not None:
@@ -220,6 +219,36 @@ def getURL(sortedSelected):
         url = url + str(i['solutionId']) + ','
     return url[0:-1] 
 
+def suitable(i, candidate, depth):
+    if depth > 10 and len(i['usedBonus']) > 0:
+        return False
+    for j in i['catchedBonus']:
+        if j[0] == candidate['usedBonus'][0][0]:
+            return True
+    return False
+
+def discost(candidate):
+    return candidate['score'] - diffData[candidate['problemId']]['unused']['score']
+
+def encost(candidate):
+    cost = candidate['score'] - diffData[candidate['problemId']]['unused']['score']
+    if globalBestDislikeIn[candidate['problemId']] < globalBestDislike[candidate['problemId']]:
+        cost = cost + getScore(candidate['problemId'], globalBestDislike[candidate['problemId']]) - getScore(candidate['problemId'], globalBestDislikeIn[candidate['problemId']])
+    return cost
+
+def dfs(candidate, depth):
+    print(candidate)
+    if len(candidate['usedBonus']) == 0:
+        return ('('+str(candidate['solutionId'])+','+str(candidate['problemId'])+')', -discost(candidate))
+    for i in diffData[candidate['problemId']]['candidates']:
+        if suitable(i, candidate, depth):
+            print(i, candidate, depth)
+            return ( '('+str(candidate['solutionId'])+','+str(candidate['problemId'])+')' + dfs(i, depth+1)[0], dfs(i,depth+1)[1] + encost(candidate) )
+
+def solve2():
+    sortedCandidates = sorted(candidates, key=lambda x:(x['score'], -len(x['usedBonus']), len(x['catchedBonus'])), reverse=True)
+    for candidate in candidates:
+        print(dfs(candidate, 0))
 
 def main():
     # Get Problems and Solutions
@@ -236,27 +265,28 @@ def main():
         updateGlobalBestDislike(problemNumber, solution)
 
     createDiffDataAndCandidate()
-    solve()
-    sortedSelected = sorted(selected, key=lambda x:x['problemId'], reverse=True)
-    print(getURL(sortedSelected))
-    totalScore = 0
-    for i in selected:
-        totalScore = totalScore + i['score']
-    print(len(selected))
-    print(totalScore)
-    totalScore = 0
-    count_total_candidate = 0
-    seenCandidates = dict()
-    for i in candidates:
-        if len(i['usedBonus']) > 0:
-            continue
-        if i['problemId'] in seenCandidates:
-            continue
-        seenCandidates[i['problemId']] = True
-        count_total_candidate = count_total_candidate + 1
-        totalScore = totalScore + i['score']
-    print(count_total_candidate)
-    print(totalScore)
+    solve2()
+    #solve()
+    #sortedSelected = sorted(selected, key=lambda x:x['problemId'], reverse=True)
+    #print(getURL(sortedSelected))
+    #totalScore = 0
+    #for i in selected:
+    #    totalScore = totalScore + i['score']
+    #print(len(selected))
+    #print(totalScore)
+    #totalScore = 0
+    #count_total_candidate = 0
+    #seenCandidates = dict()
+    #for i in candidates:
+    #    if len(i['usedBonus']) > 0:
+    #        continue
+    #    if i['problemId'] in seenCandidates:
+    #        continue
+   #     seenCandidates[i['problemId']] = True
+   #     count_total_candidate = count_total_candidate + 1
+   #     totalScore = totalScore + i['score']
+   # print(count_total_candidate)
+   # print(totalScore)
 
 if __name__ == "__main__":
     main()
