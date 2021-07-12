@@ -1,33 +1,20 @@
 import React, {useEffect, useState} from 'react';
-import {Problem, Solution, GotBonus, BonusMap} from './types';
+import {Problem, Solution} from './types';
 import {Model} from './model';
-import {Link} from 'react-router-dom';
 
 import Container from '@material-ui/core/Container';
 import FormControl from '@material-ui/core/FormControl';
 import FormControlLabel from '@material-ui/core/FormControlLabel';
 import FormGroup from '@material-ui/core/FormGroup';
-import Grid from '@material-ui/core/Grid';
 import InputLabel from '@material-ui/core/InputLabel';
 import MenuItem from '@material-ui/core/MenuItem';
 import Select from '@material-ui/core/Select';
 import Switch from '@material-ui/core/Switch';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import Typography from '@material-ui/core/Typography';
-import {green} from '@material-ui/core/colors';
 import {makeStyles} from '@material-ui/core/styles';
 
-import List from '@material-ui/core/List';
-import ListItem from '@material-ui/core/ListItem';
-import ListItemText from '@material-ui/core/ListItemText';
 
-import {Viewer} from './editor/Viewer';
-import {maxScore, scoreInfo, bonusMap} from './utils';
-import {RunSolverButton} from './buttons';
+import {maxScore, scoreInfo} from './utils';
+import {ListColumnData, ProblemList} from './ProblemList';
 
 const useStyles = makeStyles((_) => ({
     spacer: {
@@ -38,102 +25,6 @@ const useStyles = makeStyles((_) => ({
 type SolutionsMap = {[key: number]: Solution[]};
 type BestSolutionMap = {[key: number]: Solution};
 
-interface ProblemListProps {
-    model: Model;
-}
-
-const CondViewer = ({problem, solution, showViewer}: {problem: Problem, solution?: Solution, showViewer: boolean}) => {
-    if (!showViewer) {
-        return <div></div>
-    }
-    if (!solution) {
-        return <Viewer problem={problem} size={100} />
-    }
-    return <Viewer problem={problem} solution={solution} size={100} />
-};
-
-const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, problem: Problem, bonuses: GotBonus[], showViewer: boolean}) => {
-    if (!bonuses) {
-        bonuses = [];
-    }
-    return (
-        <Grid container direction="column" alignItems="center">
-            <RunSolverButton model={model} problem={problem} bonus="" text="ソルバ" />
-            <CondViewer problem={problem} showViewer={showViewer} />
-            <List dense={true} style={{width: '13em'}}>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        最小Dislike: <b>{problem.minimal_dislike}</b>
-                    </ListItemText>
-                </ListItem>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        最大スコア: <b>{maxScore(problem)}</b>
-                    </ListItemText>
-                </ListItem>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        使用可🍆:<br />
-                        {bonuses.map((bonus) => {
-                            return <span>{bonus.from_problem_id}から{bonus.kind}<br /></span>
-                        })}
-                    </ListItemText>
-                </ListItem>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        獲得可🍆:<br />
-                        {problem.data.bonuses.map((bonus) => {
-                            return <span>{bonus.problem}へ{bonus.bonus}<br /></span>
-                        })}
-                    </ListItemText>
-                </ListItem>
-            </List>
-        </Grid>
-    );
-};
-
-const SolutionCell = ({model, problem, solution, bonus, showViewer}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean}) => {
-    if (!solution) {
-        return (
-            <Grid container direction="column" alignItems="center">
-                <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />
-            </Grid>
-        );
-    }
-    const solutionLink = `/solutions/${solution.solution_id}`;
-    const si = scoreInfo(problem, solution);
-
-    let dislikeText = "";
-    let scoreText = "";
-    if (problem.minimal_dislike !== solution.dislike) {
-        dislikeText = `${solution.dislike} (${solution.dislike - problem.minimal_dislike}点差)`
-        scoreText = `(残り ${si.maxScore - si.score} / ${Math.ceil(100 - si.ratio * 100)}%)`;
-    } else {
-        dislikeText = `${solution.dislike} (トップタイ)`
-        scoreText = `(MAX)`;
-    }
-    return (
-        <Grid container direction="column" alignItems="center">
-            <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />
-            <Link to={solutionLink} style={{textDecoration: 'none'}}>
-                <CondViewer problem={problem} solution={solution} showViewer={showViewer} />
-            </Link>
-            <List dense={true} style={{width: '17em'}}>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        Dislike: <b>{dislikeText}</b>
-                    </ListItemText>
-                </ListItem>
-                <ListItem divider={true} dense={true}>
-                    <ListItemText>
-                        スコア: <b>{si.score}<br />{scoreText}</b>
-                    </ListItemText>
-                </ListItem>
-            </List>
-        </Grid>
-    );
-};
-
 interface FormFilterState {
     hideTopTie: boolean;
     hideZeroScore: boolean;
@@ -141,7 +32,11 @@ interface FormFilterState {
     order: string;
 };
 
-const ProblemList = (props: ProblemListProps) => {
+interface FrontPageProblemListProps {
+    model: Model;
+};
+
+const FrontPageProblemList = (props: FrontPageProblemListProps) => {
     const {model} = props;
     const classes = useStyles();
     const ssKey = "ProblemListFormFilterState";
@@ -159,14 +54,12 @@ const ProblemList = (props: ProblemListProps) => {
         };
     });
     const [problems, setProblems] = useState<Problem[]>([]);
-    const [bonuses, setBonuses] = useState<BonusMap>([]);
     const [solutions, setSolutions] = useState<SolutionsMap>({});
 
     useEffect(() => {
         // Every time the state is updated, this is called...
         if (problems.length === 0) {
             model.getProblems().then((ps: Problem[]) => {
-                setBonuses(bonusMap(ps));
                 setProblems(ps);
             });
         } else if (Object.keys(solutions).length === 0) {
@@ -222,7 +115,7 @@ const ProblemList = (props: ProblemListProps) => {
             return s.data.bonuses == null || s.data.bonuses.length === 0;
         });
 
-        if (ss.length == 0) {
+        if (ss.length === 0) {
             return;
         }
 
@@ -241,10 +134,10 @@ const ProblemList = (props: ProblemListProps) => {
             }
 
             ss = ss.filter((s) => {
-                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus == bonus);
+                return s.data.bonuses != null && s.data.bonuses.some((b) => b.bonus === bonus);
             });
 
-            if (ss.length == 0) {
+            if (ss.length === 0) {
                 return;
             }
 
@@ -301,6 +194,58 @@ const ProblemList = (props: ProblemListProps) => {
         return p1.problem_id - p2.problem_id;
     });
 
+    let sols: Map<number, Solution> = new Map<number, Solution>();
+    let solGlobalists: Map<number, Solution> = new Map<number, Solution>();
+    let solSuperflexes: Map<number, Solution> = new Map<number, Solution>();
+    let hiddenProblems: Set<number> = new Set<number>();
+    let greenBackgroundProblems: Set<number> = new Set<number>();
+    ps.forEach((problem) => {
+        const sol = bestSolutions[problem.problem_id];
+        const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
+        const solSuperflex = bestSolutionsSuperflex[problem.problem_id];
+        if (sol) {
+            sols.set(problem.problem_id, sol);
+        }
+        if (solGlobalist) {
+            solGlobalists.set(problem.problem_id, solGlobalist);
+        }
+        if (solSuperflex) {
+            solSuperflexes.set(problem.problem_id, solSuperflex);
+        }
+
+        if (formFilter.hideZeroScore && sol.dislike === 0) {
+            hiddenProblems.add(problem.problem_id);
+            return;
+        }
+        if (sol) {
+            const topTie = sol.dislike === problem.minimal_dislike;
+            if (formFilter.hideTopTie && topTie) {
+                hiddenProblems.add(problem.problem_id);
+                return;
+            }
+            if (topTie) {
+                greenBackgroundProblems.add(problem.problem_id);
+            }
+        }
+    });
+    const columns: ListColumnData[] = [
+        {
+            header: "Best Solution",
+            bonus: "",
+            solutions: sols,
+        },
+        {
+            header: "Best (+GLOBALIST)",
+            bonus: "GLOBALIST",
+            solutions: solGlobalists,
+        },
+        {
+            header: "Best (+SUPERFLEX)",
+            bonus: "SUPERFLEX",
+            solutions: solSuperflexes,
+        }
+    ];
+
     return (
         <Container>
             <FormGroup row>
@@ -316,57 +261,8 @@ const ProblemList = (props: ProblemListProps) => {
                         <MenuItem value={"HighRemainingScoreRatio"}>スコア伸びしろ(比率)多い順</MenuItem>
                     </Select>
                 </FormControl>
+                <ProblemList model={model} problems={ps} hiddenProblems={hiddenProblems} greenBackgroundProblems={greenBackgroundProblems} columns={columns} showViewer={!formFilter.hideViewer} />
             </FormGroup>
-            <Table size="small">
-                <TableHead>
-                    <TableRow>
-                        <TableCell>ID</TableCell>
-                        <TableCell>Problem</TableCell>
-                        <TableCell>Best Solution</TableCell>
-                        <TableCell>Best (+GLOBALIST)</TableCell>
-                        <TableCell>Best (+SUPERFLEX)</TableCell>
-                    </TableRow>
-                </TableHead>
-                <TableBody>
-                    {ps.map((problem) => {
-                        const sol = bestSolutions[problem.problem_id];
-                        const solGlobalist = bestSolutionsGlobalist[problem.problem_id];
-                        const solSuperflex = bestSolutionsSuperflex[problem.problem_id];
-                        const problemLink = `/problems/${problem.problem_id}`;
-                        if (!sol) {
-                            return (
-                                <TableRow key={problem.problem_id}>
-                                    <TableCell align="right"><Link to={problemLink} style={{textDecoration: 'none'}}><Typography variant="h2">{problem.problem_id}</Typography></Link></TableCell>
-                                    <TableCell style={{verticalAlign: 'top'}}><ProblemCell model={model} problem={problem} bonuses={bonuses[problem.problem_id]} showViewer={!formFilter.hideViewer} /></TableCell>
-                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="" /></TableCell>
-                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="GLOBALIST" /></TableCell>
-                                    <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="SUPERFLEX" /></TableCell>
-                                </TableRow>
-                            );
-                        }
-                        if (formFilter.hideZeroScore && sol.dislike === 0) {
-                            return <div></div>;
-                        }
-                        const topTie = sol.dislike === problem.minimal_dislike;
-                        if (formFilter.hideTopTie && topTie) {
-                            return <div></div>;
-                        }
-                        let color = "#FFF";
-                        if (topTie) {
-                            color = green[100];
-                        }
-                        return (
-                            <TableRow key={problem.problem_id} style={{background: color}}>
-                                <TableCell align="right"><Link to={problemLink} style={{textDecoration: 'none'}}><Typography variant="h2">{problem.problem_id}</Typography></Link></TableCell>
-                                <TableCell style={{verticalAlign: 'top'}}><ProblemCell model={model} problem={problem} bonuses={bonuses[problem.problem_id]} showViewer={!formFilter.hideViewer} /></TableCell>
-                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="" solution={sol} /></TableCell>
-                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="GLOBALIST" solution={solGlobalist} /></TableCell>
-                                <TableCell style={{verticalAlign: 'top'}}><SolutionCell model={model} problem={problem} showViewer={!formFilter.hideViewer} bonus="SUPERFLEX" solution={solSuperflex} /></TableCell>
-                            </TableRow>
-                        );
-                    })}
-                </TableBody>
-            </Table>
         </Container>
     );
 };
@@ -379,6 +275,6 @@ export const FrontPage = (props: FrontPageProps) => {
     const {model} = props;
 
     return (
-        <ProblemList model={model} />
+        <FrontPageProblemList model={model} />
     );
 };
