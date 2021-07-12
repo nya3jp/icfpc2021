@@ -212,11 +212,11 @@ const FrontPageProblemList = (props: FrontPageProblemListProps) => {
             solSuperflexes.set(problem.problem_id, solSuperflex);
         }
 
-        if (formFilter.hideZeroScore && sol.dislike === 0) {
-            hiddenProblems.add(problem.problem_id);
-            return;
-        }
         if (sol) {
+            if (formFilter.hideZeroScore && sol.dislike === 0) {
+                hiddenProblems.add(problem.problem_id);
+                return;
+            }
             const topTie = sol.dislike === problem.minimal_dislike;
             if (formFilter.hideTopTie && topTie) {
                 hiddenProblems.add(problem.problem_id);
