@@ -1,6 +1,7 @@
 import {Problem, Solution} from './types';
 
-const PROD_BASE_URL = 'https://spweek.badalloc.com';
+const PROD_BASE_URL = 'http://10.0.10.202:8080'
+// const PROD_BASE_URL = 'https://spweek.badalloc.com';
 const DEV_BASE_URL = 'http://localhost:8080'
 
 // Client is the API client for our dashboard server.
@@ -33,6 +34,11 @@ class Client {
 
     async submitSolution(id: number): Promise<string> {
         const res = await fetch(`${this.baseURL}/api/solutions/${id}/submit`, {method: 'POST'});
+        return await res.text();
+    }
+
+    async triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
+        const res = await fetch(`${this.baseURL}/api/problems/${problemID}/solve?penalty_ratio=${penaltyRatio}&deadline=${deadlineSec}&time_limit=${timeLimitSec}&bonus=${bonus}`, {method: 'POST'});
         return await res.text();
     }
 }
@@ -76,5 +82,9 @@ export class Model {
 
     submitSolution(id: number): Promise<string> {
         return this.client.submitSolution(id);
+    }
+
+    triggerSolver(problemID: number, bonus: string, penaltyRatio:number, timeLimitSec: number, deadlineSec: number): Promise<string> {
+        return this.client.triggerSolver(problemID, bonus, penaltyRatio, timeLimitSec, deadlineSec);
     }
 }

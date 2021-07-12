@@ -4,8 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type Point []int64
@@ -131,6 +129,12 @@ type SubmittedSolution struct {
 	SolutionID          int64  `json:"solution_id"`
 }
 
+type RunningTask struct {
+	TaskID    int64 `json:"task_id"`
+	ProblemID int64 `json:"problem_id"`
+	CreatedAt           int64  `json:"created_at"`
+}
+
 func (s *SubmittedSolution) Validate() error {
 	if s.ProblemID == 0 {
 		return fmt.Errorf("empty problem ID: %d", s.ProblemID)
@@ -151,11 +155,13 @@ type Manager interface {
 	Close() error
 
 	AddProblem(problem *Problem) error
+	AddRunningTask(taskID, problemID int64) error
 	AddSolution(solution *Solution) (int64, error)
 	AddSubmittedSolution(solution *SubmittedSolution) error
 
 	GetProblem(problemID int64) (*Problem, error)
 	GetProblems() ([]*Problem, error)
+	GetRunningTasks() ([]*RunningTask, error)
 	GetSolution(solutionID int64) (*Solution, error)
 	GetSolutionsForProblem(problemID int64) ([]*Solution, error)
 	GetSubmittedSolutions() ([]*SubmittedSolution, error)
@@ -163,4 +169,3 @@ type Manager interface {
 	UpdateMinimalDislike(problemID int64, dislike int64) error
 	UpdateSolutionEvalResult(solutionID int64, rejectReason string, dislike int64) error
 }
-

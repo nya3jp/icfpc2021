@@ -1,6 +1,6 @@
 FROM docker.io/archlinux:latest as base-env
 RUN pacman-key --init
-RUN pacman --noconfirm -Sy core/sqlite
+RUN pacman --noconfirm -Sy
 
 FROM docker.io/golang:1.16 as build-env
 WORKDIR /go/src/app

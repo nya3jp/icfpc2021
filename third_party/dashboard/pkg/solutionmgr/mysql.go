@@ -135,6 +135,19 @@ func runSchemaMigration(db *sql.DB) error {
 		}
 		version = 1
 		fallthrough
+	case 1:
+		if _, err := db.Exec(`
+			CREATE TABLE IF NOT EXISTS running_tasks (
+				task_id    BIGINT NOT NULL,
+				problem_id BIGINT NOT NULL,
+				created_at BIGINT NOT NULL,
+				PRIMARY KEY (task_id)
+			) ENGINE=INNODB;
+		`); err != nil {
+			return fmt.Errorf("cannot create tables: %v", err)
+		}
+		version = 2
+		fallthrough
 	default:
 	}
 	if _, err := db.Exec(`UPDATE schema_version SET version = ? WHERE id = 1`, version); err != nil {
@@ -176,6 +189,18 @@ func (m *MySQLManager) AddProblem(problem *Problem) error {
 	if _, err := m.db.Exec(
 		"INSERT INTO problems(problem_id, created_at, minimal_dislike, data) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE data = ?",
 		problem.ProblemID, problem.CreatedAt, problem.MinimalDislike, bs, bs,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *MySQLManager) AddRunningTask(taskID, problemID int64) error {
+	createdAt := time.Now().Unix()
+
+	if _, err := m.db.Exec(
+		"INSERT INTO running_tasks(task_id, problem_id, created_at) VALUES (?, ?, ?)",
+		taskID, problemID, createdAt,
 	); err != nil {
 		return err
 	}
@@ -332,6 +357,29 @@ func (m *MySQLManager) GetProblems() ([]*Problem, error) {
 		})
 	}
 	return problems, nil
+}
+
+func (m *MySQLManager) GetRunningTasks() ([]*RunningTask, error) {
+	rows, err := m.db.Query("SELECT task_id, problem_id, created_at FROM running_tasks")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tasks := make([]*RunningTask, 0) // must be non-nil
+	for rows.Next() {
+		var taskID, problemID, createdAt int64
+		if err := rows.Scan(&taskID, &problemID, &createdAt); err != nil {
+			return nil, err
+		}
+
+		tasks = append(tasks, &RunningTask{
+			TaskID:    taskID,
+			ProblemID: problemID,
+			CreatedAt: createdAt,
+		})
+	}
+	return tasks, nil
 }
 
 func (m *MySQLManager) GetSolution(solutionID int64) (*Solution, error) {

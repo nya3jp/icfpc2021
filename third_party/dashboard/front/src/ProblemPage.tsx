@@ -5,6 +5,7 @@ import {Link} from 'react-router-dom';
 import {Model} from './model';
 import {Paper, Typography} from '@material-ui/core';
 import TableContainer from '@material-ui/core/TableContainer';
+import Container from '@material-ui/core/Container';
 import Table from '@material-ui/core/Table';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
@@ -12,7 +13,7 @@ import TableCell from '@material-ui/core/TableCell';
 import TableBody from '@material-ui/core/TableBody';
 import {Viewer} from './editor/Viewer';
 
-function ProblemPane({ problem }: {problem: Problem}) {
+function ProblemPane({problem}: {problem: Problem}) {
     return (
         <div>
             <Viewer problem={problem} />
@@ -20,7 +21,7 @@ function ProblemPane({ problem }: {problem: Problem}) {
     );
 }
 
-function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: Solution[] }) {
+function SolutionsTable({problem, solutions}: {problem: Problem, solutions: Solution[]}) {
     return (
         <TableContainer component={Paper}>
             <Table size="small" aria-label="a dense table">
@@ -46,9 +47,9 @@ function SolutionsTable({ problem, solutions }: { problem: Problem, solutions: S
                                 <TableCell>{solution.dislike}</TableCell>
                                 <TableCell>{
                                     solution.data.bonuses != null &&
-                                        solution.data.bonuses.map((bonus) => {
-                                            return <div>{bonus.bonus}</div>
-                                        })
+                                    solution.data.bonuses.map((bonus) => {
+                                        return <div>{bonus.bonus}</div>
+                                    })
                                 }</TableCell>
                             </TableRow>
                         );
@@ -65,7 +66,7 @@ export interface ProblemPageProps {
 
 export const ProblemPage = (props: ProblemPageProps) => {
     const {model} = props;
-    const {problemID} = useParams<{ problemID: string }>();
+    const {problemID} = useParams<{problemID: string}>();
     const [problem, setProblem] = useState<Problem | null>(null);
     const [solutions, setSolutions] = useState<Solution[] | null>(null);
 
@@ -95,17 +96,17 @@ export const ProblemPage = (props: ProblemPageProps) => {
     }, []);
 
     if (!problem || !solutions) {
-      return <div></div>;
+        return <div></div>;
     }
 
     const createdAt = new Date();
     createdAt.setTime(problem.created_at * 1000);
     return (
-      <div>
-        <Typography variant={'h3'}>Problem { problem.problem_id }</Typography>
-        <ProblemPane problem={problem} />
-        <Typography variant={'h4'}>Solutions</Typography>
-        <SolutionsTable problem={problem} solutions={solutions} />
-      </div>
+        <Container>
+            <Typography variant={'h3'}>Problem {problem.problem_id}</Typography>
+            <ProblemPane problem={problem} />
+            <Typography variant={'h4'}>Solutions</Typography>
+            <SolutionsTable problem={problem} solutions={solutions} />
+        </Container>
     );
 };

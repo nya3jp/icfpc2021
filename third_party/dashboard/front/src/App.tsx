@@ -7,7 +7,6 @@ import {makeStyles} from '@material-ui/core/styles';
 import AppBar from '@material-ui/core/AppBar';
 import Box from '@material-ui/core/Box';
 import Toolbar from '@material-ui/core/Toolbar';
-import Container from '@material-ui/core/Container';
 import Button from '@material-ui/core/Button';
 import Typography from '@material-ui/core/Typography';
 import {Model} from './model';
@@ -48,19 +47,17 @@ export default function App() {
                     </Toolbar>
                 </AppBar>
                 <Box pt={1}>
-                    <Container>
-                        <Switch>
-                            <Route path="/solutions/:solutionID">
-                                <SolutionPage model={model} />
-                            </Route>
-                            <Route path="/problems/:problemID">
-                                <ProblemPage model={model} />
-                            </Route>
-                            <Route path="/">
-                                <FrontPage model={model} />
-                            </Route>
-                        </Switch>
-                    </Container>
+                    <Switch>
+                        <Route path="/solutions/:solutionID">
+                            <SolutionPage model={model} />
+                        </Route>
+                        <Route path="/problems/:problemID">
+                            <ProblemPage model={model} />
+                        </Route>
+                        <Route path="/">
+                            <FrontPage model={model} />
+                        </Route>
+                    </Switch>
                 </Box>
             </div>
         </Router>

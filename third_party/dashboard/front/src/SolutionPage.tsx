@@ -11,15 +11,15 @@ import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
 import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
+import Container from '@material-ui/core/Container';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
-import SendIcon from '@material-ui/icons/Send';
-import EditIcon from '@material-ui/icons/Edit';
-import Snackbar from '@material-ui/core/Snackbar';
 import {Model} from './model';
 import {Typography} from '@material-ui/core';
+
 import {Viewer} from './editor/Viewer';
 import {scoreInfo} from './utils';
+import {EditButton, OfficialSubmitButton} from './buttons';
 
 const useStyles = makeStyles((theme) => ({
     buttons: {
@@ -31,7 +31,7 @@ const useStyles = makeStyles((theme) => ({
 
 export interface SolutionPageProps {
     model: Model;
-}
+};
 
 export const SolutionPage = (props: SolutionPageProps) => {
     const {model} = props;
@@ -40,10 +40,6 @@ export const SolutionPage = (props: SolutionPageProps) => {
     const {solutionID} = useParams<{solutionID: string}>();
     const [solution, setSolution] = useState<Solution | null>(null);
     const [problem, setProblem] = useState<Problem | null>(null);
-    const [sending, setSending] = useState<boolean>(false);
-    const [message, setMessage] = useState<string>("");
-    const [openTimedMessage, setOpenTimedMessage] = useState<boolean>(false);
-    const [timedMessage, setTimedMessage] = useState<string>("");
 
     useEffect(() => {
         (async () => {
@@ -58,17 +54,6 @@ export const SolutionPage = (props: SolutionPageProps) => {
         return <div></div>
     }
 
-    const handleSend = async () => {
-        setMessage("Sending the solution...");
-        setSending(true);
-        let resp = await model.submitSolution(+solutionID);
-        setSending(false);
-        setTimedMessage(resp);
-        setOpenTimedMessage(true);
-    };
-    const handleClose = () => {
-        setOpenTimedMessage(false);
-    };
 
     const si = scoreInfo(problem, solution);
     let diff = "";
@@ -88,7 +73,7 @@ export const SolutionPage = (props: SolutionPageProps) => {
         ...solution.data
     })
     return (
-        <div>
+        <Container>
             <Typography variant={'h3'}>Solution {solutionID}</Typography>
             <Viewer problem={problem} solution={solution} />
             <TableContainer component={Paper}>
@@ -136,15 +121,13 @@ export const SolutionPage = (props: SolutionPageProps) => {
                         <TableRow>
                             <TableCell></TableCell>
                             <TableCell className={classes.buttons}>
-                                <Button disabled={sending} color="primary" onClick={handleSend} endIcon={<SendIcon />} variant="contained">公式にSubmit</Button>
-                                <Button color="secondary" href={`https://nya3jp.github.io/icfpc2021/fcc7938b3c545e6ff51b101ea86f548b/#?problem_id=${solution.problem_id}&base_solution_id=${solution.solution_id}`} endIcon={<EditIcon />} variant="contained">エディタで編集</Button>
+                                <OfficialSubmitButton model={model} solutionID={+solutionID} />
+                                <EditButton problemID={solution.problem_id} solutionID={solution.solution_id} />
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
             </TableContainer>
-            <Snackbar open={sending} message={message} />
-            <Snackbar open={openTimedMessage} autoHideDuration={3000} onClose={handleClose} message={timedMessage} />
-        </div>
+        </Container>
     );
 };
