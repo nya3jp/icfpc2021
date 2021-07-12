@@ -619,32 +619,23 @@ fn solve(
 
     problem_id: i64,
 ) -> Result<()> {
-    // bonus support check
-    match &use_bonus {
-        None => (),
-        Some(BonusType::GLOBALIST) => (),
-        Some(BonusType::SUPERFLEX) => (),
-        Some(r) => {
-            bail!("Bonus {} is currently not supported", r);
-        }
-    }
-
     let ps = get_problems()?;
 
-    let use_bonus: Option<UsedBonus> = use_bonus
-        .map(|b| -> Result<UsedBonus> {
-            let problem = if let Some(pid) = &bonus_from {
-                let p = ps.iter().find(|p| p.0 == *pid).ok_or_else(|| {
-                    anyhow!(
-                        "Problem {} does not provide bonus {} for problem {}",
-                        pid,
-                        b,
-                        problem_id
-                    )
-                })?;
+    let use_bonus: Option<UsedBonus> = match (use_bonus, bonus_from) {
+        (None, None) => None,
 
-                p.0
-            } else {
+        (Some(b), None) => {
+            // bonus support check
+            match &use_bonus {
+                None => (),
+                Some(BonusType::GLOBALIST) => (),
+                Some(BonusType::SUPERFLEX) => (),
+                Some(r) => {
+                    bail!("Bonus {} is currently not supported", r);
+                }
+            }
+
+            let problem = {
                 let avails = ps
                     .iter()
                     .filter(|(_, p)| {
@@ -669,17 +660,50 @@ fn solve(
                     problem_id
                 );
 
-                eprintln!("Use bonus from Problem {}", avails[0].0);
-
                 avails[0].0
             };
 
-            Ok(UsedBonus {
+            Some(UsedBonus {
                 bonus: b,
                 problem: problem as _,
             })
-        })
-        .transpose()?;
+        }
+
+        (None, Some(pid)) => {
+            let p = ps
+                .iter()
+                .find_map(|p| {
+                    if p.0 == pid {
+                        if let Some(bonus) =
+                            p.1.bonuses
+                                .iter()
+                                .find(|bonus| bonus.problem as i64 == problem_id)
+                        {
+                            return Some((p.0, bonus));
+                        }
+                    }
+                    None
+                })
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Problem {} does not provide bonus for problem {}",
+                        pid,
+                        problem_id
+                    )
+                })?;
+
+            Some(UsedBonus {
+                bonus: p.1.bonus,
+                problem: p.0 as _,
+            })
+        }
+
+        (Some(_), Some(_)) => bail!("Cannot specify both 'use_bonus' and 'bonus_from'"),
+    };
+
+    if let Some(b) = &use_bonus {
+        eprintln!("Use bonus {} from problem {}", b.bonus, b.problem);
+    }
 
     // let problem: P = get_problem(problem_id)?;
     let problem = &ps
@@ -983,6 +1007,8 @@ fn get_problem_states() -> Result<Vec<ProblemState>> {
 
     let ps = get_problems()?;
     let mut problems = vec![];
+
+    dbg!(ps.len());
 
     for m in pat.matches(&resp) {
         let problem_id: i64 = m["problem-id"].parse()?;
