@@ -70,7 +70,7 @@ const ProblemCell = ({model, problem, bonuses, showViewer}: {model: Model, probl
     );
 };
 
-const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonuses}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean, possibleBonuses: Set<string> | undefined}) => {
+const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonuses}: {model: Model, problem: Problem, solution?: Solution, bonus: string, showViewer: boolean, possibleBonuses: Map<string, number> | undefined}) => {
     if (!solution) {
         return (
             <Grid container direction="column" alignItems="center">
@@ -90,7 +90,6 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonu
         dislikeText = `${solution.dislike} (トップタイ)`
         scoreText = `(MAX)`;
     }
-    console.log(possibleBonuses)
     return (
         <Grid container direction="column" alignItems="center">
             <RunSolverButton model={model} problem={problem} bonus={bonus} text="ソルバ" />
@@ -114,7 +113,7 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonu
                         {
                             solution.data.bonuses != null &&
                             solution.data.bonuses.length === 1 &&
-                            <BonusChip bonus={solution.data.bonuses[0].bonus} />
+                            <BonusChip bonus={solution.data.bonuses[0].bonus} text={solution.data.bonuses[0].bonus} />
                         }
                     </ListItemText>
                 </ListItem>
@@ -124,7 +123,7 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonu
                         {
                             solution.acquired_bonuses != null &&
                             solution.acquired_bonuses.map((bonus) =>
-                                <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} />
+                                <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} text={bonus.bonus}/>
                             )
                         }
                     </ListItemText>
@@ -134,9 +133,10 @@ const SolutionCell = ({model, problem, solution, bonus, showViewer, possibleBonu
                         獲得可能🍆:
                         {
                             possibleBonuses != null &&
-                            Array.from(possibleBonuses.keys()).map((b) => 
-                                <BonusChip key={`bonus-${b}`} bonus={b} />
-                            )
+                            Array.from(possibleBonuses.entries()).map((v) => {
+                                console.log(v);
+                                return <BonusChip key={`bonus-${v[0]}`} bonus={v[0]} text={v[1].toString()} />;
+                            })
                         }
                     </ListItemText>
                 </ListItem>
@@ -149,7 +149,7 @@ export interface ListColumnData {
     header: string;
     bonus: string;
     solutions: Map<number, Solution>;
-    possibleBonuses: Map<number, Set<string>> | undefined,
+    possibleBonuses: Map<number, Map<string, number>> | undefined,
 };
 
 export interface ProblemListProps {

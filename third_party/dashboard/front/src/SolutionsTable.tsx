@@ -51,12 +51,12 @@ export function SolutionsTable({pairs, showProblem = false}: {pairs: ProblemSolu
                                 <TableCell>{
                                     solution.data.bonuses != null &&
                                     solution.data.bonuses.length === 1 &&
-                                    <BonusChip bonus={solution.data.bonuses[0].bonus} />
+                                    <BonusChip bonus={solution.data.bonuses[0].bonus} text={solution.data.bonuses[0].bonus}/>
                                 }</TableCell>
                                 <TableCell>{
                                     solution.acquired_bonuses != null &&
                                     solution.acquired_bonuses.map((bonus) =>
-                                        <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} />
+                                        <BonusChip key={`bonus-${bonus.bonus}`} bonus={bonus.bonus} text={bonus.bonus} />
                                     )
                                 }</TableCell>
                             </TableRow>
