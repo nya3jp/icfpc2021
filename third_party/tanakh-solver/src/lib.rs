@@ -1,10 +1,21 @@
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
+use easy_scraper::Pattern;
 use geom::schema::{Pose, Problem};
+use itertools::Itertools;
 use once_cell::sync::Lazy;
-use reqwest::blocking::{Client, multipart};
+use reqwest::{
+    blocking::{multipart, Client, ClientBuilder},
+    cookie::{CookieStore, Jar},
+    header::HeaderValue,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::ops::Deref;
+use std::{
+    io::{BufRead, BufReader},
+    path::Path,
+    sync::Arc,
+    {fs, ops::Deref},
+};
 
 // pub mod geom;
 
@@ -74,4 +85,131 @@ pub fn submit(problem_id: i64, solution: &Pose) -> Result<SubmitResult> {
 pub fn submit_dashboard(problem_id: i64, solution_file_name: &str) -> Result<()> {
     post_solution_dashboard(problem_id, solution_file_name)?;
     Ok(())
+}
+
+pub fn get_problems() -> Result<Vec<(i64, Problem)>> {
+    let mut ret = vec![];
+    for rd in fs::read_dir("./problems")? {
+        let rd = rd?;
+
+        let path = rd.path();
+        if !matches!(path.extension(), Some(ext) if ext == "problem") {
+            continue;
+        }
+
+        let problem = serde_json::from_reader(fs::File::open(&path)?)?;
+        let problem_id = path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .parse::<i64>()
+            .map_err(|_| anyhow!("{} is not valid problem filename", path.display()))?;
+
+        ret.push((problem_id, problem));
+    }
+
+    Ok(ret)
+}
+
+pub struct ProblemState {
+    pub problem_id: i64,
+    pub your_dislikes: i64,
+    pub minimal_dislikes: i64,
+    pub point_ratio: f64,
+    pub max_score: i64,
+    pub your_score: i64,
+    pub remaining_score: i64,
+}
+
+pub fn get_problem_states() -> Result<Vec<ProblemState>> {
+    let cookie_store = Arc::new(load_cookie_store("session.txt", ENDPOINT)?);
+
+    let client = ClientBuilder::new()
+        .cookie_provider(Arc::clone(&cookie_store))
+        .build()?;
+
+    let resp = client
+        .get("https://poses.live/problems")
+        .send()?
+        .error_for_status()?
+        .text()?;
+
+    let pat = Pattern::new(
+        r#"
+        <table>
+            <tr>
+                <td><a href="/problems/{{problem-id}}"></a></td>
+                <td>{{your-dislikes}}</td>
+                <td>{{minimal-dislikes}}</td>
+            </tr>
+        </table>
+        "#,
+    )
+    .unwrap();
+
+    let ps = get_problems()?;
+    let mut problems = vec![];
+
+    println!("{} problems", ps.len());
+
+    for m in pat.matches(&resp) {
+        let problem_id: i64 = m["problem-id"].parse()?;
+        let your_dislikes = m["your-dislikes"].parse();
+
+        let your_dislikes = your_dislikes.unwrap_or(9999999);
+
+        let minimal_dislikes: i64 = m["minimal-dislikes"].parse()?;
+
+        let point_ratio = (((minimal_dislikes + 1) as f64) / ((your_dislikes + 1) as f64)).sqrt();
+
+        let problem = ps.iter().find(|r| r.0 == problem_id);
+
+        if problem.is_none() {
+            continue;
+        }
+        let problem = &problem.unwrap().1;
+
+        let max_score = (1000.0
+            * ((problem.figure.vertices.len()
+                * problem.figure.edges.len()
+                * problem.hole.polygon.vertices.len()) as f64
+                / 6.0)
+                .log2()) as i64;
+
+        let your_score = (max_score as f64 * point_ratio).ceil() as i64;
+        let remaining_score = max_score - your_score;
+
+        problems.push(ProblemState {
+            problem_id,
+            your_dislikes,
+            minimal_dislikes,
+            point_ratio,
+            max_score,
+            your_score,
+            remaining_score,
+        });
+    }
+
+    Ok(problems)
+}
+
+fn load_cookie_store(session_file: impl AsRef<Path>, endpoint: &str) -> Result<Jar> {
+    let url = endpoint.parse().unwrap();
+    let jar = reqwest::cookie::Jar::default();
+    let f = fs::File::open(session_file);
+
+    if f.is_err() {
+        bail!("session.txt not found. Please login first.");
+    }
+
+    for line in BufReader::new(f.unwrap()).lines() {
+        let v = line?
+            .split("; ")
+            .map(|s| HeaderValue::from_str(s).unwrap())
+            .collect_vec();
+        jar.set_cookies(&mut v.iter(), &url)
+    }
+
+    Ok(jar)
 }
